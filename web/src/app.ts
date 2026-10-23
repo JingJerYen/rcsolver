@@ -707,6 +707,11 @@ async function openSharedLink() {
   openSaved({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0 });
   history.replaceState(null, "", location.pathname);
 }
+// LINE's in-app browser has no live camera, but it opens any link carrying this flag in the
+// phone's real browser: send ourselves there once, keeping the shared cube in the hash.
+if (/\bLine\//i.test(navigator.userAgent) && !location.search.includes("openExternalBrowser")) {
+  location.replace(`${location.pathname}?openExternalBrowser=1${location.hash}`);
+}
 showScreen("setup");
 void openSharedLink();
 window.addEventListener("hashchange", () => void openSharedLink());
