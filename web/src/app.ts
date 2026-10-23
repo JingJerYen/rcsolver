@@ -8,7 +8,7 @@ import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
 import { fromFacelets, toFacelets } from "./facelets.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Move, type Sticker } from "./cubeState.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -74,6 +74,37 @@ const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
 const previewView = new CubeView($<HTMLCanvasElement>("preview"));
 let miniViews: CubeView[] = [];
+
+/* ---------- empty-state hero: a 4×4 that keeps turning while the camera drifts ---------- */
+const heroView = new CubeView($<HTMLCanvasElement>("heroCube"));
+let heroOn = false;
+let heroTimer = 0;
+const HERO_TOKENS = ["U", "U'", "R", "R'", "F", "F'", "D", "L'", "B", "2U", "2U'", "2R", "2R'", "2F", "Rw", "Rw'", "Uw", "Fw'"];
+
+function heroLoop() {
+  if (!heroOn) return;
+  const tok = HERO_TOKENS[Math.floor(Math.random() * HERO_TOKENS.length)]!;
+  void heroView.animate(parseMove(tok, 4), 1, 650).then(() => {
+    heroTimer = window.setTimeout(heroLoop, 250);
+  });
+}
+
+function setHero(on: boolean) {
+  $("hero").classList.toggle("hidden", !on);
+  if (on === heroOn) return;
+  heroOn = on;
+  clearTimeout(heroTimer);
+  if (on) {
+    const colors: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
+    const solved = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: 4 }, () => colors[f].repeat(4))])) as Record<Face, string[]>;
+    heroView.setState(4, applyAlgorithm(fromNet(4, solved), parseAlgorithm("R 2U F' Rw2 D 2L' B U2 2F R'", 4)));
+    heroView.resetView();
+    heroView.orbit(0.0045);
+    heroLoop();
+  } else {
+    heroView.orbit(0);
+  }
+}
 const SHARE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg>`;
 
 function renderSaves() {
@@ -83,6 +114,7 @@ function renderSaves() {
   miniViews = [];
   root.innerHTML = "";
   root.classList.toggle("hidden", list.length === 0);
+  setHero(list.length === 0);
   list.forEach((sv, i) => {
     const el = document.createElement("div");
     el.className = "save";
@@ -148,6 +180,7 @@ function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
   // the paste-a-state button lives in the header and only matters on the start screen
   $("import").classList.toggle("hidden", id !== "setup");
+  setHero(id === "setup" && loadSaves().length === 0);
 }
 
 /* ---------- capture flow ---------- */

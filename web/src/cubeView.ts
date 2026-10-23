@@ -20,6 +20,8 @@ export class CubeView {
   private raf = 0;
   private drag: { x: number; y: number } | null = null;
   private ro: ResizeObserver;
+  private orbitSpeed = 0;
+  private orbitRaf = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -61,6 +63,20 @@ export class CubeView {
     this.yaw = DEFAULT_VIEW.yaw;
     this.pitch = DEFAULT_VIEW.pitch;
     this.draw();
+  }
+
+  /** Keep the camera drifting around the cube (radians per frame); 0 stops it. */
+  orbit(speed: number) {
+    this.orbitSpeed = speed;
+    cancelAnimationFrame(this.orbitRaf);
+    if (!speed) return;
+    const tick = () => {
+      if (!this.orbitSpeed) return;
+      this.yaw += this.orbitSpeed;
+      if (!this.anim) this.draw();
+      this.orbitRaf = requestAnimationFrame(tick);
+    };
+    this.orbitRaf = requestAnimationFrame(tick);
   }
 
   /** Animate `move` (or its inverse when dir is -1), then commit it to the state. */
@@ -254,6 +270,7 @@ export class CubeView {
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    cancelAnimationFrame(this.orbitRaf);
     this.ro.disconnect();
   }
 }
