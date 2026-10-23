@@ -146,6 +146,8 @@ function openSaved(sv: Save) {
 
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
+  // the paste-a-state button lives in the header and only matters on the start screen
+  $("import").classList.toggle("hidden", id !== "setup");
 }
 
 /* ---------- capture flow ---------- */
