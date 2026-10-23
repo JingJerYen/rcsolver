@@ -24,6 +24,13 @@ export class CubeView {
   private orbitRaf = 0;
   /** Direction arrows during turns; off for decorative views. */
   showArrows = true;
+  /** Sticker keys ("x,y,z|nx,ny,nz") drawn in colour; every other sticker is plain grey. Null colours all. */
+  private focus: Set<string> | null = null;
+
+  setFocus(keys: Set<string> | null) {
+    this.focus = keys;
+    if (!this.anim) this.draw();
+  }
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -136,6 +143,7 @@ export class CubeView {
     const rot = (p: Vec, active: boolean): Vec => (active && anim ? rotateVec(p, anim.move.axis, angle) : p);
 
     type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number };
+    const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
     for (const x of vals) for (const y of vals) for (const z of vals) {
       // only cubies on the surface have stickers; skip the hidden interior
@@ -156,13 +164,15 @@ export class CubeView {
             p[v] += vv * half;
             return project(rot(p, active));
           });
-        const col = this.lookup.get(`${c.join(",")}|${n.join(",")}`);
+        const key = `${c.join(",")}|${n.join(",")}`;
+        const raw = this.lookup.get(key);
+        const muted = this.focus !== null && !this.focus.has(key);
         const centre: Vec = [...c] as Vec;
         centre[ax] += sign;
         faces.push({
           poly: polygon(0.975),
           st: polygon(0.8),
-          col: col ? COLOR_HEX[col as keyof typeof COLOR_HEX] : undefined,
+          col: raw ? (muted ? GREY : COLOR_HEX[raw as keyof typeof COLOR_HEX]) : undefined,
           active,
           depth: dot(rot(centre, active), b.view),
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),

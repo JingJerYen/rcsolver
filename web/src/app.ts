@@ -4,7 +4,7 @@ import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment } from "./solveAny.js";
-import { chipsFor, describe, segmentAt } from "./guide.js";
+import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -516,8 +516,8 @@ const CHIP_ICONS: Record<Segment["kind"], string> = {
 };
 
 /**
- * Guide mode, behind the "?" button on the cube: stage chips and the explanation for the move
- * being shown. Off by default so the ordinary view stays plain.
+ * Guide mode, behind the "?" button on the cube: stage chips, the cube with only this stage's
+ * pieces in colour, and the explanation for the move being shown. Off by default.
  */
 function renderGuide() {
   const row = $("stagesRow");
@@ -527,6 +527,7 @@ function renderGuide() {
   if (!segments || !net || !guideOn) {
     row.classList.add("hidden");
     $("guideText").classList.add("hidden");
+    cubeView.setFocus(null);
     return;
   }
   row.classList.remove("hidden");
@@ -541,6 +542,8 @@ function renderGuide() {
     })
     .join("");
   const seg = segmentAt(segments, at);
+  // only the pieces this stage works on keep their colours; the rest go grey
+  cubeView.setFocus(focusKeys(seg, net.size));
   const text = $("guideText");
   text.classList.toggle("hidden", !seg);
   if (seg) {

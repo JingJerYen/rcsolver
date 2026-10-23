@@ -1,11 +1,83 @@
 /**
- * Guide mode: how the stages of a solution group into chips, and a short explanation of the
- * strategy for each. Pure helpers over the solver's segments.
+ * Guide mode: which pieces a stretch of the solution works on, how the stages group into chips,
+ * and a short explanation of the strategy for each. Pure helpers over the solver's segments.
  */
 import type { Segment } from "./solveAny.js";
+import { layerValues, type Vec } from "./cubeState.js";
+import { centreSolverFor } from "./solvers/centres.js";
+import { wingOrbits } from "./solvers/wings.js";
+
+const key = (p: Vec, n: Vec) => `${p.join(",")}|${n.join(",")}`;
 
 export function segmentAt(segments: Segment[], moveIndex: number): Segment | null {
   return segments.find((s) => moveIndex >= s.from && moveIndex < s.to) ?? null;
+}
+
+/** Sticker keys shown in colour while this segment runs; null means every sticker. The rest turn grey. */
+export function focusKeys(seg: Segment | null, size: number): Set<string> | null {
+  if (!seg) return null;
+  const m = size - 1;
+  const odd = size % 2 === 1;
+  const out = new Set<string>();
+  const addMidges = () => {
+    for (const p of edgeMidPositions(size)) for (const n of edgeNormals(p, m)) out.add(key(p, n));
+  };
+  if (seg.kind === "centres") {
+    for (const pos of centreSolverFor(size).orbits[seg.orbit]!.positions) out.add(key(pos.p, pos.n));
+    return out;
+  }
+  if (seg.kind === "edges") {
+    const orbits = wingOrbits(size);
+    const add = (oi: number) => {
+      for (const w of orbits[oi]!.positions) for (const n of w.faces) out.add(key(w.p, n));
+    };
+    add(seg.orbit);
+    // the reference the orbit is matched against
+    if (odd) addMidges();
+    else if (seg.orbit > 0) add(0);
+    return out;
+  }
+  if (seg.kind === "parity") {
+    // the UF and UB edges, which the parity algorithms flip or swap
+    const vals = layerValues(size);
+    for (const x of vals) for (const z of [-m, m]) {
+      const p: Vec = [x, m, z];
+      for (const n of edgeNormals(p, m)) out.add(key(p, n));
+    }
+    return out;
+  }
+  if (seg.kind === "cube3" && odd && size > 3) {
+    // the 3×3 skeleton of an odd cube: corners, middle edges and middle centres
+    for (const x of [-m, 0, m]) for (const y of [-m, 0, m]) for (const z of [-m, 0, m]) {
+      const p: Vec = [x, y, z];
+      for (let ax = 0; ax < 3; ax++) {
+        if (Math.abs(p[ax]!) !== m) continue;
+        const n: Vec = [0, 0, 0];
+        n[ax] = Math.sign(p[ax]!);
+        out.add(key(p, n));
+      }
+    }
+    return out;
+  }
+  return null;
+}
+
+function edgeNormals(p: Vec, m: number): Vec[] {
+  const out: Vec[] = [];
+  for (let ax = 0; ax < 3; ax++) {
+    if (Math.abs(p[ax]!) !== m) continue;
+    const n: Vec = [0, 0, 0];
+    n[ax] = Math.sign(p[ax]!);
+    out.push(n);
+  }
+  return out;
+}
+
+function edgeMidPositions(size: number): Vec[] {
+  const m = size - 1;
+  const out: Vec[] = [];
+  for (const a of [-m, m]) for (const b of [-m, m]) out.push([0, a, b], [a, 0, b], [a, b, 0]);
+  return out;
 }
 
 export interface Chip {
@@ -31,11 +103,11 @@ export function describe(seg: Segment, size: number): { title: string; body: str
   switch (seg.kind) {
     case "centres": {
       const stage = ["先把白色和黃色的中心格都集中到上面和下面。", "再把紅色和橘色分到左右兩面，綠色和藍色自然就到了前後。", "最後讓每一面各自歸位。"][seg.stage]!;
-      const group = seg.orbits > 1 ? `中心格分成幾組，每一組只會在組內互換，所以一組一組解；現在是${seg.orbit === 0 ? "角落那一組" : `第 ${seg.orbit + 1} 組`}。${seg.orbit > 0 ? "這一組只用不會弄亂前面幾組的公式。" : ""}` : "四個中心格只會在這些位置之間互換。";
+      const group = seg.orbits > 1 ? `中心格分成幾組，每一組只會在組內互換，所以一組一組解；彩色的就是現在這一組。${seg.orbit > 0 ? "這一組只用不會弄亂前面幾組的公式。" : ""}` : "彩色的中心格只會在這些位置之間互換。";
       return { title: `中心 ${seg.orbit + 1}/${seg.orbits}・階段 ${seg.stage + 1}/3`, body: `${group}${stage}` };
     }
     case "edges": {
-      const ref = odd ? "以每條邊中央那一塊的顏色為準。" : seg.orbit === 0 ? "先讓每條邊上的翼塊兩兩成對。" : "以最外層那組翼塊為準對齊。";
+      const ref = odd ? "以每條邊中央那一塊（也是彩色）的顏色為準。" : seg.orbit === 0 ? "先讓每條邊上的翼塊兩兩成對。" : "以最外層那組翼塊（也是彩色）為準對齊。";
       return { title: `邊塊 ${seg.orbit + 1}/${seg.orbits}`, body: `外層先轉幾下把要配的兩塊擺到位，接一條只換三塊的公式，其他全部不動。${ref}` };
     }
     case "parity":
