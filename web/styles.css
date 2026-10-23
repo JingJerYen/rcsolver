@@ -93,12 +93,7 @@ th{color:#607189;font-weight:600}
 .step-head .badge+.badge{margin-left:8px}
 .icon-btn.on{background:#195ed6;color:#fff;border-color:#195ed6}
 .editor{margin-top:12px;padding-top:8px;border-top:1px dashed #dde5ef}
-.pace-row{display:flex;align-items:center;gap:10px;margin:8px 4px 0}
-.pace-row .slider{flex:1;height:32px;margin:0;direction:rtl}
-.pace-row .slider::-webkit-slider-runnable-track{height:6px}
-.pace-row .slider::-webkit-slider-thumb{width:22px;height:22px;border-width:3px;margin-top:-8px}
-.pace-icon{font-size:22px;line-height:1}
-.pace-value{min-width:38px;text-align:right;font-weight:700;color:#5a6b80;font-variant-numeric:tabular-nums}
+.pace{flex-direction:column;gap:1px;color:#8a97a8;border-color:#e3e9f1;font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .move-row{display:flex;align-items:center;justify-content:center;gap:18px;min-height:60px}
 .angle{font-size:22px;font-weight:700;color:#607189;min-width:64px;font-variant-numeric:tabular-nums}
 .icon-btn.confirm{background:#fdecea;color:#b02a37;border-color:#e03131;animation:badpulse 1s ease-in-out infinite}
