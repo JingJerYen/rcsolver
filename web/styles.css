@@ -109,3 +109,5 @@ th{color:#607189;font-weight:600}
 .save .mini{width:100%;aspect-ratio:1/1;display:block;touch-action:auto;pointer-events:none}
 .save .badge{font-size:12px;padding:3px 8px}
 .save .del{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;padding:0;font-size:12px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}
+.save .share{width:36px;height:36px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.save .share.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}

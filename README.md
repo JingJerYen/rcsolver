@@ -33,6 +33,8 @@ npm test
 
 辨識畫面的複製鈕會複製 Kociemba 格式的 facelet 字串：面的順序 U R F D L B，每面逐列，每格一個字母代表這張貼紙屬於哪一面（3×3 復原狀態是 `UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB`）。奇數階以中心決定面，偶數階以 DBL 角決定。首頁的貼上鈕可以匯入這種字串（也接受 W Y R O G B 顏色字母）直接重現狀態。
 
+解題畫面的儲存鈕把初始狀態、解法和進度存在瀏覽器裡（不限筆數），首頁列出縮圖可以點回去繼續；每筆的分享鈕複製一個連結，格式是 `#s=<facelets>&m=<解法>&i=<步數>`，對方打開就看到同一顆方塊和同一段解法。
+
 ## 端點
 
 | 方法 | 路徑 | 說明 |

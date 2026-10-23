@@ -25,12 +25,11 @@ interface Save {
   index: number;
 }
 const SAVES_KEY = "rcsolver.saves";
-const MAX_SAVES = 3;
 
 function loadSaves(): Save[] {
   try {
     const list = JSON.parse(localStorage.getItem(SAVES_KEY) ?? "[]") as Save[];
-    return Array.isArray(list) ? list.slice(0, MAX_SAVES) : [];
+    return Array.isArray(list) ? list : [];
   } catch {
     return [];
   }
@@ -38,9 +37,28 @@ function loadSaves(): Save[] {
 
 function storeSaves(list: Save[]) {
   try {
-    localStorage.setItem(SAVES_KEY, JSON.stringify(list.slice(0, MAX_SAVES)));
+    localStorage.setItem(SAVES_KEY, JSON.stringify(list));
   } catch {
     /* storage unavailable */
+  }
+}
+
+/** A link that opens this page on the same cube, solution and step. */
+function shareLink(sv: Save): string {
+  const q = new URLSearchParams();
+  q.set("s", toFacelets(sv.faces, sv.size) ?? FACES.map((f) => sv.faces[f].join("")).join(""));
+  if (sv.moves.length) q.set("m", sv.moves.join(" "));
+  if (sv.index) q.set("i", String(sv.index));
+  return `${location.origin}${location.pathname}#${q.toString()}`;
+}
+
+async function copyText(text: string, btn: HTMLElement) {
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.classList.add("ok");
+    setTimeout(() => btn.classList.remove("ok"), 1500);
+  } catch {
+    prompt("", text);
   }
 }
 
@@ -55,19 +73,39 @@ const video = $<HTMLVideoElement>("video");
 const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
 const previewView = new CubeView($<HTMLCanvasElement>("preview"));
-const miniViews = Array.from(document.querySelectorAll<HTMLCanvasElement>("#saves .mini"), (c) => new CubeView(c));
+let miniViews: CubeView[] = [];
+const SHARE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg>`;
 
 function renderSaves() {
   const list = loadSaves();
-  $("saves").classList.toggle("hidden", list.length === 0);
-  document.querySelectorAll<HTMLElement>("#saves .save").forEach((el, i) => {
-    const sv = list[i];
-    el.classList.toggle("hidden", !sv);
-    if (!sv) return;
-    el.querySelector(".badge")!.textContent = `${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}`;
+  const root = $("saves");
+  for (const v of miniViews) v.destroy();
+  miniViews = [];
+  root.innerHTML = "";
+  root.classList.toggle("hidden", list.length === 0);
+  list.forEach((sv, i) => {
+    const el = document.createElement("div");
+    el.className = "save";
+    el.innerHTML = `<canvas class="mini"></canvas><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
+    root.appendChild(el);
+    const view = new CubeView(el.querySelector("canvas")!);
+    miniViews.push(view);
     const start = fromNet(sv.size, sv.faces);
-    miniViews[i]!.setState(sv.size, applyAlgorithm(start, parseAlgorithm(sv.moves.slice(0, sv.index).join(" "), sv.size)));
-    miniViews[i]!.resetView();
+    view.setState(sv.size, applyAlgorithm(start, parseAlgorithm(sv.moves.slice(0, sv.index).join(" "), sv.size)));
+    view.resetView();
+    el.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest(".del")) {
+        const cur = loadSaves();
+        cur.splice(i, 1);
+        storeSaves(cur);
+        renderSaves();
+      } else if (t.closest(".share")) {
+        void copyText(shareLink(sv), t.closest(".share") as HTMLElement);
+      } else {
+        openSave(i);
+      }
+    };
   });
 }
 
@@ -83,10 +121,18 @@ function saveCurrent() {
 
 function openSave(i: number) {
   const sv = loadSaves()[i];
-  if (!sv) return;
+  if (sv) openSaved(sv);
+}
+
+/** Show a saved or shared solve at its step (or just the cube when it has no solution yet). */
+function openSaved(sv: Save) {
   size = sv.size;
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: sv.size }, () => "9".repeat(sv.size))])) as Record<Face, string[]>;
   response = { ok: true, size: sv.size, sizeMismatch: null, recognition: { faces: sv.faces, confidence, notes: [] }, warnings: [], model: "saved", mock: false, ms: 0, usage: null };
+  if (!sv.moves.length) {
+    showResult();
+    return;
+  }
   net = makeState(sv.size, response.recognition);
   renderNet($("net"), net, () => undefined);
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
@@ -415,14 +461,7 @@ $("copyState").onclick = async () => {
   if (!net) return;
   // face letters when the stickers map to faces, otherwise the raw colour letters
   const text = toFacelets(net.current, net.size) ?? FACES.map((f) => net!.current[f].join("")).join("");
-  const btn = $("copyState");
-  try {
-    await navigator.clipboard.writeText(text);
-    btn.classList.add("ok");
-    setTimeout(() => btn.classList.remove("ok"), 1500);
-  } catch {
-    prompt("", text);
-  }
+  await copyText(text, $("copyState"));
 };
 $("import").onclick = () => {
   const text = prompt("", "");
@@ -445,18 +484,6 @@ $("next").onclick = () => {
 };
 $("rewind").onclick = () => jumpTo(0);
 $("save").onclick = saveCurrent;
-document.querySelectorAll<HTMLElement>("#saves .save").forEach((el, i) => {
-  el.onclick = (e) => {
-    if ((e.target as HTMLElement).classList.contains("del")) {
-      const list = loadSaves();
-      list.splice(i, 1);
-      storeSaves(list);
-      renderSaves();
-      return;
-    }
-    openSave(i);
-  };
-});
 renderSaves();
 $("sequence").onclick = (e) => {
   const t = (e.target as HTMLElement).closest(".token") as HTMLElement | null;
@@ -476,17 +503,25 @@ $("play").onclick = () => {
   void step(1);
 };
 $("restart").onclick = () => void startCapture();
-$("copySeq").onclick = async () => {
-  const text = moves.map((m) => m.token).join(" ");
-  const btn = $("copySeq");
+$("copySeq").onclick = () => copyText(moves.map((m) => m.token).join(" "), $("copySeq"));
+// A shared link carries the cube (s), its solution (m) and the step reached (i) in the hash.
+function openSharedLink() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  const parsed = q.get("s") ? fromFacelets(q.get("s")!) : null;
+  if (!parsed) return;
+  const tokens = (q.get("m") ?? "").split(/\s+/).filter(Boolean);
+  let ok = true;
   try {
-    await navigator.clipboard.writeText(text);
-    btn.classList.add("ok");
-    setTimeout(() => btn.classList.remove("ok"), 1500);
+    parseAlgorithm(tokens.join(" "), parsed.size);
   } catch {
-    prompt("", text);
+    ok = false;
   }
-};
+  stopPlaying();
+  openSaved({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0 });
+  history.replaceState(null, "", location.pathname);
+}
+openSharedLink();
+window.addEventListener("hashchange", openSharedLink);
 getHealth()
   .then((h) => $("mock").classList.toggle("hidden", !h.mock))
   .catch(() => undefined);
