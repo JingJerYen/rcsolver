@@ -374,7 +374,22 @@ let startState: Sticker[] = [];
 let playing = false;
 let playTimer = 0;
 let turnMs = 900;
-let playGapMs = 700;
+/** Pause between moves during auto-play: the tortoise/hare slider, remembered on this device. */
+const GAP_KEY = "rcsolver.gap";
+let playGapMs = 3000;
+try {
+  const saved = Number(localStorage.getItem(GAP_KEY));
+  if (saved >= 500 && saved <= 5000) playGapMs = saved;
+} catch {
+  /* storage unavailable */
+}
+function renderPace() {
+  const el = $<HTMLInputElement>("pace");
+  el.value = String(playGapMs);
+  // the slider runs right-to-left (tortoise on the left is the longest pause), so the fill is mirrored
+  el.style.setProperty("--p", `${((5000 - playGapMs) / 4500) * 100}%`);
+  $("paceValue").textContent = `${(playGapMs / 1000).toFixed(playGapMs % 1000 ? 2 : 0).replace(/0$/, "")}s`;
+}
 const SOLVABLE = [2, 3, 4, 5, 6, 7];
 const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
 
@@ -646,6 +661,16 @@ $<HTMLInputElement>("slider").oninput = (e) => {
   }
   jumpTo(v);
 };
+$("pace").oninput = () => {
+  playGapMs = Number($<HTMLInputElement>("pace").value);
+  renderPace();
+  try {
+    localStorage.setItem(GAP_KEY, String(playGapMs));
+  } catch {
+    /* storage unavailable */
+  }
+};
+renderPace();
 $("save").onclick = saveCurrent;
 $("shareSolve").onclick = () => {
   if (!net) return;

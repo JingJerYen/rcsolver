@@ -90,6 +90,12 @@
       <button class="icon-btn play" id="play" aria-label="自動播放"><svg id="playIcon" viewBox="0 0 24 24" width="30" height="30"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg><svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" width="30" height="30"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></button>
       <button class="icon-btn primary next" id="next" aria-label="下一步"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
+    <div class="pace-row">
+      <span class="pace-icon" aria-hidden="true">🐢</span>
+      <input type="range" class="slider pace" id="pace" min="500" max="5000" value="3000" step="250" aria-label="每步停留時間">
+      <span class="pace-icon" aria-hidden="true">🐇</span>
+      <span class="pace-value" id="paceValue">3s</span>
+    </div>
     <div class="done hidden" id="done">
       <div class="check">✓</div>
       <button class="primary go" id="restart" aria-label="再來一次"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
