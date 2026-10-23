@@ -1,0 +1,36 @@
+{
+  "name": "rcsolver",
+  "version": "0.1.0",
+  "description": "Rubik's cube solver: guided photo capture, Claude colour recognition, in-browser solving, 3D guidance",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts",
+    "dev": "npm run build:web && tsx watch src/server.ts",
+    "mock": "npm run build:web && MOCK_MODE=1 tsx src/server.ts",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "esbuild web/src/app.ts --bundle --format=esm --target=es2020 --outfile=public/app.js --minify && node scripts/stamp.mjs",
+    "build:server": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
+    "cf:dev": "npm run build:web && wrangler dev",
+    "cf:deploy": "npm run build:web && wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.13",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.152.0"
+  }
+}

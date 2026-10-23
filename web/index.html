@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>rcsolver・辨色實驗</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>魔術方塊辨色實驗</h1>
+    <p class="muted">照著箭頭轉方塊、拍六面，交給 AI 讀顏色，再核對它讀得準不準。<span id="health"></span></p>
+  </header>
+
+  <section class="card" id="setup">
+    <div class="row">
+      <label>方塊大小
+        <select id="size">
+          <option value="2">2×2</option>
+          <option value="3" selected>3×3</option>
+          <option value="4">4×4</option>
+          <option value="5">5×5</option>
+          <option value="6">6×6</option>
+          <option value="7">7×7</option>
+        </select>
+      </label>
+      <button class="primary" id="start">開始拍攝</button>
+    </div>
+    <p class="notice">拍到的照片會上傳到雲端交給 AI 辨色，辨識完就丟掉，不會保存。只會上傳六張縮小後的照片，不會上傳影片。</p>
+    <details>
+      <summary>拿法與拍攝順序</summary>
+      <ol class="muted">
+        <li>隨便挑一面正對你，記住現在哪一面在「上面」；整個過程不要換上面。</li>
+        <li>拍完一面，整顆向左轉 90°（右邊那面轉到正面），再拍。連做三次，拍到前、右、後、左四面。</li>
+        <li>再向左轉一次回到第一面，然後整顆向下翻 90°，拍上面。</li>
+        <li>整顆向上翻 180°，拍底面。</li>
+      </ol>
+    </details>
+  </section>
+
+  <section class="card hidden" id="capture">
+    <div class="step-head">
+      <span class="badge" id="stepBadge"></span>
+      <span class="muted" id="stepCount"></span>
+    </div>
+    <div class="gesture">
+      <svg id="arrow" viewBox="0 0 120 120" aria-hidden="true"></svg>
+      <p id="gesture"></p>
+    </div>
+    <div class="viewfinder">
+      <video id="video" playsinline autoplay muted></video>
+      <div class="frame"><span class="frame-label" id="frameLabel"></span></div>
+      <div class="cam-error hidden" id="camError"></div>
+    </div>
+    <div class="controls">
+      <button class="primary big" id="shoot">拍這一面</button>
+    </div>
+    <div class="controls">
+      <label class="button">從相簿選擇<input type="file" id="file" accept="image/*" hidden></label>
+      <button id="redo" disabled>重拍上一面</button>
+      <button id="cancel">取消</button>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+
+  <section class="card hidden" id="review">
+    <h2>六面照片</h2>
+    <div class="thumbs" id="reviewThumbs"></div>
+    <div class="controls">
+      <button class="primary big" id="send">送出辨識</button>
+      <button id="retake">重新拍攝</button>
+    </div>
+    <p class="muted" id="sendStatus"></p>
+  </section>
+
+  <section class="card hidden" id="result">
+    <h2>辨識結果</h2>
+    <p class="muted">點格子可以換顏色，把 AI 讀錯的改成正確的。紅框是 AI 自己沒把握的格子。</p>
+    <div id="net" class="net"></div>
+    <div class="legend" id="legend"></div>
+    <div id="warnings" class="notice hidden"></div>
+    <ul id="notes" class="muted"></ul>
+    <div class="stats" id="stats"></div>
+    <div class="controls">
+      <button class="primary" id="record">記錄這次結果</button>
+      <button id="again">再拍一組</button>
+    </div>
+  </section>
+
+  <section class="card" id="history">
+    <h2>實驗紀錄 <span class="muted" id="historyCount"></span></h2>
+    <div class="table-wrap"><table id="runs"><thead><tr><th>時間</th><th>大小</th><th>模型</th><th>秒</th><th>tokens</th><th>錯格</th><th>準確率</th><th>可疑格命中</th></tr></thead><tbody></tbody></table></div>
+    <div class="controls">
+      <button id="copyRuns">複製紀錄 JSON</button>
+      <button id="clearRuns">清除紀錄</button>
+    </div>
+  </section>
+
+  <p class="footer muted">紀錄只存在這台裝置的瀏覽器裡。</p>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

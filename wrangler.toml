@@ -1,0 +1,23 @@
+# Cloudflare Workers deployment: `npm run cf:deploy` (after `npx wrangler login`).
+# Secrets: `npx wrangler secret put RCSOLVER_ANTHROPIC_KEY`. Never put the key in this file.
+name = "rcsolver"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+# Only API paths run the Worker; everything else is served straight from ./public.
+run_worker_first = ["/api/*"]
+
+[vars]
+RECOGNIZE_MODEL = "claude-opus-5-5"
+RECOGNIZE_EFFORT = "medium"
+RATE_LIMIT_PER_MIN = "6"
+DAILY_LIMIT = "100"
+
+# Optional: a KV namespace makes the daily cap count across all isolates.
+# Create one with `npx wrangler kv namespace create QUOTA` and paste the id here.
+# [[kv_namespaces]]
+# binding = "QUOTA"
+# id = "..."
