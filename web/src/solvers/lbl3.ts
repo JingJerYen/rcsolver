@@ -106,7 +106,7 @@ function teach(net: Net): TeachResult {
     const from = moves.length;
     s = s.apply(alg);
     moves.push(...tokens);
-    const pieces = stage <= 2 ? [...solved, ...(current ? [sig(current)] : [])] : null;
+    const pieces = stage <= 3 ? [...solved, ...(current ? [sig(current)] : [])] : null;
     segments.push({ kind: "lbl", from, to: moves.length, stage, title, body, ...(formula ? { alg: formula } : {}), pieces });
   };
 
