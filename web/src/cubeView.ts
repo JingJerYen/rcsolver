@@ -45,7 +45,8 @@ export class CubeView {
     });
     canvas.addEventListener("pointermove", (e) => {
       if (!this.drag) return;
-      this.yaw += (e.clientX - this.drag.x) * 0.009;
+      // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
+      this.yaw -= (e.clientX - this.drag.x) * 0.009;
       this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
       this.drag = { x: e.clientX, y: e.clientY };
       if (!this.anim) this.draw();
