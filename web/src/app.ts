@@ -515,10 +515,16 @@ const CHIP_ICONS: Record<Segment["kind"], string> = {
   optimal: `<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>`,
 };
 
-/** Stage chips, the dimmed cube and the explanation for the move being shown. */
+/**
+ * Guide mode, behind the "?" button on the cube: stage chips, the dimmed cube and the explanation
+ * for the move being shown. Off by default so the ordinary view stays plain.
+ */
 function renderGuide() {
   const row = $("stagesRow");
-  if (!segments || !net) {
+  const btn = $("guideBtn");
+  btn.classList.toggle("hidden", !segments);
+  btn.classList.toggle("on", guideOn);
+  if (!segments || !net || !guideOn) {
     row.classList.add("hidden");
     $("guideText").classList.add("hidden");
     cubeView.setFocus(null);
@@ -537,9 +543,8 @@ function renderGuide() {
     .join("");
   const seg = segmentAt(segments, at);
   cubeView.setFocus(focusKeys(seg, net.size));
-  $("guideBtn").classList.toggle("on", guideOn);
   const text = $("guideText");
-  text.classList.toggle("hidden", !guideOn || !seg);
+  text.classList.toggle("hidden", !seg);
   if (seg) {
     const d = describe(seg, net.size);
     $("guideTitle").textContent = d.title;
