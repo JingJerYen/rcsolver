@@ -29,10 +29,6 @@ export function setCell(grid: string[], r: number, c: number, color: Color) {
   grid[r] = row.slice(0, c) + color + row.slice(c + 1);
 }
 
-export function cycleColor(color: Color): Color {
-  return COLORS[(COLORS.indexOf(color) + 1) % COLORS.length]!;
-}
-
 export function colorCounts(grid: Record<Face, string[]>): Record<Color, number> {
   const counts = Object.fromEntries(COLORS.map((c) => [c, 0])) as Record<Color, number>;
   for (const f of FACES) for (const row of grid[f]) for (const ch of row) counts[ch as Color]++;
@@ -70,13 +66,14 @@ export function accuracy(s: NetState): Accuracy {
   return { cells: 6 * s.size * s.size, corrected, correctedByFace: byFace, lowConfidence: low, lowConfidenceCorrected: lowCorrected };
 }
 
-/** Draw the net; tapping a cell cycles its colour and calls onChange. */
-export function renderNet(root: HTMLElement, s: NetState, onChange: () => void) {
+/** Draw the net; the cells are too small to hit one by one, so tapping a face hands it to `onFace` to open up. */
+export function renderNet(root: HTMLElement, s: NetState, onFace?: (face: Face) => void) {
   root.innerHTML = "";
   for (const f of FACES) {
     const [col, row] = NET_POS[f];
     const face = document.createElement("div");
-    face.className = "face";
+    face.className = onFace ? "face tap" : "face";
+    if (onFace) face.addEventListener("click", () => onFace(f));
     face.style.gridColumn = String(col + 1);
     face.style.gridRow = String(row + 1);
     face.style.gridTemplateColumns = `repeat(${s.size},1fr)`;
@@ -87,24 +84,16 @@ export function renderNet(root: HTMLElement, s: NetState, onChange: () => void) 
     for (let r = 0; r < s.size; r++) {
       for (let c = 0; c < s.size; c++) {
         const cell = document.createElement("div");
-        const paint = () => {
-          const color = cellAt(s.current[f], r, c);
-          cell.style.background = COLOR_HEX[color];
-          cell.textContent = s.size <= 5 ? color : "";
-          cell.classList.toggle("edited", color !== cellAt(s.original[f], r, c));
-        };
+        const color = cellAt(s.current[f], r, c);
         cell.className = "cell";
+        cell.style.background = COLOR_HEX[color];
+        cell.textContent = s.size <= 5 ? color : "";
+        cell.classList.toggle("edited", color !== cellAt(s.original[f], r, c));
         cell.dataset.face = f;
         cell.dataset.row = String(r);
         cell.dataset.col = String(c);
         if (Number(s.confidence[f][r]![c]) < LOW_CONFIDENCE) cell.classList.add("low");
         cell.title = `${f} 第 ${r + 1} 列第 ${c + 1} 格，信心 ${s.confidence[f][r]![c]}`;
-        cell.addEventListener("click", () => {
-          setCell(s.current[f], r, c, cycleColor(cellAt(s.current[f], r, c)));
-          paint();
-          onChange();
-        });
-        paint();
         face.appendChild(cell);
       }
     }
