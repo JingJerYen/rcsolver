@@ -8,6 +8,7 @@ import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
 import { fromFacelets, toFacelets } from "./facelets.js";
+import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 
@@ -43,13 +44,15 @@ function storeSaves(list: Save[]) {
   }
 }
 
-/** A link that opens this page on the same cube, solution and step. */
+/**
+ * A short link that opens this page on the same cube and step. The solvers are deterministic, so
+ * the moves ride along only when they differ from what the solver gives for this cube.
+ */
 function shareLink(sv: Save): string {
-  const q = new URLSearchParams();
-  q.set("s", toFacelets(sv.faces, sv.size) ?? FACES.map((f) => sv.faces[f].join("")).join(""));
-  if (sv.moves.length) q.set("m", sv.moves.join(" "));
-  if (sv.index) q.set("i", String(sv.index));
-  return `${location.origin}${location.pathname}#${q.toString()}`;
+  const own = computeSolution(sv.size, sv.faces);
+  const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
+  const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }) });
+  return `${location.origin}${location.pathname}#z=${token}`;
 }
 
 async function copyText(text: string, btn: HTMLElement) {
@@ -367,35 +370,47 @@ function fail(badCells: { face: Face; row: number; col: number }[]) {
   return null;
 }
 
+type Cell = { face: Face; row: number; col: number };
+
+/** Solve a net with the right solver; a failure names the cells that cannot be right (maybe none). */
+function solveNet(size: number, n: Record<Face, string[]>): { ok: true; moves: string[] } | { ok: false; badCells: Cell[] } {
+  let moves: string[];
+  if (size === 3) {
+    const conv = netToFacelets(n);
+    if (!conv) return { ok: false, badCells: FACES.map((face) => ({ face, row: 1, col: 1 })) };
+    const v = checkFacelets(conv.facelets);
+    if (!v.ok) return { ok: false, badCells: v.badFacelets.map(faceletCell) };
+    try {
+      moves = solve3(conv.facelets);
+    } catch {
+      return { ok: false, badCells: [] };
+    }
+  } else if (size === 2) {
+    const r = solve2(n);
+    if (!r.ok) return { ok: false, badCells: r.badFacelets.map((i) => ({ face: FACES[Math.floor(i / 4)]!, row: Math.floor((i % 4) / 2), col: i % 2 })) };
+    moves = r.moves;
+  } else if (size === 4) {
+    const r = solve4(n);
+    if (!r.ok) return { ok: false, badCells: r.badCells };
+    moves = r.moves;
+  } else {
+    return { ok: false, badCells: [] };
+  }
+  // Belt and braces: replay the solution on our own model before trusting it.
+  if (!isSolved(applyAlgorithm(fromNet(size, n), parseAlgorithm(moves.join(" "), size)))) return { ok: false, badCells: [] };
+  return { ok: true, moves };
+}
+
+function computeSolution(size: number, n: Record<Face, string[]>): string[] | null {
+  const r = solveNet(size, n);
+  return r.ok ? r.moves : null;
+}
+
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
 function trySolve(): string[] | null {
   if (!net) return null;
-  const n = net.current;
-  let solution: string[];
-  if (net.size === 3) {
-    const conv = netToFacelets(n);
-    if (!conv) return fail(FACES.map((face) => ({ face, row: 1, col: 1 })));
-    const v = checkFacelets(conv.facelets);
-    if (!v.ok) return fail(v.badFacelets.map(faceletCell));
-    try {
-      solution = solve3(conv.facelets);
-    } catch {
-      return fail([]);
-    }
-  } else if (net.size === 2) {
-    const r = solve2(n);
-    if (!r.ok) return fail(r.badFacelets.map((i) => ({ face: FACES[Math.floor(i / 4)]!, row: Math.floor((i % 4) / 2), col: i % 2 })));
-    solution = r.moves;
-  } else if (net.size === 4) {
-    const r = solve4(n);
-    if (!r.ok) return fail(r.badCells);
-    solution = r.moves;
-  } else {
-    return null;
-  }
-  // Belt and braces: replay the solution on our own model before showing it.
-  if (!isSolved(applyAlgorithm(fromNet(net.size, n), parseAlgorithm(solution.join(" "), net.size)))) return fail([]);
-  return solution;
+  const r = solveNet(net.size, net.current);
+  return r.ok ? r.moves : fail(r.badCells);
 }
 
 function startSolve() {
@@ -559,7 +574,7 @@ $("import").onclick = async () => {
   importText.value = "";
   try {
     const clip = (await navigator.clipboard.readText()).trim();
-    if (clip && (clip.includes("#s=") || fromFacelets(clip))) importText.value = clip;
+    if (clip && (clip.includes("#s=") || clip.includes("#z=") || fromFacelets(clip))) importText.value = clip;
   } catch {
     /* no clipboard access: the user pastes by hand */
   }
@@ -573,17 +588,20 @@ $("importDialog").querySelector("form")!.onsubmit = (e) => {
   // a shared link: take the state (and solution) out of its hash
   const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : "";
   const q = new URLSearchParams(hash);
-  const parsed = fromFacelets(q.get("s") ?? text);
+  // a shared link (compact z token or the older s/m/i form) goes through the link opener
+  const isLink = q.get("z") ? decodeShare(q.get("z")!) !== null : q.get("s") ? fromFacelets(q.get("s")!) !== null : false;
+  if (isLink) {
+    importDialog.close();
+    location.hash = hash;
+    openSharedLink();
+    return;
+  }
+  const parsed = fromFacelets(text);
   if (!parsed) {
     $("importError").classList.remove("hidden");
     return;
   }
   importDialog.close();
-  if (q.get("s")) {
-    location.hash = hash;
-    openSharedLink();
-    return;
-  }
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: parsed.size }, () => "9".repeat(parsed.size))])) as Record<Face, string[]>;
   response = { ok: true, size: parsed.size, sizeMismatch: null, recognition: { faces: parsed.net, confidence, notes: [] }, warnings: [], model: "import", mock: false, ms: 0, usage: null };
   showResult();
@@ -630,6 +648,15 @@ $("copySeq").onclick = () => copyText(moves.map((m) => m.token).join(" "), $("co
 // A shared link carries the cube (s), its solution (m) and the step reached (i) in the hash.
 function openSharedLink() {
   const q = new URLSearchParams(location.hash.slice(1));
+  const z = q.get("z") ? decodeShare(q.get("z")!) : null;
+  if (z) {
+    stopPlaying();
+    // no moves in the token: the solver reproduces them (the same solution the sender had)
+    const moves = z.moves ?? computeSolution(z.size, z.faces) ?? [];
+    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index });
+    history.replaceState(null, "", location.pathname);
+    return;
+  }
   const parsed = q.get("s") ? fromFacelets(q.get("s")!) : null;
   if (!parsed) return;
   const tokens = (q.get("m") ?? "").split(/\s+/).filter(Boolean);
