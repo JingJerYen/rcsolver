@@ -23,6 +23,7 @@
           <option value="7">7×7</option>
         </select>
       </label>
+      <button class="icon-btn tall" id="import" aria-label="貼上方塊狀態"><svg viewBox="0 0 24 24" width="24" height="24"><rect x="5" y="4" width="14" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button class="primary big icon-text" id="start" aria-label="開始拍攝"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
     <p class="notice small">拍到的照片會上傳到雲端交給 AI 辨色，辨識完就丟掉，不會保存。</p>
@@ -60,6 +61,7 @@
     <div class="step-head">
       <span class="badge" id="sizeBadge"></span>
       <span class="badge warn hidden" id="invalidBadge">⚠</span>
+      <button class="icon-btn" id="copyState" aria-label="複製方塊狀態"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn" id="fix" aria-label="修正顏色"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18l3 3 6.5-6.5a4 4 0 0 0 5.2-5.2l-2.6 2.6-2.1-2.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
     <canvas id="preview" class="cube" aria-label="辨識出來的方塊，可拖曳旋轉"></canvas>

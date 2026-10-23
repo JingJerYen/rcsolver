@@ -90,6 +90,8 @@ th{color:#607189;font-weight:600}
 .done{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:14px}
 .check{font-size:72px;line-height:1;color:#197948;font-weight:800}
 .step-head .icon-btn{margin-left:auto}
+.step-head .icon-btn+.icon-btn{margin-left:8px}
+.icon-btn.tall{width:60px;height:60px;border-radius:12px}
 .step-head .badge+.badge{margin-left:8px}
 .icon-btn.on{background:#195ed6;color:#fff;border-color:#195ed6}
 .editor{margin-top:12px;padding-top:8px;border-top:1px dashed #dde5ef}
@@ -102,4 +104,4 @@ th{color:#607189;font-weight:600}
 .token.done{background:#e3f4e9;color:#2d7251}
 .token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
 .small-btn{width:44px;height:44px;flex:none}
-.small-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
+.icon-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}

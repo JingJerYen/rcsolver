@@ -29,6 +29,10 @@ npm test
 
 也能跑在任何 Node 主機（Render、Fly）：`npm run build && npm start`，記得設 `TRUST_PROXY=1`。
 
+## 分享狀態
+
+辨識畫面的複製鈕會複製 Kociemba 格式的 facelet 字串：面的順序 U R F D L B，每面逐列，每格一個字母代表這張貼紙屬於哪一面（3×3 復原狀態是 `UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB`）。奇數階以中心決定面，偶數階以 DBL 角決定。首頁的貼上鈕可以匯入這種字串（也接受 W Y R O G B 顏色字母）直接重現狀態。
+
 ## 端點
 
 | 方法 | 路徑 | 說明 |

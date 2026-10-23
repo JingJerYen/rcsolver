@@ -7,6 +7,7 @@ import { solve3, warmUp } from "./solver.js";
 import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
+import { fromFacelets, toFacelets } from "./facelets.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 
@@ -341,6 +342,33 @@ $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
 $("solve").onclick = startSolve;
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
+$("copyState").onclick = async () => {
+  if (!net) return;
+  // face letters when the stickers map to faces, otherwise the raw colour letters
+  const text = toFacelets(net.current, net.size) ?? FACES.map((f) => net!.current[f].join("")).join("");
+  const btn = $("copyState");
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.classList.add("ok");
+    setTimeout(() => btn.classList.remove("ok"), 1500);
+  } catch {
+    prompt("", text);
+  }
+};
+$("import").onclick = () => {
+  const text = prompt("", "");
+  if (!text) return;
+  const parsed = fromFacelets(text);
+  if (!parsed) {
+    const btn = $("import");
+    btn.classList.add("confirm");
+    setTimeout(() => btn.classList.remove("confirm"), 1200);
+    return;
+  }
+  const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: parsed.size }, () => "9".repeat(parsed.size))])) as Record<Face, string[]>;
+  response = { ok: true, size: parsed.size, sizeMismatch: null, recognition: { faces: parsed.net, confidence, notes: [] }, warnings: [], model: "import", mock: false, ms: 0, usage: null };
+  showResult();
+};
 $("closeSolve").onclick = homeFromSolve;
 $("next").onclick = () => {
   stopPlaying();
