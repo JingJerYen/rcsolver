@@ -87,3 +87,7 @@ th{color:#607189;font-weight:600}
 .play-row .play{width:60px;height:60px}
 .done{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:14px}
 .check{font-size:72px;line-height:1;color:#197948;font-weight:800}
+.step-head .icon-btn{margin-left:auto}
+.step-head .badge+.badge{margin-left:8px}
+.icon-btn.on{background:#195ed6;color:#fff;border-color:#195ed6}
+.editor{margin-top:12px;padding-top:8px;border-top:1px dashed #dde5ef}

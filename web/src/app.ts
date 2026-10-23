@@ -41,6 +41,7 @@ let net: NetState | null = null;
 const video = $<HTMLVideoElement>("video");
 const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
+const previewView = new CubeView($<HTMLCanvasElement>("preview"));
 
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
@@ -165,6 +166,11 @@ async function send() {
   showResult();
 }
 
+function setEditor(open: boolean) {
+  $("editor").classList.toggle("hidden", !open);
+  $("fix").classList.toggle("on", open);
+}
+
 function showResult() {
   if (!response) return;
   size = response.size;
@@ -172,9 +178,13 @@ function showResult() {
   showScreen("result");
   $("sizeBadge").textContent = `${size}×${size}`;
   $("invalidBadge").classList.add("hidden");
+  setEditor(false);
+  previewView.setState(size, fromNet(size, net.current));
+  previewView.resetView();
   renderNet($("net"), net, () => {
     markBadCells($("net"), []);
     $("invalidBadge").classList.add("hidden");
+    if (net) previewView.setState(net.size, fromNet(net.size, net.current));
     refreshStats();
   });
   const sn = $("sizeNote");
@@ -249,6 +259,7 @@ const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 3
 function fail(badCells: { face: Face; row: number; col: number }[]) {
   markBadCells($("net"), badCells);
   $("invalidBadge").classList.remove("hidden");
+  setEditor(true);
   const card = $("result");
   card.classList.remove("shake");
   void card.offsetWidth;
@@ -383,6 +394,7 @@ $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
 $("record").onclick = recordRun;
 $("solve").onclick = startSolve;
+$("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
 $("closeSolve").onclick = () => {
   stopPlaying();
   showScreen("result");
