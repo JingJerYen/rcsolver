@@ -24,13 +24,6 @@ export class CubeView {
   private orbitRaf = 0;
   /** Direction arrows during turns; off for decorative views. */
   showArrows = true;
-  /** Sticker keys ("x,y,z|nx,ny,nz") to keep bright; everything else is dimmed. Null shows all. */
-  private focus: Set<string> | null = null;
-
-  setFocus(keys: Set<string> | null) {
-    this.focus = keys;
-    if (!this.anim) this.draw();
-  }
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -142,7 +135,7 @@ export class CubeView {
     const angle = anim ? anim.move.angle * anim.dir * anim.f : 0;
     const rot = (p: Vec, active: boolean): Vec => (active && anim ? rotateVec(p, anim.move.axis, angle) : p);
 
-    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; dim: boolean };
+    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number };
     const faces: FaceDraw[] = [];
     for (const x of vals) for (const y of vals) for (const z of vals) {
       // only cubies on the surface have stickers; skip the hidden interior
@@ -163,8 +156,7 @@ export class CubeView {
             p[v] += vv * half;
             return project(rot(p, active));
           });
-        const key = `${c.join(",")}|${n.join(",")}`;
-        const col = this.lookup.get(key);
+        const col = this.lookup.get(`${c.join(",")}|${n.join(",")}`);
         const centre: Vec = [...c] as Vec;
         centre[ax] += sign;
         faces.push({
@@ -174,7 +166,6 @@ export class CubeView {
           active,
           depth: dot(rot(centre, active), b.view),
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
-          dim: this.focus !== null && !this.focus.has(key),
         });
       }
     }
@@ -194,10 +185,6 @@ export class CubeView {
         ctx.fill();
         ctx.fillStyle = `rgba(0,0,0,${(1 - f.light) * 0.35})`;
         ctx.fill();
-        if (f.dim) {
-          ctx.fillStyle = "rgba(236,241,247,.72)";
-          ctx.fill();
-        }
         ctx.strokeStyle = f.active ? "#fff1a8" : "rgba(255,255,255,.18)";
         ctx.lineWidth = f.active ? 2 : 1;
         ctx.stroke();
