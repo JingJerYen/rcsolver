@@ -94,6 +94,9 @@ export function renderNet(root: HTMLElement, s: NetState, onChange: () => void) 
           cell.classList.toggle("edited", color !== cellAt(s.original[f], r, c));
         };
         cell.className = "cell";
+        cell.dataset.face = f;
+        cell.dataset.row = String(r);
+        cell.dataset.col = String(c);
         if (Number(s.confidence[f][r]![c]) < LOW_CONFIDENCE) cell.classList.add("low");
         cell.title = `${f} 第 ${r + 1} 列第 ${c + 1} 格，信心 ${s.confidence[f][r]![c]}`;
         cell.addEventListener("click", () => {
@@ -109,11 +112,20 @@ export function renderNet(root: HTMLElement, s: NetState, onChange: () => void) 
   }
 }
 
+/** Colour chips with counts only (no words): a chip turns red when its count is not N². */
 export function renderLegend(root: HTMLElement, s: NetState) {
   const counts = colorCounts(s.current);
   const expected = s.size * s.size;
   root.innerHTML = COLORS.map((c) => {
     const off = counts[c] !== expected ? " off" : "";
-    return `<span class="${off.trim()}"><i style="background:${COLOR_HEX[c]};border:1px solid #bbb"></i>${COLOR_NAME[c]} ${counts[c]}/${expected}</span>`;
+    return `<span class="${off.trim()}"><i style="background:${COLOR_HEX[c]};border:1px solid #bbb"></i>${counts[c]}</span>`;
   }).join("");
+}
+
+/** Flag the given net cells as impossible (pulsing red); pass [] to clear. */
+export function markBadCells(root: HTMLElement, cells: { face: Face; row: number; col: number }[]) {
+  root.querySelectorAll(".cell.bad").forEach((el) => el.classList.remove("bad"));
+  for (const c of cells) {
+    root.querySelector(`.cell[data-face="${c.face}"][data-row="${c.row}"][data-col="${c.col}"]`)?.classList.add("bad");
+  }
 }

@@ -9,7 +9,7 @@ p{line-height:1.6;margin:6px 0}
 .card{background:#fff;border:1px solid #dde5ef;border-radius:16px;padding:16px;margin-top:12px}
 .row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
 .row label{justify-content:center}
-.row select{height:100%;min-height:52px;font-size:17px;padding:0 14px}
+.row select{height:100%;min-height:60px;font-size:18px;padding:0 14px}
 label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:#39536e}
 button,select,.button{font:inherit;cursor:pointer;border:1px solid #cdd7e5;border-radius:12px;background:#fff;color:#233b55;padding:10px 14px;font-size:15px}
 button:disabled{opacity:.4;cursor:default}
@@ -63,3 +63,27 @@ th{color:#607189;font-weight:600}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #cdd7e5;border-top-color:#195ed6;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #health.bad{color:#b02a37}
+.top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:18px;color:#39536e}
+.notice.small{font-size:13px}
+.center{text-align:center}
+.go-row{display:flex;gap:10px;align-items:center;margin-top:12px}
+.go{flex:1;min-height:60px;font-size:24px;font-weight:700;letter-spacing:.5px;border-radius:30px;display:inline-flex;align-items:center;justify-content:center}
+.badge.warn{background:#fdecea;color:#b02a37;font-size:16px}
+.cell.bad{animation:badpulse 1s ease-in-out infinite;border-color:#e03131;border-style:solid}
+@keyframes badpulse{0%,100%{box-shadow:0 0 0 0 rgba(224,49,49,.9)}50%{box-shadow:0 0 0 5px rgba(224,49,49,0)}}
+.shake{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.lab{margin-top:12px}
+.lab summary{cursor:pointer;font-size:16px;list-style:none;color:#607189}
+.lab summary::-webkit-details-marker{display:none}
+.cube{display:block;width:100%;aspect-ratio:1/1;max-height:420px;background:radial-gradient(ellipse,#fff,#eaf0f8);border-radius:12px;touch-action:none}
+.move{text-align:center;font-size:40px;font-weight:800;color:#195ed6;min-height:52px;line-height:52px;font-variant-numeric:tabular-nums}
+.progress{height:6px;background:#e7edf5;border-radius:10px;overflow:hidden;margin:4px 0 12px}
+.progress div{height:100%;background:#195ed6;transition:width .2s;width:0}
+.play-row{display:flex;gap:14px;align-items:center;justify-content:center}
+.play-row .icon-btn{width:60px;height:60px}
+.play-row .next{width:84px;height:84px}
+.play-row .play{width:60px;height:60px}
+.done{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:14px}
+.check{font-size:72px;line-height:1;color:#197948;font-weight:800}

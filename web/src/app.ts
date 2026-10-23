@@ -1,7 +1,11 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
-import { accuracy, makeState, renderLegend, renderNet, type NetState } from "./net.js";
+import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
+import { checkFacelets, faceletCell, netToFacelets } from "./cube3.js";
+import { solve3, warmUp } from "./solver.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, type Move } from "./cubeState.js";
+import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -22,6 +26,7 @@ interface Run {
 }
 
 const RUNS_KEY = "rcsolver.runs";
+const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
 /** null = let the model count. After recognition this holds the size the model saw. */
 let size: number | null = null;
@@ -32,9 +37,10 @@ let net: NetState | null = null;
 
 const video = $<HTMLVideoElement>("video");
 const guide = new GuideCube($<HTMLCanvasElement>("guide"));
+const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
 
-function show(id: string, on: boolean) {
-  $(id).classList.toggle("hidden", !on);
+function showScreen(id: (typeof SCREENS)[number]) {
+  for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
 }
 
 function loadRuns(): Run[] {
@@ -55,7 +61,7 @@ function saveRuns(runs: Run[]) {
 
 function renderRuns() {
   const runs = loadRuns();
-  $("historyCount").textContent = runs.length ? `（${runs.length} 次）` : "";
+  $("historyCount").textContent = runs.length ? `${runs.length}` : "";
   const tbody = $("runs").querySelector("tbody")!;
   tbody.innerHTML = runs
     .slice()
@@ -96,10 +102,8 @@ async function startCapture() {
   stepIndex = 0;
   response = null;
   net = null;
-  show("setup", false);
-  show("review", false);
-  show("result", false);
-  show("capture", true);
+  stopPlaying();
+  showScreen("capture");
   renderStep();
   $("camError").classList.add("hidden");
   $<HTMLButtonElement>("shoot").disabled = false;
@@ -107,7 +111,7 @@ async function startCapture() {
     await openCamera(video);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    $("camError").textContent = `打不開相機：${msg}\n可以改用「從相簿選擇」，或確認網址是 https。`;
+    $("camError").textContent = `📷 ✕  ${msg}`;
     $("camError").classList.remove("hidden");
     $<HTMLButtonElement>("shoot").disabled = true;
   }
@@ -127,8 +131,7 @@ function acceptImage(img: FaceImage) {
 function finishCapture() {
   closeCamera(video);
   guide.stop();
-  show("capture", false);
-  show("review", true);
+  showScreen("review");
   $("reviewThumbs").innerHTML = thumbsHtml(null);
   $("sendStatus").textContent = "";
   $<HTMLButtonElement>("send").disabled = false;
@@ -137,8 +140,7 @@ function finishCapture() {
 function cancelCapture() {
   closeCamera(video);
   guide.stop();
-  show("capture", false);
-  show("setup", true);
+  showScreen("setup");
 }
 
 /* ---------- recognition ---------- */
@@ -147,17 +149,16 @@ async function send() {
   const faces = images as Record<Face, FaceImage>;
   if (FACES.some((f) => !faces[f])) return;
   $<HTMLButtonElement>("send").disabled = true;
-  $("sendStatus").innerHTML = `<span class="spinner"></span>辨識中，通常要 10～40 秒……`;
-  const started = Date.now();
+  $("sendStatus").innerHTML = `<span class="spinner"></span>`;
   try {
     response = await recognize(size, faces);
   } catch (err) {
     const msg = err instanceof ApiError ? `${err.message}（${err.code}）` : err instanceof Error ? err.message : String(err);
-    $("sendStatus").textContent = `失敗：${msg}`;
+    $("sendStatus").textContent = `✕ ${msg}`;
     $<HTMLButtonElement>("send").disabled = false;
     return;
   }
-  $("sendStatus").textContent = `完成，${((Date.now() - started) / 1000).toFixed(1)} 秒。`;
+  $("sendStatus").textContent = "";
   showResult();
 }
 
@@ -165,20 +166,27 @@ function showResult() {
   if (!response) return;
   size = response.size;
   net = makeState(size, response.recognition);
+  showScreen("result");
+  $("sizeBadge").textContent = `${size}×${size}`;
+  $("invalidBadge").classList.add("hidden");
+  renderNet($("net"), net, () => {
+    markBadCells($("net"), []);
+    $("invalidBadge").classList.add("hidden");
+    refreshStats();
+  });
   const sn = $("sizeNote");
   const mm = response.sizeMismatch;
   sn.classList.toggle("hidden", !mm);
   sn.textContent = mm ? `你選的是 ${mm.requested}×${mm.requested}，照片看起來是 ${mm.detected}×${mm.detected}，已改用 ${mm.detected}×${mm.detected} 辨識。` : "";
-  show("review", false);
-  show("result", true);
-  renderNet($("net"), net, refreshStats);
   const warn = $("warnings");
   warn.classList.toggle("hidden", response.warnings.length === 0);
-  warn.textContent = response.warnings.length ? `顏色數量對不上：${response.warnings.join("；")}。至少有一格讀錯了。` : "";
+  warn.textContent = response.warnings.length ? `顏色數量對不上：${response.warnings.join("；")}。` : "";
   $("notes").innerHTML = response.recognition.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
   $<HTMLButtonElement>("record").disabled = false;
+  // Solving is 3×3 only for now; other sizes stop at the checked net.
+  $("solve").classList.toggle("hidden", size !== 3);
   refreshStats();
-  $("result").scrollIntoView({ behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function refreshStats() {
@@ -220,7 +228,100 @@ function recordRun() {
   saveRuns([...loadRuns(), run]);
   renderRuns();
   $<HTMLButtonElement>("record").disabled = true;
-  $("history").scrollIntoView({ behavior: "smooth" });
+}
+
+/* ---------- solving ---------- */
+
+let moves: Move[] = [];
+let moveIndex = 0;
+let playing = false;
+let playTimer = 0;
+const TURN_MS = 900;
+const PLAY_GAP_MS = 700;
+
+/** Validate the checked net; on failure mark what is wrong and shake. Returns the solution or null. */
+function trySolve(): string[] | null {
+  if (!net || net.size !== 3) return null;
+  const conv = netToFacelets(net.current);
+  const netEl = $("net");
+  if (!conv) {
+    markBadCells(netEl, FACES.map((face) => ({ face, row: 1, col: 1 })));
+    return fail();
+  }
+  const v = checkFacelets(conv.facelets);
+  if (!v.ok) {
+    markBadCells(netEl, v.badFacelets.map(faceletCell));
+    return fail();
+  }
+  try {
+    const solution = solve3(conv.facelets);
+    // Belt and braces: replay the solution on our own model before showing it.
+    if (!isSolved(applyAlgorithm(fromNet(3, net.current), parseAlgorithm(solution.join(" "), 3)))) return fail();
+    return solution;
+  } catch {
+    return fail();
+  }
+  function fail() {
+    $("invalidBadge").classList.remove("hidden");
+    const card = $("result");
+    card.classList.remove("shake");
+    void card.offsetWidth;
+    card.classList.add("shake");
+    return null;
+  }
+}
+
+function startSolve() {
+  if (!net) return;
+  const solution = trySolve();
+  if (!solution) return;
+  moves = parseAlgorithm(solution.join(" "), 3);
+  // already solved: nothing to show but the tick
+  moveIndex = 0;
+  cubeView.setState(3, fromNet(3, net.current));
+  cubeView.resetView();
+  showScreen("solveView");
+  renderSolve();
+}
+
+function pretty(token: string) {
+  return token.replace("'", "′");
+}
+
+function renderSolve() {
+  const done = moveIndex >= moves.length;
+  $("progress").textContent = `${moveIndex} / ${moves.length}`;
+  $("bar").style.width = `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`;
+  $("move").textContent = done ? "" : pretty(moves[moveIndex]!.token);
+  $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
+  $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
+  $<HTMLButtonElement>("play").disabled = done;
+  $("done").classList.toggle("hidden", !done);
+  $("playIcon").classList.toggle("hidden", playing);
+  $("pauseIcon").classList.toggle("hidden", !playing);
+  if (done && !isSolved(cubeView.getState())) $("move").textContent = "?";
+}
+
+async function step(delta: 1 | -1) {
+  if (cubeView.animating) return;
+  const target = moveIndex + delta;
+  if (target < 0 || target > moves.length) return;
+  const mv = moves[delta === 1 ? moveIndex : moveIndex - 1]!;
+  $("move").textContent = pretty(mv.token);
+  renderSolve();
+  await cubeView.animate(mv, delta, TURN_MS);
+  moveIndex = target;
+  renderSolve();
+  if (playing) {
+    if (moveIndex >= moves.length) stopPlaying();
+    else playTimer = window.setTimeout(() => void step(1), PLAY_GAP_MS);
+  }
+}
+
+function stopPlaying() {
+  playing = false;
+  clearTimeout(playTimer);
+  if (!$("solveView").classList.contains("hidden")) renderSolve();
 }
 
 /* ---------- wiring ---------- */
@@ -257,6 +358,29 @@ $("send").onclick = () => void send();
 $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
 $("record").onclick = recordRun;
+$("solve").onclick = startSolve;
+$("closeSolve").onclick = () => {
+  stopPlaying();
+  showScreen("result");
+};
+$("next").onclick = () => {
+  stopPlaying();
+  void step(1);
+};
+$("prev").onclick = () => {
+  stopPlaying();
+  void step(-1);
+};
+$("play").onclick = () => {
+  if (playing) {
+    stopPlaying();
+    return;
+  }
+  playing = true;
+  renderSolve();
+  void step(1);
+};
+$("restart").onclick = () => void startCapture();
 $("copyRuns").onclick = async () => {
   const text = JSON.stringify(loadRuns(), null, 2);
   try {
@@ -278,10 +402,29 @@ renderRuns();
 getHealth()
   .then((h) => {
     const el = $("health");
-    el.textContent = h.mock ? ` 目前是 MOCK 模式（${h.mockReason}），結果是假的。` : ` 模型：${h.model}，今天已用 ${h.dailyUsed}/${h.dailyLimit}。`;
+    el.textContent = h.mock ? `MOCK (${h.mockReason})` : `${h.model} · ${h.dailyUsed}/${h.dailyLimit}`;
     el.classList.toggle("bad", h.mock);
   })
   .catch(() => {
-    $("health").textContent = " 連不上伺服器。";
+    $("health").textContent = "✕ server";
     $("health").classList.add("bad");
   });
+// Build the solver tables while the user is busy taking photos.
+(window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 500)))(() => warmUp());
+
+/** Hooks for the end-to-end test: feed a recognised net without the camera. */
+(window as unknown as { rcsolverTest: unknown }).rcsolverTest = {
+  showNet(s: number, r: RecognizeResponse["recognition"]) {
+    response = { ok: true, size: s, sizeMismatch: null, recognition: r, warnings: [], model: "test", mock: true, ms: 0, usage: null };
+    showResult();
+  },
+  get moves() {
+    return moves.map((m) => m.token);
+  },
+  get moveIndex() {
+    return moveIndex;
+  },
+  get solved() {
+    return isSolved(cubeView.getState());
+  },
+};
