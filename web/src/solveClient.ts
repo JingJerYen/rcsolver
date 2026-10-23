@@ -5,6 +5,7 @@
 import type { Face } from "./api.js";
 import { prepare, solveNet, type SolveMode, type SolveResult } from "./solveAny.js";
 import type { WorkerReply, WorkerRequest } from "./solveWorker.js";
+import { LANG } from "./i18n.js";
 
 // The build stamps a version onto this literal so a new worker is never paired with an old page.
 const WORKER_URL = "./solveWorker.js";
@@ -55,7 +56,7 @@ function send(make: (id: number) => WorkerRequest, onProgress?: (f: number) => v
 
 /** Solve on the worker, or on the page when there is none. Progress covers table loading. */
 export async function solveAsync(size: number, faces: Record<Face, string[]>, onProgress?: (f: number) => void, mode: SolveMode = "fast"): Promise<SolveResult> {
-  const viaWorker = send((id) => ({ id, type: "solve", size, faces, mode }), onProgress);
+  const viaWorker = send((id) => ({ id, type: "solve", size, faces, mode, lang: LANG }), onProgress);
   if (viaWorker) {
     try {
       const r = await viaWorker;

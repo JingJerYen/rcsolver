@@ -1,5 +1,6 @@
 import type { Face, FaceImage } from "./api.js";
 import type { Gesture } from "./guideCube.js";
+import { tr } from "./i18n.js";
 
 /** One step of the guided capture: the whole-cube turns to make, then which face is in front. */
 export interface Step {
@@ -37,7 +38,7 @@ export const OUTPUT_PX = 512;
 export const FRAME_FRACTION = 0.7;
 
 export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error("這個瀏覽器不支援相機，請改用「從相簿選擇」。");
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error(tr("這個瀏覽器不支援相機，請改用「從相簿選擇」。", "This browser has no camera access. Use \"Choose from photos\" instead."));
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 1280 } },
     audio: false,
@@ -62,7 +63,7 @@ function toFaceImage(canvas: HTMLCanvasElement): FaceImage {
 export function captureFromVideo(video: HTMLVideoElement): FaceImage {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
-  if (!vw || !vh) throw new Error("相機還沒準備好，再按一次。");
+  if (!vw || !vh) throw new Error(tr("相機還沒準備好，再按一次。", "The camera isn't ready yet. Tap again."));
   const side = Math.min(vw, vh) * FRAME_FRACTION;
   const sx = (vw - side) / 2;
   const sy = (vh - side) / 2;
@@ -79,7 +80,7 @@ export async function captureFromFile(file: File): Promise<FaceImage> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("讀不到這張圖片。"));
+      el.onerror = () => reject(new Error(tr("讀不到這張圖片。", "Couldn't read this image.")));
       el.src = url;
     });
     const side = Math.min(img.naturalWidth, img.naturalHeight);

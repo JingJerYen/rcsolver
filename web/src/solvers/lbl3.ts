@@ -8,6 +8,7 @@ import type { Color, Face } from "../api.js";
 import { FACE_AXES, applyAlgorithm, applyMove, isSolved, parseAlgorithm, parseMove, fromNet, type Move, type Sticker, type Vec } from "../cubeState.js";
 import type { Net } from "./scheme.js";
 import type { Segment } from "./segments.js";
+import { LANG, tr } from "../i18n.js";
 
 export type TeachSegment = Extract<Segment, { kind: "lbl" }>;
 
@@ -16,8 +17,14 @@ const N = (f: Face): Vec => FACE_AXES[f].n;
 const add = (...vs: Vec[]): Vec => [0, 1, 2].map((i) => vs.reduce((a, v) => a + v[i]!, 0)) as Vec;
 const mul = (v: Vec, k: number): Vec => [v[0] * k, v[1] * k, v[2] * k];
 const keyOf = (p: Vec, n: Vec) => `${p.join(",")}|${n.join(",")}`;
-const NAMES: Record<Color, string> = { W: "白", Y: "黃", R: "紅", O: "橘", G: "綠", B: "藍" };
-const name = (cs: Color[]) => cs.map((c) => NAMES[c]).join("");
+const NAMES_ZH: Record<Color, string> = { W: "白", Y: "黃", R: "紅", O: "橘", G: "綠", B: "藍" };
+const NAMES_EN: Record<Color, string> = { W: "white", Y: "yellow", R: "red", O: "orange", G: "green", B: "blue" };
+/** Read at each use: the worker sets the language per request. */
+const colour = (c: Color) => (LANG === "zh" ? NAMES_ZH : NAMES_EN)[c];
+/** A piece by its colours: 白綠, or white-green in English. */
+const name = (cs: Color[]) => cs.map(colour).join(LANG === "zh" ? "" : "-");
+/** " (2 of 3)" when a formula is done more than once. */
+const nth = (i: number, n: number) => (n > 1 ? tr(`（第 ${i + 1}／${n} 次）`, ` (${i + 1} of ${n})`) : "");
 export const sig = (cs: Color[]) => [...cs].sort().join("");
 
 const RIGHT = "R U R' U'";
@@ -67,7 +74,8 @@ function findCorner(s: State, colours: Color[]): [Face, Face, Face] {
   const want = sig(colours);
   return CORNER_POS.find((pos) => sig(s.corner(...pos)) === want)!;
 }
-const layerName = (pos: Face[]) => (pos.includes("U") ? "頂層" : pos.includes("D") ? "底層" : "中層");
+const layerName = (pos: Face[]) =>
+  pos.includes("U") ? tr("頂層", "top layer") : pos.includes("D") ? tr("底層", "bottom layer") : tr("中層", "middle layer");
 
 export interface TeachResult {
   moves: string[];
@@ -117,7 +125,12 @@ function teach(net: Net): TeachResult {
   if (s.centre("D") !== bottomColour) {
     const rot = ["x", "x'", "x2", "z", "z'"].find((r) => s.apply(r).centre("D") === bottomColour);
     if (!rot) fail("orient");
-    step(0, rot ?? "", "先把白色轉到下面", "整顆方塊轉一下，讓白色中心朝下、黃色中心朝上。接下來所有公式都以這個方向做。");
+    step(
+      0,
+      rot ?? "",
+      tr("先把白色轉到下面", "Turn white to the bottom"),
+      tr("整顆方塊轉一下，讓白色中心朝下、黃色中心朝上。接下來所有公式都以這個方向做。", "Turn the whole cube so the white centre faces down and the yellow centre faces up. Every formula from here on is done holding it this way."),
+    );
   }
   const bottom = s.centre("D");
   const top = s.centre("U");
@@ -140,7 +153,17 @@ function teach(net: Net): TeachResult {
         st = st.apply(turn);
         alg = [up, turn, `${f}2`].filter(Boolean).join(" ");
       }
-      step(1, alg, `底層十字：${name(colours)}邊塊`, `${name(colours)}邊塊目前在${where}。把它放到底面、${NAMES[s.centre(f)]}色中心的正下方，白色朝下。`, undefined, colours);
+      step(
+        1,
+        alg,
+        tr(`底層十字：${name(colours)}邊塊`, `Bottom cross: ${name(colours)} edge`),
+        tr(
+          `${name(colours)}邊塊目前在${where}。把它放到底面、${colour(s.centre(f))}色中心的正下方，白色朝下。`,
+          `The ${name(colours)} edge is in the ${where}. Put it on the bottom face, right under the ${colour(s.centre(f))} centre, white side down.`,
+        ),
+        undefined,
+        colours,
+      );
     }
     crossDone.push(f);
     solved.push(sig(colours));
@@ -159,7 +182,17 @@ function teach(net: Net): TeachResult {
     if (pos[0] === "D") {
       // stuck in the bottom layer: lift it out with the right-hand formula at its slot
       const rot = Y_ROTS.find((r) => sig(s.apply(r).corner("D", "F", "R")) === sig(target))!;
-      step(2, `${rot} ${RIGHT}`, `底層角塊：${name(target)}`, `${name(target)}角塊卡在底層的錯誤位置。把那個位置轉到右前方，做一次右手公式把它拿上來。`, `右手公式 ${RIGHT}`, target);
+      step(
+        2,
+        `${rot} ${RIGHT}`,
+        tr(`底層角塊：${name(target)}`, `Bottom corner: ${name(target)}`),
+        tr(
+          `${name(target)}角塊卡在底層的錯誤位置。把那個位置轉到右前方，做一次右手公式把它拿上來。`,
+          `The ${name(target)} corner is stuck in the wrong spot in the bottom layer. Turn that spot to the front right and do the right-hand formula once to lift it out.`,
+        ),
+        tr(`右手公式 ${RIGHT}`, `Right-hand formula ${RIGHT}`),
+        target,
+      );
       continue;
     }
     const rot = Y_ROTS.find((r) => {
@@ -177,7 +210,17 @@ function teach(net: Net): TeachResult {
       if (c[0] === bottom && c[1] === st.centre("F") && c[2] === st.centre("R")) break;
     }
     if (reps >= 6) fail("corner reps");
-    step(2, [rot, turn, ...Array(reps).fill(RIGHT)].filter(Boolean).join(" "), `底層角塊：${name(target)}`, `把目標位置轉到右前方，${name(target)}角塊轉到它的正上方，右手公式重複 ${reps} 次，直到白色朝下、顏色對齊。`, `右手公式 ${RIGHT}`, target);
+    step(
+      2,
+      [rot, turn, ...Array(reps).fill(RIGHT)].filter(Boolean).join(" "),
+      tr(`底層角塊：${name(target)}`, `Bottom corner: ${name(target)}`),
+      tr(
+        `把目標位置轉到右前方，${name(target)}角塊轉到它的正上方，右手公式重複 ${reps} 次，直到白色朝下、顏色對齊。`,
+        `Turn the target spot to the front right and bring the ${name(target)} corner right above it, then do the right-hand formula ${reps === 1 ? "once" : `${reps} times`}, until white faces down and the colours line up.`,
+      ),
+      tr(`右手公式 ${RIGHT}`, `Right-hand formula ${RIGHT}`),
+      target,
+    );
     solved.push(sig(target));
   }
   if (!SLOTS.every(([a, b]) => s.corner("D", a, b)[0] === bottom && s.corner("D", a, b)[1] === s.centre(a) && s.corner("D", a, b)[2] === s.centre(b))) fail("corners incomplete");
@@ -193,7 +236,17 @@ function teach(net: Net): TeachResult {
     const pos = findEdge(s, target);
     if (pos[0] !== "U") {
       const rot = Y_ROTS.find((r) => sig(s.apply(r).edge("F", "R")) === sig(target))!;
-      step(3, `${rot} ${INSERT_RIGHT}`, `中層邊塊：${name(target)}`, `${name(target)}邊塊在中層但位置或方向不對。把它轉到右前方，做一次右插入公式把它換上頂層。`, `右插入 ${INSERT_RIGHT}`, target);
+      step(
+        3,
+        `${rot} ${INSERT_RIGHT}`,
+        tr(`中層邊塊：${name(target)}`, `Middle edge: ${name(target)}`),
+        tr(
+          `${name(target)}邊塊在中層但位置或方向不對。把它轉到右前方，做一次右插入公式把它換上頂層。`,
+          `The ${name(target)} edge is in the middle layer but in the wrong place or flipped. Turn it to the front right and do the right insert once to swap it up into the top layer.`,
+        ),
+        tr(`右插入 ${INSERT_RIGHT}`, `Right insert ${INSERT_RIGHT}`),
+        target,
+      );
       continue;
     }
     const [, sideFace] = pos;
@@ -204,7 +257,17 @@ function teach(net: Net): TeachResult {
     const turn = U_SETUPS.find((u) => sig(st.apply(u).edge("U", "F")) === sig(target) && st.apply(u).edge("U", "F")[1] === sideColour)!;
     st = st.apply(turn);
     const right = st.centre("R") === topColour;
-    step(3, [rot, turn, right ? INSERT_RIGHT : INSERT_LEFT].filter(Boolean).join(" "), `中層邊塊：${name(target)}`, `把${NAMES[sideColour]}色轉到前面對齊中心，${name(target)}邊塊移到前面正上方；它的另一色（${NAMES[topColour]}）在${right ? "右" : "左"}邊，所以用${right ? "右" : "左"}插入公式。`, `${right ? "右插入 " + INSERT_RIGHT : "左插入 " + INSERT_LEFT}`, target);
+    step(
+      3,
+      [rot, turn, right ? INSERT_RIGHT : INSERT_LEFT].filter(Boolean).join(" "),
+      tr(`中層邊塊：${name(target)}`, `Middle edge: ${name(target)}`),
+      tr(
+        `把${colour(sideColour)}色轉到前面對齊中心，${name(target)}邊塊移到前面正上方；它的另一色（${colour(topColour)}）在${right ? "右" : "左"}邊，所以用${right ? "右" : "左"}插入公式。`,
+        `Turn ${colour(sideColour)} to the front so it lines up with its centre, and bring the ${name(target)} edge to the top front. Its other colour (${colour(topColour)}) is on the ${right ? "right" : "left"}, so use the ${right ? "right" : "left"} insert.`,
+      ),
+      right ? tr(`右插入 ${INSERT_RIGHT}`, `Right insert ${INSERT_RIGHT}`) : tr(`左插入 ${INSERT_LEFT}`, `Left insert ${INSERT_LEFT}`),
+      target,
+    );
     solved.push(sig(target));
   }
   if (!SLOTS.every(([a, b]) => s.edge(a, b)[0] === s.centre(a) && s.edge(a, b)[1] === s.centre(b))) fail("middle incomplete");
@@ -214,9 +277,13 @@ function teach(net: Net): TeachResult {
     const edgesUp = (st: State) => SIDES.filter((f) => st.edge("U", f)[0] === top).length;
     const plan = plan2(s, CROSS_ALG, 3, (st) => edgesUp(st) === 4) ?? fail("top cross");
     for (const { setup, before } of plan) {
-      const n = edgesUp(before);
-      const shape = n === 0 ? "只有中心一點" : SIDES.some((f, i) => before.edge("U", f)[0] === top && before.edge("U", SIDES[(i + 2) % 4]!)[0] === top) ? "一條線" : "L 形";
-      step(4, `${setup} ${CROSS_ALG}`, "頂層十字", `現在頂面是「${shape}」。${n === 0 ? "直接做十字公式。" : shape === "一條線" ? "把線轉成橫的再做公式。" : "把 L 轉到左上角（九點鐘方向）再做公式。"}`, `十字公式 ${CROSS_ALG}`);
+      const shape = edgesUp(before) === 0 ? "dot" : SIDES.some((f, i) => before.edge("U", f)[0] === top && before.edge("U", SIDES[(i + 2) % 4]!)[0] === top) ? "line" : "L";
+      const body = {
+        dot: tr("現在頂面是「只有中心一點」。直接做十字公式。", "The top face shows just the centre dot. Do the cross formula straight away."),
+        line: tr("現在頂面是「一條線」。把線轉成橫的再做公式。", "The top face shows a line. Turn it so it runs left to right, then do the formula."),
+        L: tr("現在頂面是「L 形」。把 L 轉到左上角（九點鐘方向）再做公式。", "The top face shows an L. Turn it to the top left (towards nine o'clock), then do the formula."),
+      }[shape];
+      step(4, `${setup} ${CROSS_ALG}`, tr("頂層十字", "Top cross"), body, tr(`十字公式 ${CROSS_ALG}`, `Cross formula ${CROSS_ALG}`));
     }
   }
 
@@ -225,7 +292,17 @@ function teach(net: Net): TeachResult {
     const cornersUp = (st: State) => SLOTS.filter(([a, b]) => st.corner("U", a, b)[0] === top).length;
     const plan = plan2(s, SUNE, 4, (st) => cornersUp(st) === 4) ?? fail("top face");
     plan.forEach(({ setup, before }, i) => {
-      step(5, `${setup} ${SUNE}`, "頂面全黃", `${cornersUp(before)} 個角已經朝上。調整頂層方向後做 Sune 公式${plan.length > 1 ? `（第 ${i + 1}／${plan.length} 次）` : ""}，黃色會一次翻上來一些。`, `Sune ${SUNE}`);
+      const up = cornersUp(before);
+      step(
+        5,
+        `${setup} ${SUNE}`,
+        tr("頂面全黃", "Yellow top"),
+        tr(
+          `${up} 個角已經朝上。調整頂層方向後做 Sune 公式${nth(i, plan.length)}，黃色會一次翻上來一些。`,
+          `${up} ${up === 1 ? "corner has" : "corners have"} yellow up. Turn the top layer into position and do the Sune${nth(i, plan.length)}; it flips some of the yellow up each time.`,
+        ),
+        `Sune ${SUNE}`,
+      );
     });
   }
 
@@ -234,20 +311,38 @@ function teach(net: Net): TeachResult {
     const placed = (st: State) => SLOTS.every(([a, b]) => sig(st.corner("U", a, b)) === sig([top, st.centre(a), st.centre(b)]));
     const plan = plan2(s, CORNER_PERM, 3, (st) => U_SETUPS.some((u) => placed(st.apply(u)))) ?? fail("corner perm");
     plan.forEach(({ setup }, i) => {
-      step(6, `${setup} ${CORNER_PERM}`, "頂層角塊歸位", `找已經在正確位置的角（它的三個顏色和旁邊兩個中心都對得上），轉到右前方，做 A 公式讓另外三個角輪換、黃面不變${plan.length > 1 ? `（第 ${i + 1}／${plan.length} 次）` : ""}。`, `A 公式 ${CORNER_PERM}`);
+      step(
+        6,
+        `${setup} ${CORNER_PERM}`,
+        tr("頂層角塊歸位", "Top corners into place"),
+        tr(
+          `找已經在正確位置的角（它的三個顏色和旁邊兩個中心都對得上），轉到右前方，做 A 公式讓另外三個角輪換、黃面不變${nth(i, plan.length)}。`,
+          `Find a corner that is already in its place (its three colours match the two centres beside it), turn it to the front right and do the A-perm${nth(i, plan.length)}: the other three corners cycle and the yellow face stays.`,
+        ),
+        tr(`A 公式 ${CORNER_PERM}`, `A-perm ${CORNER_PERM}`),
+      );
     });
     const fix = U_SETUPS.find((u) => placed(s.apply(u)))!;
-    if (fix) step(6, fix, "頂層角塊歸位", "轉動頂層，讓每個角的顏色對齊旁邊的中心。");
+    if (fix) step(6, fix, tr("頂層角塊歸位", "Top corners into place"), tr("轉動頂層，讓每個角的顏色對齊旁邊的中心。", "Turn the top layer so every corner lines up with the centres beside it."));
   }
 
   // 7. top edges into place
   {
     const plan = plan2(s, EDGE_PERM, 3, (st) => U_SETUPS.some((u) => isSolved(st.apply(u).stickers))) ?? fail("edge perm");
     plan.forEach(({ setup }, i) => {
-      step(7, `${setup} ${EDGE_PERM}`, "頂層邊塊歸位", `把已經對的邊（如果有）轉到後面，做邊塊換位公式讓其他三條邊輪換${plan.length > 1 ? `（第 ${i + 1}／${plan.length} 次）` : ""}。`, `邊塊換位 ${EDGE_PERM}`);
+      step(
+        7,
+        `${setup} ${EDGE_PERM}`,
+        tr("頂層邊塊歸位", "Top edges into place"),
+        tr(
+          `把已經對的邊（如果有）轉到後面，做邊塊換位公式讓其他三條邊輪換${nth(i, plan.length)}。`,
+          `Turn the edge that is already right (if there is one) to the back and do the edge cycle${nth(i, plan.length)}: the other three edges swap round.`,
+        ),
+        tr(`邊塊換位 ${EDGE_PERM}`, `Edge cycle ${EDGE_PERM}`),
+      );
     });
     const fix = U_SETUPS.find((u) => isSolved(s.apply(u).stickers))!;
-    if (fix) step(7, fix, "完成", "最後轉一下頂層，全部對齊。");
+    if (fix) step(7, fix, tr("完成", "Done"), tr("最後轉一下頂層，全部對齊。", "One last turn of the top layer and everything lines up."));
   }
   if (!isSolved(s.stickers)) fail("unsolved");
   return { moves, segments };
