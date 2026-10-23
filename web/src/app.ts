@@ -496,6 +496,11 @@ $<HTMLInputElement>("slider").oninput = (e) => {
   jumpTo(v);
 };
 $("save").onclick = saveCurrent;
+$("shareSolve").onclick = () => {
+  if (!net) return;
+  const sv: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex };
+  void copyText(shareLink(sv), $("shareSolve"));
+};
 renderSaves();
 $("sequence").onclick = (e) => {
   const t = (e.target as HTMLElement).closest(".token") as HTMLElement | null;
