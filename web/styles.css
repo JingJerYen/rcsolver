@@ -69,9 +69,9 @@ th{color:#607189;font-weight:600}
 .bar>div.indeterminate{width:40%!important;animation:slide 1.1s ease-in-out infinite}
 @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
 #health.bad{color:#b02a37}
-.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.top{display:flex;align-items:center;gap:10px}
 .top #import{margin-left:auto}
-.brand{font-weight:700;font-size:18px;color:#39536e}
+.brand{min-width:0;font-weight:700;font-size:18px;line-height:1.3;color:#39536e}
 .notice.small{font-size:13px}
 .center{text-align:center}
 .go-row{display:flex;gap:10px;align-items:center;margin-top:12px}
@@ -205,3 +205,4 @@ th{color:#607189;font-weight:600}
 .save .save-title::after{content:"✎";flex:none;font-size:11px;color:#8a97a8}
 .title-input{font:inherit;font-size:17px;border:1px solid #cdd7e5;border-radius:10px;padding:12px;width:100%}
 .title-input:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
+.nowrap{white-space:nowrap}
