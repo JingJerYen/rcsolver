@@ -1,5 +1,6 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
-import { STEPS, arrowSvg, captureFromFile, captureFromVideo, closeCamera, openCamera } from "./capture.js";
+import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
+import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, renderLegend, renderNet, type NetState } from "./net.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -29,6 +30,7 @@ let response: RecognizeResponse | null = null;
 let net: NetState | null = null;
 
 const video = $<HTMLVideoElement>("video");
+const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 
 function show(id: string, on: boolean) {
   $(id).classList.toggle("hidden", !on);
@@ -80,8 +82,8 @@ function renderStep() {
   const step = STEPS[stepIndex]!;
   $("stepBadge").textContent = step.title;
   $("stepCount").textContent = `${stepIndex + 1} / ${STEPS.length}`;
-  $("arrow").innerHTML = arrowSvg(step.arrow);
   $("gesture").textContent = step.gesture;
+  guide.show(turnsBefore(stepIndex), { gestures: step.turns, target: step.face });
   $("frameLabel").textContent = `把 ${size}×${size} 的這一面對準框`;
   $("thumbs").innerHTML = thumbsHtml(stepIndex);
   $<HTMLButtonElement>("redo").disabled = stepIndex === 0;
@@ -90,6 +92,7 @@ function renderStep() {
 async function startCapture() {
   size = Number($<HTMLSelectElement>("size").value);
   images = {};
+  for (const f of FACES) guide.setPhoto(f, null);
   stepIndex = 0;
   response = null;
   net = null;
@@ -112,6 +115,7 @@ async function startCapture() {
 
 function acceptImage(img: FaceImage) {
   images[STEPS[stepIndex]!.face] = img;
+  guide.setPhoto(STEPS[stepIndex]!.face, img.dataUrl);
   if (stepIndex < STEPS.length - 1) {
     stepIndex++;
     renderStep();
@@ -122,6 +126,7 @@ function acceptImage(img: FaceImage) {
 
 function finishCapture() {
   closeCamera(video);
+  guide.stop();
   show("capture", false);
   show("review", true);
   $("reviewThumbs").innerHTML = thumbsHtml(null);
@@ -131,6 +136,7 @@ function finishCapture() {
 
 function cancelCapture() {
   closeCamera(video);
+  guide.stop();
   show("capture", false);
   show("setup", true);
 }
@@ -227,6 +233,7 @@ $("redo").onclick = () => {
   if (stepIndex > 0) {
     stepIndex--;
     delete images[STEPS[stepIndex]!.face];
+    guide.setPhoto(STEPS[stepIndex]!.face, null);
     renderStep();
   }
 };

@@ -10,7 +10,7 @@
 <main>
   <header class="top">
     <h1>魔術方塊辨色實驗</h1>
-    <p class="muted">照著箭頭轉方塊、拍六面，交給 AI 讀顏色，再核對它讀得準不準。<span id="health"></span></p>
+    <p class="muted">照著小方塊的示範轉、拍六面，交給 AI 讀顏色，再核對它讀得準不準。<span id="health"></span></p>
   </header>
 
   <section class="card" id="setup">
@@ -31,10 +31,9 @@
     <details>
       <summary>拿法與拍攝順序</summary>
       <ol class="muted">
-        <li>隨便挑一面正對你，記住現在哪一面在「上面」；整個過程不要換上面。</li>
-        <li>拍完一面，整顆向左轉 90°（右邊那面轉到正面），再拍。連做三次，拍到前、右、後、左四面。</li>
-        <li>再向左轉一次回到第一面，然後整顆向下翻 90°，拍上面。</li>
-        <li>整顆向上翻 180°，拍底面。</li>
+        <li>隨便挑一面正對你，記住現在哪一面在上面；整個過程不要換上面。</li>
+        <li>每一步畫面上的小方塊會示範整顆怎麼轉，你拍過的照片會貼在它的面上，照著轉就好。</li>
+        <li>先拍前、右、後、左四面（每次整顆轉 90°），再翻下來拍上面，最後翻過去拍底面。</li>
       </ol>
     </details>
   </section>
@@ -45,7 +44,7 @@
       <span class="muted" id="stepCount"></span>
     </div>
     <div class="gesture">
-      <svg id="arrow" viewBox="0 0 120 120" aria-hidden="true"></svg>
+      <canvas id="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
       <p id="gesture"></p>
     </div>
     <div class="viewfinder">

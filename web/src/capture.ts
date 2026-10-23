@@ -1,12 +1,20 @@
 import type { Face, FaceImage } from "./api.js";
+import type { Gesture } from "./guideCube.js";
 
-/** One step of the guided capture: which face lands in front after the gesture. */
+/** One step of the guided capture: the whole-cube turns to make, then which face is in front. */
 export interface Step {
   face: Face;
   title: string;
   gesture: string;
-  arrow: "none" | "left" | "down" | "up2";
+  turns: Gesture[];
 }
+
+/** Turn the whole cube so the right face comes to the front (the "y" cube rotation). */
+const LEFT: Gesture = { axis: "y", deg: -90 };
+/** Tilt the top toward you so the up face comes to the front (the "x'" cube rotation). */
+const DOWN: Gesture = { axis: "x", deg: 90 };
+/** Tilt the top away from you (the "x" cube rotation). */
+const UP: Gesture = { axis: "x", deg: -90 };
 
 /**
  * Holding sequence. The "up" face never changes hands, so every side photo has U at its top;
@@ -14,34 +22,21 @@ export interface Step {
  * twice) has F at its top. That is exactly the standard net layout, so no image rotation is needed.
  */
 export const STEPS: Step[] = [
-  { face: "F", title: "第 1 面：前", gesture: "拿好方塊，任一面正對你。記住哪一面在上面，之後都不要換。對準框，拍照。", arrow: "none" },
-  { face: "R", title: "第 2 面：右", gesture: "整顆向左轉 90°：原本在右邊的那一面轉到正對你，上面不動。", arrow: "left" },
-  { face: "B", title: "第 3 面：後", gesture: "再整顆向左轉 90°，上面不動。", arrow: "left" },
-  { face: "L", title: "第 4 面：左", gesture: "再整顆向左轉 90°，上面不動。", arrow: "left" },
-  { face: "U", title: "第 5 面：上", gesture: "先向左轉一次回到第 1 面，再整顆向下翻 90°，讓上面正對你。", arrow: "down" },
-  { face: "D", title: "第 6 面：底", gesture: "整顆向上翻兩次（180°），讓底面正對你。", arrow: "up2" },
+  { face: "F", title: "第 1 面", gesture: "任一面正對你，像小方塊這樣拿。標「上」的那面整個過程都要保持在上面。對準框，拍照。", turns: [] },
+  { face: "R", title: "第 2 面", gesture: "照小方塊的示範，整顆轉一下：剛拍的那面轉到左邊，右邊那面轉到正對你。上面不動。", turns: [LEFT] },
+  { face: "B", title: "第 3 面", gesture: "再照示範轉一次，同一個方向，上面不動。", turns: [LEFT] },
+  { face: "L", title: "第 4 面", gesture: "再轉一次，同一個方向，上面不動。", turns: [LEFT] },
+  { face: "U", title: "第 5 面", gesture: "照示範：先再轉一次回到第 1 面，然後整顆往你的方向翻下來，讓「上」那面正對你。", turns: [LEFT, DOWN] },
+  { face: "D", title: "第 6 面", gesture: "照示範：整顆往遠離你的方向翻過去兩次，讓原本的底面正對你。", turns: [UP, UP] },
 ];
+
+/** All turns made before step `index`: the orientation the physical cube is in when that step starts. */
+export function turnsBefore(index: number): Gesture[] {
+  return STEPS.slice(0, index).flatMap((s) => s.turns);
+}
 
 export const OUTPUT_PX = 512;
 export const FRAME_FRACTION = 0.7;
-
-const ARROWS: Record<Step["arrow"], string> = {
-  none: `<rect x="30" y="30" width="60" height="60" rx="8" fill="none" stroke="#195ed6" stroke-width="5" stroke-dasharray="8 6"/>`,
-  left: `<rect x="35" y="35" width="50" height="50" rx="8" fill="#e9f0ff" stroke="#195ed6" stroke-width="4"/>
-    <path d="M95 25 A45 45 0 0 0 25 25" fill="none" stroke="#195ed6" stroke-width="6" stroke-linecap="round"/>
-    <path d="M18 14 L24 32 L40 22 Z" fill="#195ed6"/>`,
-  down: `<rect x="35" y="35" width="50" height="50" rx="8" fill="#e9f0ff" stroke="#195ed6" stroke-width="4"/>
-    <path d="M100 20 A48 48 0 0 1 100 100" fill="none" stroke="#195ed6" stroke-width="6" stroke-linecap="round"/>
-    <path d="M110 104 L92 98 L104 86 Z" fill="#195ed6"/>`,
-  up2: `<rect x="35" y="35" width="50" height="50" rx="8" fill="#e9f0ff" stroke="#195ed6" stroke-width="4"/>
-    <path d="M100 100 A48 48 0 0 0 100 20" fill="none" stroke="#195ed6" stroke-width="6" stroke-linecap="round"/>
-    <path d="M110 16 L92 22 L104 34 Z" fill="#195ed6"/>
-    <text x="60" y="68" text-anchor="middle" font-size="22" font-weight="700" fill="#195ed6">×2</text>`,
-};
-
-export function arrowSvg(kind: Step["arrow"]): string {
-  return ARROWS[kind];
-}
 
 export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("這個瀏覽器不支援相機，請改用「從相簿選擇」。");

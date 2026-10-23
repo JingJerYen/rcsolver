@@ -19,9 +19,9 @@ button:disabled{opacity:.4;cursor:default}
 .notice.bad{border-color:#d9534f;background:#fdecea}
 .badge{display:inline-block;background:#e9f0ff;color:#2358a5;font-size:13px;padding:5px 10px;border-radius:20px;font-weight:600}
 .step-head{display:flex;justify-content:space-between;align-items:center}
-.gesture{display:flex;gap:12px;align-items:center;margin:10px 0}
-.gesture svg{width:84px;height:84px;flex:none}
-.gesture p{font-size:16px;font-weight:600;margin:0}
+.gesture{display:flex;gap:10px;align-items:center;margin:10px 0}
+.gesture canvas{width:150px;height:150px;flex:none;background:#f4f7fb;border-radius:12px}
+.gesture p{font-size:15px;font-weight:600;margin:0;line-height:1.5}
 .viewfinder{position:relative;width:100%;aspect-ratio:1/1;background:#111;border-radius:12px;overflow:hidden}
 .viewfinder video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .frame{position:absolute;left:15%;top:15%;width:70%;height:70%;border:3px solid rgba(255,255,255,.9);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
