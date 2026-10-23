@@ -175,22 +175,41 @@ export class CubeView {
     if (anim) this.drawArrow(anim.move, anim.dir, project, b.view, now);
   }
 
-  /** Curved arrow floating over the turning face, sweeping the way the layer goes. */
+  /**
+   * Curved arrow sweeping the way the layer goes. An outer-face turn gets an arrow floating over
+   * that face; an inner slice or a wide turn gets a belt around the cube at the height of the
+   * layers that move, centred on the side facing the camera.
+   */
   private drawArrow(move: Move, dir: 1 | -1, project: (p: Vec) => [number, number], view: Vec, now: number) {
     const { ctx, size } = this;
     const ax = FACE_AXES[move.face];
     const n = ax.n;
-    // A face turned away from the camera still gets its arrow, drawn as if seen through the cube:
-    // its projection shows the true motion of that layer, the same way its side stickers move.
-    const hidden = n[0] * view[0] + n[1] * view[1] + n[2] * view[2] < 0.15;
-    const out = size + 0.9;
-    const r = size * 0.62;
-    const centre: Vec = [n[0] * out, n[1] * out, n[2] * out];
-    const start: Vec = [centre[0] + ax.right[0] * r, centre[1] + ax.right[1] * r, centre[2] + ax.right[2] * r];
+    const outerOnly = move.layers.length === 1 && Math.abs(move.layers[0]!) === size - 1;
     const sweep = move.angle * dir; // a 180° turn gets a half-circle arrow
     const pts: [number, number][] = [];
     const steps = 28;
-    for (let i = 0; i <= steps; i++) pts.push(project(rotateVec(start, move.axis, sweep * (i / steps - 0.5))));
+    let hidden = false;
+    if (outerOnly) {
+      // A face turned away from the camera still gets its arrow, drawn as if seen through the cube:
+      // its projection shows the true motion of that layer, the same way its side stickers move.
+      hidden = n[0] * view[0] + n[1] * view[1] + n[2] * view[2] < 0.15;
+      const out = size + 0.9;
+      const r = size * 0.62;
+      const centre: Vec = [n[0] * out, n[1] * out, n[2] * out];
+      const start: Vec = [centre[0] + ax.right[0] * r, centre[1] + ax.right[1] * r, centre[2] + ax.right[2] * r];
+      for (let i = 0; i <= steps; i++) pts.push(project(rotateVec(start, move.axis, sweep * (i / steps - 0.5))));
+    } else {
+      const height = move.layers.reduce((a, b) => a + b, 0) / move.layers.length;
+      const r = size + 1.1;
+      // start on the belt at the point nearest the camera, then sweep ±45° (or ±90° for a half turn)
+      const radial: Vec = [view[0], view[1], view[2]];
+      radial[move.axis] = 0;
+      const len = Math.hypot(...radial) || 1;
+      const start: Vec = [0, 0, 0];
+      for (let i = 0; i < 3; i++) start[i] = (radial[i] / len) * r;
+      start[move.axis] = height;
+      for (let i = 0; i <= steps; i++) pts.push(project(rotateVec(start, move.axis, sweep * (i / steps - 0.5))));
+    }
     const pulse = 0.85 + 0.15 * Math.sin(now / 150);
     ctx.save();
     if (hidden) {

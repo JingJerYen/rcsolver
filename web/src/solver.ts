@@ -11,7 +11,10 @@ export function warmUp() {
 }
 
 /** Kociemba two-phase solution for a valid 3×3 facelet string, as a list of move tokens. */
+export const SOLVED_FACELETS = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
+
 export function solve3(facelets: string): string[] {
+  if (facelets === SOLVED_FACELETS) return [];
   warmUp();
   const s = min2phase.solve(facelets);
   if (!s) throw new Error("solver returned nothing");

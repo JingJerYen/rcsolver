@@ -15,7 +15,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "cf:dev": "wrangler dev",
-    "cf:deploy": "wrangler deploy"
+    "cf:deploy": "wrangler deploy",
+    "gen:macros": "tsx scripts/gen-macros.ts"
   },
   "engines": {
     "node": ">=20"

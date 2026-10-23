@@ -4,7 +4,10 @@ import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { checkFacelets, faceletCell, netToFacelets } from "./cube3.js";
 import { solve3, warmUp } from "./solver.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, type Move } from "./cubeState.js";
+import { solve2 } from "./solvers/cube2.js";
+import { solve4 } from "./solvers/cube4.js";
+import { buildCentreTables } from "./solvers/cube4centers.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Move } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -183,8 +186,10 @@ function showResult() {
   warn.textContent = response.warnings.length ? `顏色數量對不上：${response.warnings.join("；")}。` : "";
   $("notes").innerHTML = response.recognition.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
   $<HTMLButtonElement>("record").disabled = false;
-  // Solving is 3×3 only for now; other sizes stop at the checked net.
-  $("solve").classList.toggle("hidden", size !== 3);
+  // Solving covers 2×2, 3×3 and 4×4 so far; other sizes stop at the checked net.
+  $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
+  // The 4×4 centre tables take a few seconds: build them while the user checks the net.
+  if (size === 4) idle(() => buildCentreTables());
   refreshStats();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -236,54 +241,73 @@ let moves: Move[] = [];
 let moveIndex = 0;
 let playing = false;
 let playTimer = 0;
-const TURN_MS = 900;
-const PLAY_GAP_MS = 700;
+let turnMs = 900;
+let playGapMs = 700;
+const SOLVABLE = [2, 3, 4];
+const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
 
-/** Validate the checked net; on failure mark what is wrong and shake. Returns the solution or null. */
+function fail(badCells: { face: Face; row: number; col: number }[]) {
+  markBadCells($("net"), badCells);
+  $("invalidBadge").classList.remove("hidden");
+  const card = $("result");
+  card.classList.remove("shake");
+  void card.offsetWidth;
+  card.classList.add("shake");
+  return null;
+}
+
+/** Validate the checked net and solve it; on failure mark what is wrong and shake. */
 function trySolve(): string[] | null {
-  if (!net || net.size !== 3) return null;
-  const conv = netToFacelets(net.current);
-  const netEl = $("net");
-  if (!conv) {
-    markBadCells(netEl, FACES.map((face) => ({ face, row: 1, col: 1 })));
-    return fail();
-  }
-  const v = checkFacelets(conv.facelets);
-  if (!v.ok) {
-    markBadCells(netEl, v.badFacelets.map(faceletCell));
-    return fail();
-  }
-  try {
-    const solution = solve3(conv.facelets);
-    // Belt and braces: replay the solution on our own model before showing it.
-    if (!isSolved(applyAlgorithm(fromNet(3, net.current), parseAlgorithm(solution.join(" "), 3)))) return fail();
-    return solution;
-  } catch {
-    return fail();
-  }
-  function fail() {
-    $("invalidBadge").classList.remove("hidden");
-    const card = $("result");
-    card.classList.remove("shake");
-    void card.offsetWidth;
-    card.classList.add("shake");
+  if (!net) return null;
+  const n = net.current;
+  let solution: string[];
+  if (net.size === 3) {
+    const conv = netToFacelets(n);
+    if (!conv) return fail(FACES.map((face) => ({ face, row: 1, col: 1 })));
+    const v = checkFacelets(conv.facelets);
+    if (!v.ok) return fail(v.badFacelets.map(faceletCell));
+    try {
+      solution = solve3(conv.facelets);
+    } catch {
+      return fail([]);
+    }
+  } else if (net.size === 2) {
+    const r = solve2(n);
+    if (!r.ok) return fail(r.badFacelets.map((i) => ({ face: FACES[Math.floor(i / 4)]!, row: Math.floor((i % 4) / 2), col: i % 2 })));
+    solution = r.moves;
+  } else if (net.size === 4) {
+    const r = solve4(n);
+    if (!r.ok) return fail(r.badCells);
+    solution = r.moves;
+  } else {
     return null;
   }
+  // Belt and braces: replay the solution on our own model before showing it.
+  if (!isSolved(applyAlgorithm(fromNet(net.size, n), parseAlgorithm(solution.join(" "), net.size)))) return fail([]);
+  return solution;
 }
 
 function startSolve() {
   if (!net) return;
-  const solution = trySolve();
-  if (!solution) return;
-  moves = parseAlgorithm(solution.join(" "), 3);
-  // already solved: nothing to show but the tick
-  moveIndex = 0;
-  cubeView.setState(3, fromNet(3, net.current));
-  cubeView.resetView();
-  showScreen("solveView");
-  renderSolve();
+  const btn = $<HTMLButtonElement>("solve");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>`;
+  // let the spinner paint before the (possibly multi-second) solve runs
+  setTimeout(() => {
+    const solution = trySolve();
+    btn.disabled = false;
+    btn.textContent = "Go";
+    if (!solution || !net) return;
+    moves = parseAlgorithm(solution.join(" "), net.size);
+    moveIndex = 0;
+    cubeView.setState(net.size, fromNet(net.size, net.current));
+    cubeView.resetView();
+    showScreen("solveView");
+    renderSolve();
+  }, 40);
 }
 
+/** R → R, R' → R′, 2R → 2R (inner slice), Rw → Rw (two layers). */
 function pretty(token: string) {
   return token.replace("'", "′");
 }
@@ -309,12 +333,12 @@ async function step(delta: 1 | -1) {
   const mv = moves[delta === 1 ? moveIndex : moveIndex - 1]!;
   $("move").textContent = pretty(mv.token);
   renderSolve();
-  await cubeView.animate(mv, delta, TURN_MS);
+  await cubeView.animate(mv, delta, turnMs);
   moveIndex = target;
   renderSolve();
   if (playing) {
     if (moveIndex >= moves.length) stopPlaying();
-    else playTimer = window.setTimeout(() => void step(1), PLAY_GAP_MS);
+    else playTimer = window.setTimeout(() => void step(1), playGapMs);
   }
 }
 
@@ -426,5 +450,27 @@ getHealth()
   },
   get solved() {
     return isSolved(cubeView.getState());
+  },
+  setSpeed(turn: number, gap: number) {
+    turnMs = turn;
+    playGapMs = gap;
+  },
+  /** A random scramble of the given size as a fake recognition result. */
+  scramble(s: number, seed: number) {
+    const colors: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
+    const solved = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: s }, () => colors[f].repeat(s))])) as Record<Face, string[]>;
+    let x = seed >>> 0 || 1;
+    const rand = () => (x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+    const faces = ["U", "R", "F", "D", "L", "B"];
+    const tokens: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const f = faces[Math.floor(rand() * 6)]!;
+      const layer = s >= 4 && rand() < 0.4 ? "2" : "";
+      tokens.push(`${layer}${f}${["", "'", "2"][Math.floor(rand() * 3)]}`);
+    }
+    const cube = applyAlgorithm(fromNet(s, solved), parseAlgorithm(tokens.join(" "), s));
+    const net = toNet(s, cube);
+    const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: s }, () => "9".repeat(s))])) as Record<Face, string[]>;
+    return { size: s, recognition: { faces: net, confidence, notes: [] } };
   },
 };
