@@ -20,6 +20,7 @@ export type RecognizeBody = z.infer<typeof RecognizeBodySchema>;
 
 /** What the model must return: the shape is fixed, row lengths are checked separately against the cube size. */
 const FaceReadSchema = z.object({
+  found: z.boolean().describe("true when the photo clearly shows one face of a cube; false when there is no cube, it is too blurry, or most of the face is out of frame"),
   rows: z.array(z.string()).describe("N strings of N colour letters (W Y R O G B), top row first, left to right as seen in the photo"),
   confidence: z.array(z.string()).describe("N strings of N digits 0-9, one per sticker, same layout as rows; 9 = certain"),
 });

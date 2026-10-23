@@ -24,7 +24,7 @@ test("mock recognition has every colour exactly N² times and passes the shape c
     for (const n of Object.values(counts)) assert.equal(n, size * size);
     const out = ModelOutputSchema.parse({
       size,
-      ...Object.fromEntries(FACES.map((f) => [f, { rows: m.faces[f], confidence: m.confidence[f] }])),
+      ...Object.fromEntries(FACES.map((f) => [f, { found: true, rows: m.faces[f], confidence: m.confidence[f] }])),
       notes: [],
     });
     assert.deepEqual(shapeProblems(out), []);
@@ -34,17 +34,25 @@ test("mock recognition has every colour exactly N² times and passes the shape c
 
 test("shape check reports wrong row counts, lengths, letters and digits", () => {
   const m = mockRecognition(3);
-  const good = Object.fromEntries(FACES.map((f) => [f, { rows: m.faces[f], confidence: m.confidence[f] }]));
+  const good = Object.fromEntries(FACES.map((f) => [f, { found: true, rows: m.faces[f], confidence: m.confidence[f] }]));
   const bad = ModelOutputSchema.parse({
     size: 3,
     ...good,
-    U: { rows: ["WWW", "WW", "WWX"], confidence: ["999", "999"] },
+    U: { found: true, rows: ["WWW", "WW", "WWX"], confidence: ["999", "999"] },
     notes: [],
   });
   const problems = shapeProblems(bad);
   assert.ok(problems.some((p) => p.startsWith("U row 1")));
   assert.ok(problems.some((p) => p.includes("bad letters")));
   assert.ok(problems.some((p) => p.includes("confidence rows")));
+});
+
+test("a face without a cube must be flagged in the model output", () => {
+  const m = mockRecognition(2);
+  const faces = Object.fromEntries(FACES.map((f) => [f, { found: f !== "B", rows: m.faces[f], confidence: m.confidence[f] }]));
+  const out = ModelOutputSchema.parse({ size: 2, ...faces, notes: [] });
+  assert.deepEqual(FACES.filter((f) => !out[f].found), ["B"]);
+  assert.ok(!ModelOutputSchema.safeParse({ size: 2, ...faces, U: { rows: ["WW", "WW"], confidence: ["99", "99"] }, notes: [] }).success, "found is required");
 });
 
 test("count warnings name the colours that are off", () => {

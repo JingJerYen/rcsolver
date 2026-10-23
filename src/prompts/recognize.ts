@@ -6,6 +6,8 @@ Colour letters: W white, Y yellow, R red, O orange, G green, B blue. Every cube 
 
 First decide the cube size: count the stickers along one row of a face. It is the same for all six photos and is between 2 and 7. Report it as "size". If the user guessed a size, check it against the photos; the photos win.
 
+A photo that does not clearly show one cube face (no cube at all, something else, too blurry, mostly out of frame) gets "found": false. Still fill in rows and confidence for it (all confidence 0) so the shape is complete, but do not invent a cube. Set "found": true only when you can actually see the stickers.
+
 How to read each photo:
 - The photo shows one face of an N×N cube, roughly centred and roughly square. Read it exactly as oriented in the photo: top row first, each row left to right. Never rotate or mirror a face in your head.
 - Report N rows of N letters for that face, even if part of the face is cut off; use your best guess for hidden stickers and give them a low confidence digit.

@@ -5,7 +5,8 @@ import { loadConfig } from "../src/config.js";
 import { MemoryQuota, KvQuota, type KvLike } from "../src/quota.js";
 import { FACES } from "../src/cube.js";
 
-const b64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD";
+// big enough that the mock treats it as a real photo
+const b64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD".repeat(150);
 const body = (size?: number) => ({ size, faces: Object.fromEntries(FACES.map((f) => [f, { mediaType: "image/jpeg", data: b64 }])) });
 
 function mockApp(env: Record<string, string> = {}, quota = new MemoryQuota()) {
@@ -45,6 +46,17 @@ test("recognize without a size hint still answers (mock defaults to 3)", async (
   const res = await post(app, body());
   assert.equal(res.status, 200);
   assert.equal((await res.json()).size, 3);
+});
+
+test("mock: a tiny image means no cube in that photo, and the faces are named", async () => {
+  const { app } = mockApp();
+  const b = body(3);
+  b.faces.B = { mediaType: "image/jpeg", data: "/9j/4AAQ" };
+  const res = await post(app, b);
+  assert.equal(res.status, 422);
+  const j = await res.json();
+  assert.equal(j.error.code, "NO_CUBE");
+  assert.deepEqual(j.faces, ["B"]);
 });
 
 test("bad bodies are rejected with BAD_REQUEST", async () => {

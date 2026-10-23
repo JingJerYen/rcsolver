@@ -80,7 +80,9 @@ export function createApp({ config, quota, getIp }: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof AppError) {
       if (err.status >= 500) log.error("request failed", { code: err.code, message: err.message, details: err.details });
-      return c.json({ ok: false, error: { code: err.code, message: err.message } }, err.status as 400);
+      // NO_CUBE carries the faces to retake so the page can point at them
+      const extra = err.code === "NO_CUBE" ? (err.details as { faces: string[] }) : {};
+      return c.json({ ok: false, error: { code: err.code, message: err.message }, ...extra }, err.status as 400);
     }
     log.error("unhandled error", { message: err.message });
     return c.json({ ok: false, error: { code: "INTERNAL", message: "伺服器發生錯誤。" } }, 500);

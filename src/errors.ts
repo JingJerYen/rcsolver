@@ -3,6 +3,7 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "RATE_LIMITED"
   | "QUOTA_EXCEEDED"
+  | "NO_CUBE"
   | "MODEL_OUTPUT_INVALID"
   | "UPSTREAM_ERROR"
   | "INTERNAL";

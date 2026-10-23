@@ -39,19 +39,19 @@ export interface Health {
 }
 
 export class ApiError extends Error {
-  constructor(public code: string, message: string, public status: number) {
+  constructor(public code: string, message: string, public status: number, public faces: Face[] = []) {
     super(message);
   }
 }
 
 async function parse<T>(res: Response): Promise<T> {
-  let j: { ok?: boolean; error?: { code: string; message: string } } & T;
+  let j: { ok?: boolean; error?: { code: string; message: string }; faces?: Face[] } & T;
   try {
     j = (await res.json()) as typeof j;
   } catch {
     throw new ApiError("BAD_RESPONSE", `伺服器回應異常（${res.status}）`, res.status);
   }
-  if (!res.ok || j.ok === false) throw new ApiError(j.error?.code ?? "ERROR", j.error?.message ?? "發生錯誤", res.status);
+  if (!res.ok || j.ok === false) throw new ApiError(j.error?.code ?? "ERROR", j.error?.message ?? "發生錯誤", res.status, j.faces ?? []);
   return j;
 }
 

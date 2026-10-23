@@ -66,6 +66,10 @@ async function copyText(text: string, btn: HTMLElement) {
 let size: number | null = null;
 let stepIndex = 0;
 let images: Partial<Record<Face, FaceImage>> = {};
+/** Faces the model could not see a cube in; shown red on the review thumbnails. */
+let badFaces: Face[] = [];
+/** Re-shooting one face from the review screen instead of running the whole sequence. */
+let singleShot = false;
 let response: RecognizeResponse | null = null;
 let net: NetState | null = null;
 
@@ -189,7 +193,8 @@ function showScreen(id: (typeof SCREENS)[number]) {
 function thumbsHtml(current: number | null): string {
   return STEPS.map((s, i) => {
     const img = images[s.face];
-    const cls = `thumb${img ? " ok" : " empty"}${i === current ? " current" : ""}`;
+    const bad = badFaces.includes(s.face);
+    const cls = `thumb${img && !bad ? " ok" : img ? "" : " empty"}${bad ? " bad" : ""}${i === current ? " current" : ""}`;
     return `<div class="${cls}">${img ? `<img src="${img.dataUrl}" alt="${s.face}">` : ""}<span>${i + 1}</span></div>`;
   }).join("");
 }
@@ -205,6 +210,8 @@ function renderStep() {
 async function startCapture() {
   size = null; // the model counts the stickers itself
   images = {};
+  badFaces = [];
+  singleShot = false;
   for (const f of FACES) guide.setPhoto(f, null);
   stepIndex = 0;
   response = null;
@@ -225,8 +232,14 @@ async function startCapture() {
 }
 
 function acceptImage(img: FaceImage) {
-  images[STEPS[stepIndex]!.face] = img;
-  guide.setPhoto(STEPS[stepIndex]!.face, img.dataUrl);
+  const face = STEPS[stepIndex]!.face;
+  images[face] = img;
+  guide.setPhoto(face, img.dataUrl);
+  badFaces = badFaces.filter((f) => f !== face);
+  if (singleShot) {
+    finishCapture();
+    return;
+  }
   if (stepIndex < STEPS.length - 1) {
     stepIndex++;
     renderStep();
@@ -238,15 +251,38 @@ function acceptImage(img: FaceImage) {
 function finishCapture() {
   closeCamera(video);
   guide.stop();
+  singleShot = false;
   showScreen("review");
   $("reviewThumbs").innerHTML = thumbsHtml(null);
-  $("sendStatus").textContent = "";
+  $("sendStatus").textContent = badFaces.length ? "⚠" : "";
   $<HTMLButtonElement>("send").disabled = false;
+}
+
+/** Re-shoot just one face, then come back to the review screen. */
+async function recapture(index: number) {
+  singleShot = true;
+  stepIndex = index;
+  showScreen("capture");
+  renderStep();
+  $("camError").classList.add("hidden");
+  $<HTMLButtonElement>("shoot").disabled = false;
+  $<HTMLButtonElement>("redo").disabled = true;
+  try {
+    await openCamera(video);
+  } catch (err) {
+    $("camError").textContent = `📷 ✕  ${err instanceof Error ? err.message : String(err)}`;
+    $("camError").classList.remove("hidden");
+    $<HTMLButtonElement>("shoot").disabled = true;
+  }
 }
 
 function cancelCapture() {
   closeCamera(video);
   guide.stop();
+  if (singleShot) {
+    finishCapture();
+    return;
+  }
   showScreen("setup");
 }
 
@@ -260,8 +296,15 @@ async function send() {
   try {
     response = await recognize(size, faces);
   } catch (err) {
-    const msg = err instanceof ApiError ? `${err.message}（${err.code}）` : err instanceof Error ? err.message : String(err);
-    $("sendStatus").textContent = `✕ ${msg}`;
+    if (err instanceof ApiError && err.code === "NO_CUBE") {
+      // point at the photos without a cube; tapping one re-shoots that face
+      badFaces = err.faces.length ? err.faces : [...FACES];
+      $("reviewThumbs").innerHTML = thumbsHtml(null);
+      $("sendStatus").textContent = "⚠";
+    } else {
+      const msg = err instanceof ApiError ? `${err.message}（${err.code}）` : err instanceof Error ? err.message : String(err);
+      $("sendStatus").textContent = `✕ ${msg}`;
+    }
     $<HTMLButtonElement>("send").disabled = false;
     return;
   }
@@ -492,6 +535,12 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   }
 };
 $("send").onclick = () => void send();
+$("reviewThumbs").onclick = (e) => {
+  const el = (e.target as HTMLElement).closest(".thumb");
+  if (!el) return;
+  const i = Array.from($("reviewThumbs").children).indexOf(el);
+  if (i >= 0) void recapture(i);
+};
 $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
 $("solve").onclick = startSolve;

@@ -64,6 +64,10 @@ function describeApiError(err: unknown): Record<string, unknown> {
  */
 export async function recognizeCube(config: Config, body: RecognizeBody): Promise<RecognizeOutcome> {
   if (config.mockMode) {
+    // So the page's "no cube in this photo" path can be exercised without a model: an almost
+    // featureless image (a flat colour compresses to about 3 KB at 512px) counts as no cube.
+    const missing = FACES.filter((f) => body.faces[f].data.length < 3500);
+    if (missing.length) throw new AppError("NO_CUBE", "有幾張照片看不到方塊的面。", 422, { faces: missing });
     const size = body.size ?? 3;
     const recognition = mockRecognition(size, size * 7919);
     return { size, sizeMismatch: null, recognition, warnings: countWarnings(recognition.faces, size), model: "mock", mock: true, ms: 0, usage: null };
@@ -107,6 +111,11 @@ export async function recognizeCube(config: Config, body: RecognizeBody): Promis
       const problems = shapeProblems(parsed);
       if (problems.length) throw new Error(problems.join("; "));
       const { notes, size, ...faces } = parsed;
+      const missing = FACES.filter((f) => !faces[f].found);
+      if (missing.length) {
+        log.info("no cube face in some photos", { missing });
+        throw new AppError("NO_CUBE", "有幾張照片看不到方塊的面。", 422, { faces: missing });
+      }
       const sizeMismatch = body.size && body.size !== size ? { requested: body.size, detected: size } : null;
       if (sizeMismatch) log.info("size differs from hint", sizeMismatch);
       const recognition: Recognition = {
