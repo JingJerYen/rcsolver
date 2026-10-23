@@ -1,6 +1,10 @@
 # rcsolver
 
+**▶ 立刻用手機玩：<https://rcsolver.yanglassnake.workers.dev/>**
+
 手機網頁版魔術方塊求解器（2x2～7x7）：引導拍攝六面 → Claude 辨色 → 核對修正 → 瀏覽器求解 → 3D 動畫引導。
+
+<p align="center"><img src="docs/demo.gif" width="300" alt="拍六面 → 辨色 → 3D 動畫一步一步帶你轉"></p>
 
 目前進度：**2×2 到 7×7 完整流程可用**（拍攝引導 → 辨色 → 核對修正 → 求解 → 3D 動畫逐步引導）。求解器都在瀏覽器裡跑：2×2 用 IDA*，3×3 用 min2phase，4×4 到 7×7 用 reduction（中心 → 翼塊配對 → parity → 當 3×3 解），解出來的步驟一律先在內部模型重播確認能復原。步數大約：4×4 120、5×5 280、6×6 480、7×7 750。規劃與待辦見 [docs/PLAN.md](docs/PLAN.md)。
 
