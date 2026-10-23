@@ -24,6 +24,7 @@
   <section class="card hidden" id="capture">
     <div class="step-head">
       <span class="badge" id="stepCount"></span>
+      <button class="icon-btn small-btn tips-btn" id="tips" aria-label="怎麼拍"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.8" r="1.2" fill="currentColor"/></svg></button>
       <button class="icon-btn" id="cancel" aria-label="回到開始"><svg id="cancelHome" viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><svg id="cancelX" class="hidden" viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </div>
     <canvas id="guide" class="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
@@ -123,6 +124,16 @@
       <button type="button" class="icon-btn" id="importCancel" aria-label="取消"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
       <button type="submit" class="primary go" id="importOk">Go</button>
     </div>
+  </form>
+</dialog>
+<dialog id="tipsDialog" class="dialog tips" aria-label="怎麼拍">
+  <form method="dialog" class="dialog-body">
+    <div class="tip big"><canvas data-tip="good"></canvas><span class="mark ok"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="tips-row">
+      <div class="tip"><canvas data-tip="angled"></canvas><span class="mark no"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg></span></div>
+      <div class="tip"><canvas data-tip="far"></canvas><span class="mark no"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg></span></div>
+    </div>
+    <button class="primary go" id="tipsOk">OK</button>
   </form>
 </dialog>
 <script type="module" src="./app.js"></script>

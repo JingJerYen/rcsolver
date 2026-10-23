@@ -62,14 +62,24 @@ function dot(a: Vec, b: Vec): number {
 /** Camera looking at the cube from front-right-above, like the lesson page. */
 const YAW = 0.6;
 const PITCH = 0.5;
-const CAM = (() => {
-  const cy = Math.cos(YAW), sy = Math.sin(YAW), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
+
+/**
+ * Camera for zoom `z`: 0 is the front-right-above view, 1 looks straight at the front face, which
+ * is what the photo should look like. Shooting the whole cube at an angle came from copying the
+ * angled view, so every step ends on that straight-on shot.
+ */
+function camera(z: number) {
+  const yaw = YAW * (1 - z), pitch = PITCH * (1 - z);
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
   return { right: [cy, 0, -sy] as Vec, up: [-sy * sp, cp, -cy * sp] as Vec, view: [sy * cp, sp, cy * cp] as Vec };
-})();
+}
+
+const smooth = (f: number) => f * f * (3 - 2 * f);
 
 const HOLD_BEFORE = 1300;
 const TURN_MS = 2200;
-const HOLD_AFTER = 1800;
+const ZOOM_MS = 900;
+const HOLD_ZOOMED = 2600;
 
 export interface GuideStep {
   /** The face that is in front before the gestures. */
@@ -140,13 +150,16 @@ export class GuideCube {
     this.ctx.setTransform(d, 0, 0, d, 0, 0);
   }
 
-  /** Orientation at animation time `ms`; `arrow` is the gesture whose direction arrow to show, if any. */
-  private orientation(ms: number): { m: Mat; done: boolean; arrow: Gesture | null } {
+  /**
+   * Orientation at animation time `ms`; `arrow` is the gesture whose direction arrow to show, if any,
+   * and `zoom` how far the camera has moved in on the face to shoot (0–1, after the turns).
+   */
+  private orientation(ms: number): { m: Mat; done: boolean; arrow: Gesture | null; zoom: number } {
     const g = this.step.gestures;
-    const total = HOLD_BEFORE + g.length * TURN_MS + HOLD_AFTER;
-    const t = g.length ? ms % total : 0;
+    const total = HOLD_BEFORE + g.length * TURN_MS + ZOOM_MS + HOLD_ZOOMED;
+    const t = ms % total;
     let m = this.base;
-    if (t < HOLD_BEFORE) return { m, done: g.length === 0, arrow: g[0] ?? null };
+    if (t < HOLD_BEFORE) return { m, done: g.length === 0, arrow: g[0] ?? null, zoom: 0 };
     let rest = t - HOLD_BEFORE;
     for (const gesture of g) {
       if (rest >= TURN_MS) {
@@ -154,11 +167,9 @@ export class GuideCube {
         rest -= TURN_MS;
         continue;
       }
-      const f = rest / TURN_MS;
-      const eased = f * f * (3 - 2 * f);
-      return { m: mul(rot(gesture.axis, gesture.deg * eased), m), done: false, arrow: gesture };
+      return { m: mul(rot(gesture.axis, gesture.deg * smooth(rest / TURN_MS)), m), done: false, arrow: gesture, zoom: 0 };
     }
-    return { m, done: true, arrow: null };
+    return { m, done: true, arrow: null, zoom: smooth(Math.min(1, rest / ZOOM_MS)) };
   }
 
   /**
@@ -199,9 +210,11 @@ export class GuideCube {
   private draw(now: number) {
     const { ctx, w, h } = this;
     ctx.clearRect(0, 0, w, h);
-    const { m, done, arrow } = this.orientation(now - this.t0);
-    const s = Math.min(w, h) * 0.27;
-    const project = (p: Vec): [number, number] => [w / 2 + dot(p, CAM.right) * s, h / 2 + 6 - dot(p, CAM.up) * s];
+    const { m, done, arrow, zoom } = this.orientation(now - this.t0);
+    const cam = camera(zoom);
+    // zoomed in, the front face fills most of the height, like the frame in the viewfinder
+    const s = Math.min(w, h) * 0.27 * (1 - zoom) + h * 0.37 * zoom;
+    const project = (p: Vec): [number, number] => [w / 2 + dot(p, cam.right) * s, h / 2 + 6 * (1 - zoom) - dot(p, cam.up) * s];
     const pulse = 0.5 + 0.5 * Math.sin(now / 180);
 
     const faces = (Object.keys(FACE_AXES) as Face[]).map((face) => {
@@ -210,7 +223,7 @@ export class GuideCube {
       const r = apply(m, ax.right);
       const d = apply(m, ax.down);
       const corners: Vec[] = [add(n, scale(r, -1), scale(d, -1)), add(n, r, scale(d, -1)), add(n, r, d), add(n, scale(r, -1), d)];
-      return { face, n, corners: corners.map(project), depth: dot(n, CAM.view), light: 0.72 + 0.28 * Math.max(0, dot(n, [0.3, 0.8, 0.5])) };
+      return { face, n, corners: corners.map(project), depth: dot(n, cam.view), light: 0.72 + 0.28 * Math.max(0, dot(n, [0.3, 0.8, 0.5])) };
     });
     faces.sort((a, b) => a.depth - b.depth);
 
@@ -248,6 +261,7 @@ export class GuideCube {
         ctx.fillStyle = `rgba(0,0,0,${(1 - f.light) * 0.35})`;
         ctx.fill();
       }
+      if (isTarget && zoom > 0.5) this.drawGrid(f.corners, (zoom - 0.5) * 2);
       path();
       ctx.lineWidth = isTarget ? 3 + 2 * pulse : 1.5;
       ctx.strokeStyle = isTarget ? "#ffb703" : "#1b2a3d";
@@ -265,9 +279,57 @@ export class GuideCube {
         ctx.strokeStyle = "rgba(255,255,255,.9)";
         ctx.stroke();
       }
-      if (isTarget && done) this.drawCamera(cx, cy, 1 + 0.08 * pulse);
+      if (isTarget && done) this.drawCamera(cx, cy, (1 + 0.08 * pulse) * (1 + 0.35 * zoom));
+      if (isTarget && zoom > 0.6) this.drawBrackets(f.corners, (zoom - 0.6) / 0.4);
     }
     if (arrow) this.drawArrow(arrow, project);
+  }
+
+  /** Dashed sticker lines on the face to shoot: "fill the frame with this". 3×3 just as a picture. */
+  private drawGrid(corners: [number, number][], alpha: number) {
+    const { ctx } = this;
+    const [p0, p1, , p3] = corners as [[number, number], [number, number], [number, number], [number, number]];
+    const at = (u: number, v: number): [number, number] => [p0[0] + (p1[0] - p0[0]) * u + (p3[0] - p0[0]) * v, p0[1] + (p1[1] - p0[1]) * u + (p3[1] - p0[1]) * v];
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = `rgba(150,80,0,${0.6 * alpha})`;
+    for (const k of [1 / 3, 2 / 3]) {
+      ctx.beginPath();
+      ctx.moveTo(...at(k, 0));
+      ctx.lineTo(...at(k, 1));
+      ctx.moveTo(...at(0, k));
+      ctx.lineTo(...at(1, k));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Viewfinder corner marks just outside the face, once the camera is straight on. */
+  private drawBrackets(corners: [number, number][], alpha: number) {
+    const { ctx } = this;
+    const xs = corners.map((p) => p[0]);
+    const ys = corners.map((p) => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const half = (Math.max(...xs) - Math.min(...xs)) / 2 + 9;
+    const len = half * 0.42;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "#195ed6";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      const x = cx + sx * half;
+      const y = cy + sy * half;
+      ctx.beginPath();
+      ctx.moveTo(x - sx * len, y);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x, y - sy * len);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawCamera(cx: number, cy: number, k: number) {

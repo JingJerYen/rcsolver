@@ -1,6 +1,7 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
+import { drawPhotoTips } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
@@ -249,8 +250,34 @@ async function startCapture() {
   stopPlaying();
   showScreen("capture");
   renderStep();
+  if (!tipsSeen()) showTips();
   await startPreview();
 }
+
+/* The wordless "how to shoot" card: once on the first capture, then behind the "?" button. */
+const TIPS_KEY = "rcsolver.photoTips";
+const tipsDialog = $<HTMLDialogElement>("tipsDialog");
+
+function tipsSeen(): boolean {
+  try {
+    return localStorage.getItem(TIPS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function showTips() {
+  tipsDialog.showModal();
+  drawPhotoTips(tipsDialog);
+}
+
+tipsDialog.addEventListener("close", () => {
+  try {
+    localStorage.setItem(TIPS_KEY, "1");
+  } catch {
+    /* private mode: the card just shows again next time */
+  }
+});
 
 function acceptImage(img: FaceImage) {
   const face = STEPS[stepIndex]!.face;
@@ -632,6 +659,7 @@ function stopPlaying() {
 
 $("start").onclick = () => void startCapture();
 $("cancel").onclick = cancelCapture;
+$("tips").onclick = showTips;
 $("shoot").onclick = () => {
   if (nativeCamera) {
     $<HTMLInputElement>("fileCapture").click();
