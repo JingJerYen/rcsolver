@@ -204,6 +204,9 @@ function thumbsHtml(current: number | null): string {
 
 function renderStep() {
   const step = STEPS[stepIndex]!;
+  // re-shooting one face: the corner button is a plain cancel back to the photos, not "home"
+  $("cancelHome").classList.toggle("hidden", singleShot);
+  $("cancelX").classList.toggle("hidden", !singleShot);
   $("stepCount").textContent = `${stepIndex + 1} / ${STEPS.length}`;
   guide.show(turnsBefore(stepIndex), { gestures: step.turns, target: step.face });
   $("thumbs").innerHTML = thumbsHtml(stepIndex);
