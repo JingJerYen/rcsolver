@@ -12,8 +12,9 @@ import { centreSolverFor, solveCentresStaged } from "./centres.js";
 import { stickerCell, type Cell } from "./cube4.js";
 import { badCorners, schemeFromCorners, type Net } from "./scheme.js";
 import { flipUF, slotKey, wingOrbits } from "./wings.js";
+import { cube3Segments, type Segment } from "./segments.js";
 
-export type SolveNResult = { ok: true; moves: string[]; stages: Record<string, number> } | { ok: false; badCells: Cell[]; reason: string };
+export type SolveNResult = { ok: true; moves: string[]; stages: Record<string, number>; segments: Segment[] } | { ok: false; badCells: Cell[]; reason: string };
 
 const faceOfNormal = (n: Vec): Face => FACE_ORDER.find((f) => FACE_AXES[f].n.every((v, i) => v === n[i]))!;
 const key = (p: Vec, n: Vec) => `${p.join(",")}|${n.join(",")}`;
@@ -64,11 +65,14 @@ export function solveN(net: Net, size: number): SolveNResult {
   let cube = fromNet(size, net);
   const stages: Record<string, number> = {};
   const moves: string[] = [];
-  const run = (label: string, tokens: string[]) => {
+  const segments: Segment[] = [];
+  const run = (label: string, tokens: string[], segment?: (from: number, to: number) => Segment[]) => {
     if (!tokens.length) return;
+    const from = moves.length;
     cube = applyAlgorithm(cube, parseAlgorithm(tokens.join(" "), size));
     moves.push(...tokens);
     stages[label] = (stages[label] ?? 0) + tokens.length;
+    if (segment) segments.push(...segment(from, moves.length));
   };
 
   // centres: every orbit must hold four stickers of each face
@@ -77,7 +81,20 @@ export function solveN(net: Net, size: number): SolveNResult {
     if (faces.some((f) => !f)) return { ok: false, badCells: [], reason: "centre_colour" };
     for (const f of FACE_ORDER) if (faces.filter((x) => x === f).length !== 4) return { ok: false, badCells: [], reason: "centre_count" };
   }
-  run("centres", solveCentresStaged(cube, faceOfColor, size));
+  {
+    const centreOrbits = centreSolverFor(size).orbits.length;
+    const parts: { orbit: number; stage: number; count: number }[] = [];
+    const tokens = solveCentresStaged(cube, faceOfColor, size, undefined, (orbit, stage, count) => parts.push({ orbit, stage, count }));
+    run("centres", tokens, (from) => {
+      const out: Segment[] = [];
+      let at = 0;
+      for (const p of parts) {
+        if (p.count > at) out.push({ kind: "centres", from: from + at, to: from + p.count, orbit: p.orbit, orbits: centreOrbits, stage: p.stage });
+        at = p.count;
+      }
+      return out;
+    });
+  }
   // middle-slice turns may have turned the whole cube: read the scheme off the solved centres
   {
     const n = toNet(size, cube);
@@ -130,7 +147,7 @@ export function solveN(net: Net, size: number): SolveNResult {
     const arr = readOrbit(0);
     if (!(arr instanceof Uint8Array)) return { ok: false, ...arr };
     try {
-      run("edges", orbits[0]!.pair(arr));
+      run("edges", orbits[0]!.pair(arr), (from, to) => [{ kind: "edges", from, to, orbit: 0, orbits: orbits.length }]);
     } catch {
       return { ok: false, badCells: [], reason: "pairing" };
     }
@@ -145,7 +162,7 @@ export function solveN(net: Net, size: number): SolveNResult {
     const target = orbits[oi]!.target(refColour, colorOfFace);
     if (target.includes(255)) return { ok: false, badCells: [], reason: "wing_target" };
     try {
-      run("edges", orbits[oi]!.pairTo(arr, target));
+      run("edges", orbits[oi]!.pairTo(arr, target), (from, to) => [{ kind: "edges", from, to, orbit: oi, orbits: orbits.length }]);
     } catch {
       return { ok: false, badCells: [], reason: "pairing" };
     }
@@ -162,14 +179,17 @@ export function solveN(net: Net, size: number): SolveNResult {
     if (!conv) return { ok: false, badCells: [], reason: "reduce" };
     const v = checkFacelets(conv.facelets);
     if (v.ok) {
-      run("3x3", solve3(conv.facelets));
+      const before = cube;
+      const tokens = solve3(conv.facelets);
+      run("3x3", tokens, (from) => cube3Segments(from, tokens, (k) => reduceTo3(applyAlgorithm(before, parseAlgorithm(tokens.slice(0, k).join(" "), size)), size)));
       break;
     }
     if (odd) return { ok: false, badCells: [], reason: `reduced:${v.reasons.join(",")}` };
-    if (v.reasons.includes("edge_flip")) run("parity", ollParity(size));
-    else if (v.reasons.includes("parity")) run("parity", pllParity(size));
+    const parity = (from: number, to: number): Segment[] => [{ kind: "parity", from, to }];
+    if (v.reasons.includes("edge_flip")) run("parity", ollParity(size), parity);
+    else if (v.reasons.includes("parity")) run("parity", pllParity(size), parity);
     else return { ok: false, badCells: [], reason: `reduced:${v.reasons.join(",")}` };
   }
   if (!isSolved(cube)) return { ok: false, badCells: [], reason: "unsolved" };
-  return { ok: true, moves, stages };
+  return { ok: true, moves, stages, segments };
 }

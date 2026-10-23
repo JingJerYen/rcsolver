@@ -11,6 +11,7 @@ import { OUTER_MOVES, buildCentreTables, centreFaces, solveCentres } from "./cub
 import { PARTNER, SLOTS, WING_POS, applyPerm, pairedCount, readWings, sequencePerm } from "./cube4edges.js";
 import { MACROS } from "./cube4macros.js";
 import { badCorners, cornerCells, schemeFromCorners, type Net } from "./scheme.js";
+import { cube3Segments, type Segment } from "./segments.js";
 
 const OLL_PARITY = "Rw2 B2 U2 Lw U2 Rw' U2 Rw U2 F2 Rw F2 Lw' B2 Rw2";
 const PLL_PARITY = "2R2 U2 2R2 Uw2 2R2 2U2";
@@ -20,7 +21,7 @@ export interface Cell {
   row: number;
   col: number;
 }
-export type Solve4Result = { ok: true; moves: string[]; stages: Record<string, number> } | { ok: false; badCells: Cell[]; reason: string };
+export type Solve4Result = { ok: true; moves: string[]; stages: Record<string, number>; segments: Segment[] } | { ok: false; badCells: Cell[]; reason: string };
 
 /** Net cell of a sticker (p, n) on an N×N cube. */
 export function stickerCell(p: Vec, n: Vec, size: number): Cell {
@@ -130,17 +131,33 @@ export function solve4(net: Net): Solve4Result {
   let cube = fromNet(4, net);
   const stages: Record<string, number> = {};
   const moves: string[] = [];
-  const run = (label: string, tokens: string[]) => {
+  const segments: Segment[] = [];
+  const run = (label: string, tokens: string[], segment?: (from: number, to: number) => Segment[]) => {
+    if (!tokens.length) return;
+    const from = moves.length;
     cube = applyAlgorithm(cube, parseAlgorithm(tokens.join(" "), 4));
     moves.push(...tokens);
     stages[label] = (stages[label] ?? 0) + tokens.length;
+    if (segment) segments.push(...segment(from, moves.length));
   };
 
   // centres: every face class must have exactly four stickers
   const faces = centreFaces(cube, scheme.faceOfColor);
   for (const f of FACE_ORDER) if (faces.filter((x) => x === f).length !== 4) return { ok: false, badCells: [], reason: "centre_count" };
   buildCentreTables();
-  run("centres", solveCentres(faces));
+  {
+    const parts: { stage: number; count: number }[] = [];
+    const tokens = solveCentres(faces, (stage, count) => parts.push({ stage, count }));
+    run("centres", tokens, (from) => {
+      const out: Segment[] = [];
+      let at = 0;
+      for (const p of parts) {
+        if (p.count > at) out.push({ kind: "centres", from: from + at, to: from + p.count, orbit: 0, orbits: 1, stage: p.stage });
+        at = p.count;
+      }
+      return out;
+    });
+  }
 
   // wings
   const wings = readWings(cube, scheme.colorOfFace);
@@ -150,7 +167,7 @@ export function solve4(net: Net): Solve4Result {
   }
   if (new Set(wings.arr).size !== 24) return { ok: false, badCells: [], reason: "wing_duplicate" };
   try {
-    run("edges", pairEdges(wings.arr));
+    run("edges", pairEdges(wings.arr), (from, to) => [{ kind: "edges", from, to, orbit: 0, orbits: 1 }]);
   } catch {
     return { ok: false, badCells: [], reason: "pairing" };
   }
@@ -161,13 +178,16 @@ export function solve4(net: Net): Solve4Result {
     if (!conv) return { ok: false, badCells: [], reason: "reduce" };
     const v = checkFacelets(conv.facelets);
     if (v.ok) {
-      run("3x3", solve3(conv.facelets));
+      const before = cube;
+      const tokens = solve3(conv.facelets);
+      run("3x3", tokens, (from) => cube3Segments(from, tokens, (k) => reduceTo3(applyAlgorithm(before, parseAlgorithm(tokens.slice(0, k).join(" "), 4)))));
       break;
     }
-    if (v.reasons.includes("edge_flip")) run("parity", OLL_PARITY.split(" "));
-    else if (v.reasons.includes("parity")) run("parity", PLL_PARITY.split(" "));
+    const parity = (from: number, to: number): Segment[] => [{ kind: "parity", from, to }];
+    if (v.reasons.includes("edge_flip")) run("parity", OLL_PARITY.split(" "), parity);
+    else if (v.reasons.includes("parity")) run("parity", PLL_PARITY.split(" "), parity);
     else return { ok: false, badCells: [], reason: `reduced:${v.reasons.join(",")}` };
   }
   if (!isSolved(cube)) return { ok: false, badCells: [], reason: "unsolved" };
-  return { ok: true, moves, stages };
+  return { ok: true, moves, stages, segments };
 }

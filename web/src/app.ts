@@ -3,7 +3,8 @@ import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turn
 import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
-import type { Cell } from "./solveAny.js";
+import type { Cell, Segment } from "./solveAny.js";
+import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -21,6 +22,8 @@ interface Save {
   faces: Record<Face, string[]>;
   moves: string[];
   index: number;
+  /** What each stretch of the moves does, when the moves came from our solver. */
+  segments?: Segment[];
 }
 const SAVES_KEY = "rcsolver.saves";
 
@@ -165,7 +168,7 @@ function renderSaves() {
 
 function saveCurrent() {
   if (!net) return;
-  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex };
+  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   const btn = $("save");
@@ -190,6 +193,7 @@ function openSaved(sv: Save) {
   net = makeState(sv.size, response.recognition);
   renderNet($("net"), net, () => undefined);
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
+  segments = sv.segments ?? null;
   startState = fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
   shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
@@ -372,6 +376,15 @@ let startState: Sticker[] = [];
 let playing = false;
 let playTimer = 0;
 let turnMs = 1200;
+/** Stages of the current solution (null when the moves did not come from our solver). */
+let segments: Segment[] | null = null;
+const GUIDE_KEY = "rcsolver.guide";
+let guideOn = false;
+try {
+  guideOn = localStorage.getItem(GUIDE_KEY) === "1";
+} catch {
+  /* storage unavailable */
+}
 /** Move shown in the label, counter and sequence: the one being turned, which stays until the next turn starts. */
 let shownIndex = 0;
 /** Pause between moves during auto-play: a small button cycles through a few choices, remembered on this device. */
@@ -417,10 +430,10 @@ async function computeSolution(size: number, n: Record<Face, string[]>): Promise
 }
 
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
-async function trySolve(onProgress?: (f: number) => void): Promise<string[] | null> {
+async function trySolve(onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
   const r = await solveAsync(net.size, net.current, onProgress);
-  return r.ok ? r.moves : fail(r.badCells);
+  return r.ok ? { moves: r.moves, segments: r.segments } : fail(r.badCells);
 }
 
 function startSolve() {
@@ -435,7 +448,8 @@ function startSolve() {
     btn.disabled = false;
     btn.textContent = "Go";
     if (!solution || !net) return;
-    moves = parseAlgorithm(solution.join(" "), net.size);
+    moves = parseAlgorithm(solution.moves.join(" "), net.size);
+    segments = solution.segments;
     moveIndex = 0;
     shownIndex = 0;
     startState = fromNet(net.size, net.current);
@@ -483,6 +497,7 @@ function renderSolve() {
   slider.style.setProperty("--p", `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`);
   showMove(moves[shownIndex] ?? null);
   renderSequence();
+  renderGuide();
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
   $<HTMLButtonElement>("play").disabled = done;
@@ -490,6 +505,46 @@ function renderSolve() {
   $("playIcon").classList.toggle("hidden", playing);
   $("pauseIcon").classList.toggle("hidden", !playing);
   if (done && !isSolved(cubeView.getState())) $("move").textContent = "?";
+}
+
+const CHIP_ICONS: Record<Segment["kind"], string> = {
+  centres: `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8.5" y="8.5" width="7" height="7" fill="currentColor"/></svg>`,
+  edges: `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="3" width="6" height="5" fill="currentColor"/><rect x="9" y="16" width="6" height="5" fill="currentColor"/><rect x="3" y="9" width="5" height="6" fill="currentColor"/><rect x="16" y="9" width="5" height="6" fill="currentColor"/></svg>`,
+  parity: `<svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  cube3: `<span>3×3</span>`,
+  optimal: `<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>`,
+};
+
+/** Stage chips, the dimmed cube and the explanation for the move being shown. */
+function renderGuide() {
+  const row = $("stagesRow");
+  if (!segments || !net) {
+    row.classList.add("hidden");
+    $("guideText").classList.add("hidden");
+    cubeView.setFocus(null);
+    return;
+  }
+  row.classList.remove("hidden");
+  const chips = chipsFor(segments);
+  const at = Math.min(shownIndex, Math.max(0, moves.length - 1));
+  $("stages").innerHTML = chips
+    .map((c, i) => {
+      const done = moveIndex >= c.to;
+      const current = at >= c.from && at < c.to;
+      const p = Math.max(0, Math.min(1, (moveIndex - c.from) / (c.to - c.from)));
+      return `<button class="chip${done ? " complete" : ""}${current ? " current" : ""}" data-i="${i}" style="--p:${Math.round(p * 100)}%">${CHIP_ICONS[c.kind]}</button>`;
+    })
+    .join("");
+  const seg = segmentAt(segments, at);
+  cubeView.setFocus(focusKeys(seg, net.size));
+  $("guideBtn").classList.toggle("on", guideOn);
+  const text = $("guideText");
+  text.classList.toggle("hidden", !guideOn || !seg);
+  if (seg) {
+    const d = describe(seg, net.size);
+    $("guideTitle").textContent = d.title;
+    $("guideBody").textContent = d.body;
+  }
 }
 
 /** A home tap while solving needs a second tap within 3 s, so a stray touch does not throw the solve away. */
@@ -640,6 +695,21 @@ $<HTMLInputElement>("slider").oninput = (e) => {
   }
   jumpTo(v, Math.max(0, v - 1));
 };
+$("stages").onclick = (e) => {
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".chip");
+  if (!chip || !segments) return;
+  const c = chipsFor(segments)[Number(chip.dataset.i)];
+  if (c) jumpTo(c.from, c.from);
+};
+$("guideBtn").onclick = () => {
+  guideOn = !guideOn;
+  try {
+    localStorage.setItem(GUIDE_KEY, guideOn ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
+  renderGuide();
+};
 $("pace").onclick = () => {
   playGapMs = GAP_CHOICES[(GAP_CHOICES.indexOf(playGapMs) + 1) % GAP_CHOICES.length]!;
   renderPace();
@@ -684,13 +754,15 @@ async function openSharedLink() {
     stopPlaying();
     // no moves in the token: the solver reproduces them (the same solution the sender had)
     let moves = z.moves;
+    let segs: Segment[] | undefined;
     if (!moves) {
       setBusy(true);
       const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f));
       setBusy(false);
       moves = r.ok ? r.moves : [];
+      if (r.ok) segs = r.segments;
     }
-    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index });
+    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index, ...(segs ? { segments: segs } : {}) });
     history.replaceState(null, "", location.pathname);
     return;
   }

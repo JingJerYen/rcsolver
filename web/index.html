@@ -83,6 +83,11 @@
       <button class="icon-btn" id="save" aria-label="儲存"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 3v6h7V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <button class="icon-btn" id="closeSolve" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
+    <div class="stages-row hidden" id="stagesRow">
+      <div class="stages" id="stages"></div>
+      <button class="icon-btn small-btn guide-btn" id="guideBtn" aria-label="說明"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.8" r="1.2" fill="currentColor"/></svg></button>
+    </div>
+    <div class="guide-text hidden" id="guideText"><b id="guideTitle"></b><span id="guideBody"></span></div>
     <canvas id="cube" class="cube" aria-label="可拖曳旋轉視角的方塊"></canvas>
     <div class="move-row">
       <div class="move" id="move"></div>

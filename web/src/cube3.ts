@@ -105,3 +105,24 @@ function parity(perm: number[]): number {
   for (let i = 0; i < perm.length; i++) for (let j = i + 1; j < perm.length; j++) if (perm[i]! > perm[j]!) s++;
   return s % 2;
 }
+
+/**
+ * Is this (valid) cube in Kociemba's phase-2 subgroup: every corner and edge oriented and the
+ * four middle-layer edges in the middle layer? From here only U, D and half turns are needed.
+ */
+export function inG1(facelets: string): boolean {
+  const f = facelets.split("") as Face[];
+  const ud = (x: Face) => x === "U" || x === "D";
+  for (const idx of CORNER_FACELETS) if (!ud(f[idx[0]!]!)) return false;
+  for (let e = 0; e < 12; e++) {
+    const [a, b] = EDGE_FACELETS[e]!;
+    if (e < 8) {
+      if (!ud(f[a!]!)) return false;
+    } else {
+      // middle-layer position: no U/D colour, and the F/B colour on the F/B side
+      if (ud(f[a!]!) || ud(f[b!]!)) return false;
+      if (f[a!] !== "F" && f[a!] !== "B") return false;
+    }
+  }
+  return true;
+}

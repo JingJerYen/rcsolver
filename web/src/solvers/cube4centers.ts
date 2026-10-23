@@ -187,11 +187,11 @@ export function centreFaces(stickers: Sticker[], faceOfColor: Map<string, Face>)
 }
 
 /** Moves that bring all centres home, stage by stage (each stage optimal for its coordinate). */
-export function solveCentres(faces: Face[]): string[] {
+export function solveCentres(faces: Face[], report?: (stage: number, moveCount: number) => void): string[] {
   if (!stages) buildCentreTables();
   const out: string[] = [];
   let cur = faces.slice();
-  for (const st of stages!) {
+  for (const [si, st] of stages!.entries()) {
     let masks = st.parts.map((p) => maskOf(p, cur));
     let d = st.table[encode(st.parts, masks)]!;
     if (d === 255) throw new Error("centre state not reachable");
@@ -214,6 +214,7 @@ export function solveCentres(faces: Face[]): string[] {
       }
       if (!stepped) throw new Error("centre descent stuck");
     }
+    report?.(si, out.length);
   }
   return out;
 }

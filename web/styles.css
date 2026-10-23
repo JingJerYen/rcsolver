@@ -85,6 +85,18 @@ th{color:#607189;font-weight:600}
 .lab{margin-top:12px}
 .lab summary{cursor:pointer;font-size:16px;list-style:none;color:#607189}
 .lab summary::-webkit-details-marker{display:none}
+.stages-row{display:flex;align-items:center;gap:8px;margin:10px 0 8px}
+.stages{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.chip{position:relative;flex:1;min-width:0;height:36px;margin:0;vertical-align:top;border-radius:10px;background:#e7edf5;border:2px solid transparent;display:flex;align-items:center;justify-content:center;gap:4px;color:#607189;font-size:12px;font-weight:700;overflow:hidden;cursor:pointer;padding:0}
+.chip>*{position:relative}
+.chip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:#c5d6f5}
+.chip.complete::before{width:100%}
+.chip.current{border-color:#195ed6;color:#195ed6}
+.chip svg{width:18px;height:18px}
+.guide-btn{color:#607189;border-color:#e3e9f1}
+.guide-btn.on{color:#195ed6;border-color:#195ed6}
+.guide-text{background:#f4f7fb;border:1px solid #dde5ef;border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:14px;line-height:1.6;color:#39536e}
+.guide-text b{display:block;color:#192a40;margin-bottom:2px}
 .cube{display:block;width:100%;aspect-ratio:1/1;max-height:420px;background:radial-gradient(ellipse,#fff,#eaf0f8);border-radius:12px;touch-action:none}
 .move{text-align:center;font-size:40px;font-weight:800;color:#195ed6;min-height:52px;line-height:52px;font-variant-numeric:tabular-nums}
 .play-row{display:flex;gap:12px;align-items:center;justify-content:center}

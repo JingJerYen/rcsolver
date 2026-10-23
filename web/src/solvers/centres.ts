@@ -301,6 +301,8 @@ export function solveCentresStaged(
   size: number,
   /** When given, no solving happens: each table that would be needed is reported instead. */
   enumerate?: (stage: number, perms: Uint8Array[], key: string) => void,
+  /** Called after each orbit stage with the number of moves emitted so far. */
+  report?: (orbit: number, stage: number, moveCount: number) => void,
 ): string[] {
   const solver = centreSolverFor(size);
   const plan = CENTRE_MACROS[size] ?? { order: solver.orbits.map((_, i) => i), tableOrbits: solver.orbits.length, macros: [] as string[][][][] };
@@ -357,6 +359,7 @@ export function solveCentresStaged(
       }
       if (!stepped) throw new Error("centre descent stuck");
     }
+    report?.(oi, stage, out.length);
   };
 
   for (let idx = 0; idx < plan.order.length; idx++) {
