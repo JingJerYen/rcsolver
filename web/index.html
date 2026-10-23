@@ -67,7 +67,7 @@
 
   <section class="card hidden" id="solveView">
     <div class="step-head">
-      <span class="badge" id="progress"></span>
+      <span class="badge progress-badge" id="progress"></span>
       <button class="icon-btn" id="save" aria-label="儲存"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 3v6h7V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <button class="icon-btn" id="closeSolve" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
@@ -76,9 +76,8 @@
       <div class="move" id="move"></div>
       <div class="angle" id="angle"></div>
     </div>
-    <div class="progress"><div id="bar"></div></div>
+    <input type="range" class="slider" id="slider" min="0" max="0" value="0" step="1" aria-label="步驟">
     <div class="play-row">
-      <button class="icon-btn" id="rewind" aria-label="回到第一步"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 5v14M19 5l-10 7 10 7z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <button class="icon-btn" id="prev" aria-label="上一步"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="icon-btn play" id="play" aria-label="自動播放"><svg id="playIcon" viewBox="0 0 24 24" width="30" height="30"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg><svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" width="30" height="30"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></button>
       <button class="icon-btn primary next" id="next" aria-label="下一步"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>

@@ -369,11 +369,13 @@ function renderSequence() {
 function renderSolve() {
   const done = moveIndex >= moves.length;
   $("progress").textContent = `${moveIndex} / ${moves.length}`;
-  $("bar").style.width = `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`;
+  const slider = $<HTMLInputElement>("slider");
+  slider.max = String(moves.length);
+  slider.value = String(moveIndex);
+  slider.style.setProperty("--p", `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`);
   showMove(done ? null : moves[moveIndex]!);
   renderSequence();
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
-  $<HTMLButtonElement>("rewind").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
   $<HTMLButtonElement>("play").disabled = done;
   $("done").classList.toggle("hidden", !done);
@@ -482,7 +484,14 @@ $("next").onclick = () => {
   stopPlaying();
   void step(1);
 };
-$("rewind").onclick = () => jumpTo(0);
+$<HTMLInputElement>("slider").oninput = (e) => {
+  const v = Number((e.target as HTMLInputElement).value);
+  if (cubeView.animating) {
+    (e.target as HTMLInputElement).value = String(moveIndex);
+    return;
+  }
+  jumpTo(v);
+};
 $("save").onclick = saveCurrent;
 renderSaves();
 $("sequence").onclick = (e) => {
