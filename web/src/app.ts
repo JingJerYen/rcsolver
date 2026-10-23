@@ -3,6 +3,7 @@ import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turn
 import { GuideCube } from "./guideCube.js";
 import { drawPhotoTips } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
+import { renderFaceZoom } from "./faceZoom.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -188,6 +189,7 @@ function openSave(i: number) {
 /** Show a saved or shared solve at its step (or just the cube when it has no solution yet). */
 function openSaved(sv: Save) {
   size = sv.size;
+  images = {}; // photos from an earlier capture belong to another cube
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: sv.size }, () => "9".repeat(sv.size))])) as Record<Face, string[]>;
   response = { ok: true, size: sv.size, sizeMismatch: null, recognition: { faces: sv.faces, confidence, notes: [] }, warnings: [], model: "saved", mock: false, ms: 0, usage: null };
   if (!sv.moves.length) {
@@ -195,7 +197,7 @@ function openSaved(sv: Save) {
     return;
   }
   net = makeState(sv.size, response.recognition);
-  renderNet($("net"), net, () => undefined);
+  renderNet($("net"), net);
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
   segments = sv.segments ?? null;
   solveMode = sv.teach ? "teach" : "fast";
@@ -368,8 +370,26 @@ function onNetEdited() {
 function resetNet() {
   if (!net) return;
   for (const f of FACES) net.current[f] = [...net.original[f]];
-  renderNet($("net"), net, onNetEdited);
+  renderEditor();
   onNetEdited();
+}
+
+/** The face opened up for fixing, or null for the whole net. */
+let zoomFace: Face | null = null;
+
+function renderEditor() {
+  if (!net) return;
+  $("net").classList.toggle("hidden", zoomFace !== null);
+  $("zoom").classList.toggle("hidden", zoomFace === null);
+  const open = (f: Face | null) => {
+    zoomFace = f;
+    renderEditor();
+  };
+  if (zoomFace) {
+    renderFaceZoom($("zoom"), net, { face: zoomFace, photo: images[zoomFace]?.dataUrl, onChange: onNetEdited, onFace: open, onBack: () => open(null) });
+  } else {
+    renderNet($("net"), net, open);
+  }
 }
 
 function setEditor(open: boolean) {
@@ -388,7 +408,8 @@ function showResult() {
   setEditor(false);
   previewView.setState(size, fromNet(size, net.current));
   previewView.resetView();
-  renderNet($("net"), net, onNetEdited);
+  zoomFace = null;
+  renderEditor();
   renderLegend($("legend"), net);
   $<HTMLButtonElement>("resetNet").disabled = true;
   // a colour count that is off means at least one sticker is wrong: open the editor straight away
@@ -440,6 +461,9 @@ const SOLVABLE = [2, 3, 4, 5, 6, 7];
 const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
 
 function fail(badCells: { face: Face; row: number; col: number }[]) {
+  // the impossible cells are marked on the whole net
+  zoomFace = null;
+  renderEditor();
   markBadCells($("net"), badCells);
   $("invalidBadge").classList.remove("hidden");
   setEditor(true);
