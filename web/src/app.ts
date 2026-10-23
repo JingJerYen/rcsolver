@@ -28,8 +28,18 @@ interface Save {
   segments?: Segment[];
   /** Solved with the teaching method (3×3 layer by layer). */
   teach?: boolean;
+  /** Name the user gave it; without one the card shows when it was saved. */
+  title?: string;
 }
 const SAVES_KEY = "rcsolver.saves";
+
+/** "10/23 18:30"; a save from another year shows just its date, "2025/5/2", to fit on the card. */
+function savedAt(ts: number): string {
+  const d = new Date(ts);
+  const two = (n: number) => String(n).padStart(2, "0");
+  if (d.getFullYear() !== new Date().getFullYear()) return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
 
 function loadSaves(): Save[] {
   try {
@@ -148,7 +158,8 @@ function renderSaves() {
   list.forEach((sv, i) => {
     const el = document.createElement("div");
     el.className = "save";
-    el.innerHTML = `<canvas class="mini"></canvas><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
+    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="改標題"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
+    el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
     miniViews.push(view);
@@ -162,6 +173,8 @@ function renderSaves() {
         cur.splice(i, 1);
         storeSaves(cur);
         renderSaves();
+      } else if (t.closest(".save-title")) {
+        renameSave(sv.ts);
       } else if (t.closest(".share")) {
         void shareLink(sv).then((link) => copyText(link, t.closest(".share") as HTMLElement));
       } else {
@@ -170,6 +183,34 @@ function renderSaves() {
     };
   });
 }
+
+/* Renaming a save: a dialog with a full-size input, since a 16px field does not fit on a card and a smaller one makes iOS zoom in. */
+const titleDialog = $<HTMLDialogElement>("titleDialog");
+const titleInput = $<HTMLInputElement>("titleInput");
+let renaming = 0;
+
+function renameSave(ts: number) {
+  const sv = loadSaves().find((s) => s.ts === ts);
+  if (!sv) return;
+  renaming = ts;
+  titleInput.value = sv.title ?? savedAt(sv.ts);
+  titleInput.placeholder = savedAt(sv.ts);
+  titleDialog.showModal();
+  titleInput.select();
+}
+
+titleDialog.querySelector("form")!.onsubmit = () => {
+  const list = loadSaves();
+  const sv = list.find((s) => s.ts === renaming);
+  if (!sv) return;
+  const title = titleInput.value.trim();
+  // cleared, or left at the time: go back to showing the time
+  if (title && title !== savedAt(sv.ts)) sv.title = title;
+  else delete sv.title;
+  storeSaves(list);
+  renderSaves();
+};
+$("titleCancel").onclick = () => titleDialog.close();
 
 function saveCurrent() {
   if (!net) return;

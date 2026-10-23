@@ -137,6 +137,15 @@
     <button class="primary go" id="tipsOk">OK</button>
   </form>
 </dialog>
+<dialog id="titleDialog" class="dialog" aria-label="改標題">
+  <form method="dialog" class="dialog-body">
+    <input id="titleInput" class="title-input" type="text" maxlength="40" autocomplete="off" enterkeyhint="done">
+    <div class="go-row">
+      <button type="button" class="icon-btn" id="titleCancel" aria-label="取消"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <button type="submit" class="primary go">OK</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="./app.js"></script>
 </body>
 </html>
