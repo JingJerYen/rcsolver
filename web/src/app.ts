@@ -7,7 +7,7 @@ import { solve3, warmUp } from "./solver.js";
 import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Move } from "./cubeState.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -152,6 +152,8 @@ function showResult() {
 
 let moves: Move[] = [];
 let moveIndex = 0;
+/** Cube as it was read, so any step can be reached by replaying the moves before it. */
+let startState: Sticker[] = [];
 let playing = false;
 let playTimer = 0;
 let turnMs = 900;
@@ -214,7 +216,8 @@ function startSolve() {
     if (!solution || !net) return;
     moves = parseAlgorithm(solution.join(" "), net.size);
     moveIndex = 0;
-    cubeView.setState(net.size, fromNet(net.size, net.current));
+    startState = fromNet(net.size, net.current);
+    cubeView.setState(net.size, startState);
     cubeView.resetView();
     showScreen("solveView");
     renderSolve();
@@ -231,10 +234,19 @@ function showMove(mv: Move | null) {
   $("angle").textContent = mv ? (Math.abs(mv.q) === 2 ? "180°" : "90°") : "";
 }
 
-/** The whole solution as tokens: done ones green, the next one highlighted and scrolled into view. */
+/** Jump straight to step `index` (0 = as read), without animation. */
+function jumpTo(index: number) {
+  if (!net || cubeView.animating) return;
+  stopPlaying();
+  moveIndex = Math.max(0, Math.min(moves.length, index));
+  cubeView.setState(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
+  renderSolve();
+}
+
+/** The whole solution as tokens: done ones green, the next one highlighted and scrolled into view. Tap one to jump there. */
 function renderSequence() {
   const seq = $("sequence");
-  seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}">${pretty(m.token)}</span>`).join("");
+  seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}" data-i="${i}">${pretty(m.token)}</span>`).join("");
   seq.querySelector(".token.next")?.scrollIntoView({ block: "nearest" });
 }
 
@@ -245,6 +257,7 @@ function renderSolve() {
   showMove(done ? null : moves[moveIndex]!);
   renderSequence();
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
+  $<HTMLButtonElement>("rewind").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
   $<HTMLButtonElement>("play").disabled = done;
   $("done").classList.toggle("hidden", !done);
@@ -332,6 +345,11 @@ $("closeSolve").onclick = homeFromSolve;
 $("next").onclick = () => {
   stopPlaying();
   void step(1);
+};
+$("rewind").onclick = () => jumpTo(0);
+$("sequence").onclick = (e) => {
+  const t = (e.target as HTMLElement).closest(".token") as HTMLElement | null;
+  if (t?.dataset.i) jumpTo(Number(t.dataset.i));
 };
 $("prev").onclick = () => {
   stopPlaying();
