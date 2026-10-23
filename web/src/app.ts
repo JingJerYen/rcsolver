@@ -532,6 +532,7 @@ function openSharedLink() {
   openSaved({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0 });
   history.replaceState(null, "", location.pathname);
 }
+showScreen("setup");
 openSharedLink();
 window.addEventListener("hashchange", openSharedLink);
 getHealth()
