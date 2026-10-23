@@ -16,7 +16,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "cf:dev": "wrangler dev",
     "cf:deploy": "wrangler deploy",
-    "gen:macros": "tsx scripts/gen-macros.ts"
+    "gen:macros": "tsx scripts/gen-macros.ts",
+    "gen:centre-macros": "tsx scripts/gen-centre-macros.ts",
+    "gen:tables": "tsx scripts/gen-tables.ts"
   },
   "engines": {
     "node": ">=20"

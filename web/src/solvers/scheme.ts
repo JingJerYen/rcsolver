@@ -51,3 +51,23 @@ export function schemeFromCorners(net: Net, size: number): Scheme | null {
   for (const f of FACE_ORDER) faceOfColor.set(colorOfFace[f], f);
   return { colorOfFace, faceOfColor };
 }
+
+const CORNER_COLORS: Face[][] = [["U", "R", "F"], ["U", "F", "L"], ["U", "L", "B"], ["U", "B", "R"], ["D", "F", "R"], ["D", "L", "F"], ["D", "B", "L"], ["D", "R", "B"]];
+
+/** Corner pieces that cannot exist under the scheme, as net cells. */
+export function badCorners(net: Net, size: number, faceOfColor: Map<Color, Face>): { face: Face; row: number; col: number }[] {
+  const bad: { face: Face; row: number; col: number }[] = [];
+  for (const cs of cornerCells(size)) {
+    const f = cs.map(([face, r, c]) => faceOfColor.get(cell(net, face, r, c))!);
+    let found = false;
+    for (let ori = 0; ori < 3 && !found; ori++) {
+      const a = f[ori];
+      if (a !== "U" && a !== "D") continue;
+      const b = f[(ori + 1) % 3];
+      const c = f[(ori + 2) % 3];
+      found = CORNER_COLORS.some((cc) => cc[1] === b && cc[2] === c);
+    }
+    if (!found) bad.push(...cs.map(([face, row, col]) => ({ face, row, col })));
+  }
+  return bad;
+}

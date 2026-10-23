@@ -3,14 +3,14 @@
  * fix OLL/PLL parity → solve the reduced cube as a 3×3 with min2phase. Every stage is replayed
  * on the sticker model, so the returned moves are known to solve the cube as it was read.
  */
-import type { Color, Face } from "../api.js";
+import type { Face } from "../api.js";
 import { FACE_AXES, FACE_ORDER, applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Sticker, type Vec } from "../cubeState.js";
 import { checkFacelets, netToFacelets } from "../cube3.js";
 import { solve3 } from "../solver.js";
 import { OUTER_MOVES, buildCentreTables, centreFaces, solveCentres } from "./cube4centers.js";
 import { PARTNER, SLOTS, WING_POS, applyPerm, pairedCount, readWings, sequencePerm } from "./cube4edges.js";
 import { MACROS } from "./cube4macros.js";
-import { cornerCells, cell, schemeFromCorners, type Net } from "./scheme.js";
+import { badCorners, cornerCells, schemeFromCorners, type Net } from "./scheme.js";
 
 const OLL_PARITY = "Rw2 B2 U2 Lw U2 Rw' U2 Rw U2 F2 Rw F2 Lw' B2 Rw2";
 const PLL_PARITY = "2R2 U2 2R2 Uw2 2R2 2U2";
@@ -28,26 +28,6 @@ export function stickerCell(p: Vec, n: Vec, size: number): Cell {
   const ax = FACE_AXES[face];
   const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   return { face, row: (dot(p, ax.down) + size - 1) / 2, col: (dot(p, ax.right) + size - 1) / 2 };
-}
-
-const CORNER_COLORS: Face[][] = [["U", "R", "F"], ["U", "F", "L"], ["U", "L", "B"], ["U", "B", "R"], ["D", "F", "R"], ["D", "L", "F"], ["D", "B", "L"], ["D", "R", "B"]];
-
-/** Corner pieces that cannot exist under the scheme, as net cells. */
-function badCorners(net: Net, size: number, faceOfColor: Map<Color, Face>): Cell[] {
-  const bad: Cell[] = [];
-  for (const cs of cornerCells(size)) {
-    const f = cs.map(([face, r, c]) => faceOfColor.get(cell(net, face, r, c))!);
-    let found = false;
-    for (let ori = 0; ori < 3 && !found; ori++) {
-      const a = f[ori];
-      if (a !== "U" && a !== "D") continue;
-      const b = f[(ori + 1) % 3];
-      const c = f[(ori + 2) % 3];
-      found = CORNER_COLORS.some((cc) => cc[1] === b && cc[2] === c);
-    }
-    if (!found) bad.push(...cs.map(([face, row, col]) => ({ face, row, col })));
-  }
-  return bad;
 }
 
 // ---------- edge pairing ----------

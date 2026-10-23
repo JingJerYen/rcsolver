@@ -1,9 +1,10 @@
 // Copies web/index.html to public/ with ?v=<build id> on app.js and styles.css so browsers never serve stale assets.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync } from "node:fs";
 import { createHash } from "node:crypto";
 
 mkdirSync("public", { recursive: true });
 copyFileSync("web/styles.css", "public/styles.css");
+cpSync("web/tables", "public/tables", { recursive: true });
 const v = createHash("sha1")
   .update(readFileSync("public/app.js"))
   .update(readFileSync("public/styles.css"))

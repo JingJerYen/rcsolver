@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import min2phase from "min2phase.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Sticker } from "../web/src/cubeState.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, unrotate as unrotateFn, type Sticker } from "../web/src/cubeState.js";
 import { checkFacelets, netToFacelets } from "../web/src/cube3.js";
 import type { Face } from "../web/src/api.js";
 
@@ -113,4 +113,21 @@ test("validity: impossible pieces are pointed at, twists and flips and parity ar
   const net = solvedNet(3);
   net.R = ["WWW", "WWW", "WWW"];
   assert.equal(netToFacelets(net), null);
+});
+
+test("whole-cube rotations parse, and unrotate() removes them without changing the effect", () => {
+  const { unrotate } = await_import();
+  for (const size of [3, 4, 5]) {
+    const s = fromNet(size, solvedNet(size));
+    const alg = "R U x R U2 y' 2L z F' x2 Rw D";
+    const withRot = applyAlgorithm(s, parseAlgorithm(alg, size));
+    const plain = unrotate(alg.split(" "), size);
+    assert.ok(!plain.some((t) => /^[xyz]/.test(t)));
+    // the cube ends up rotated by x y' z x2 in one case and not in the other, so compare after undoing that
+    const back = applyAlgorithm(withRot, parseAlgorithm("x2 z' y x'", size));
+    assert.deepEqual(toNet(size, back), toNet(size, applyAlgorithm(s, parseAlgorithm(plain.join(" "), size))));
+  }
+  function await_import() {
+    return { unrotate: unrotateFn };
+  }
 });

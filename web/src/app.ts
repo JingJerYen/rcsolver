@@ -7,6 +7,8 @@ import { solve3, warmUp } from "./solver.js";
 import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
+import { solveN } from "./solvers/solveN.js";
+import { ensureTables } from "./solvers/tables.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -48,8 +50,8 @@ function storeSaves(list: Save[]) {
  * A short link that opens this page on the same cube and step. The solvers are deterministic, so
  * the moves ride along only when they differ from what the solver gives for this cube.
  */
-function shareLink(sv: Save): string {
-  const own = sv.moves.length ? computeSolution(sv.size, sv.faces) : null;
+async function shareLink(sv: Save): Promise<string> {
+  const own = sv.moves.length ? await computeSolution(sv.size, sv.faces) : null;
   const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
   const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }) });
   return `${location.origin}${location.pathname}#z=${token}`;
@@ -141,7 +143,7 @@ function renderSaves() {
         storeSaves(cur);
         renderSaves();
       } else if (t.closest(".share")) {
-        void copyText(shareLink(sv), t.closest(".share") as HTMLElement);
+        void shareLink(sv).then((link) => copyText(link, t.closest(".share") as HTMLElement));
       } else {
         openSave(i);
       }
@@ -342,8 +344,9 @@ function setEditor(open: boolean) {
 
 function showResult() {
   if (!response) return;
-  size = response.size;
-  net = makeState(size, response.recognition);
+  const n = response.size;
+  size = n;
+  net = makeState(n, response.recognition);
   showScreen("result");
   $("sizeBadge").textContent = `${size}×${size}`;
   $("invalidBadge").classList.add("hidden");
@@ -355,10 +358,10 @@ function showResult() {
   $<HTMLButtonElement>("resetNet").disabled = true;
   // a colour count that is off means at least one sticker is wrong: open the editor straight away
   if (response.warnings.length) setEditor(true);
-  // Solving covers 2×2, 3×3 and 4×4 so far; other sizes stop at the checked net.
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
-  // The 4×4 centre tables take a few seconds: build them while the user checks the net.
+  // The 4×4 centre tables take a few seconds to build and the bigger cubes fetch theirs: start now.
   if (size === 4) idle(() => buildCentreTables());
+  if (n >= 5) idle(() => void ensureTables(n));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -372,7 +375,7 @@ let playing = false;
 let playTimer = 0;
 let turnMs = 900;
 let playGapMs = 700;
-const SOLVABLE = [2, 3, 4];
+const SOLVABLE = [2, 3, 4, 5, 6, 7];
 const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
 
 function fail(badCells: { face: Face; row: number; col: number }[]) {
@@ -409,6 +412,10 @@ function solveNet(size: number, n: Record<Face, string[]>): { ok: true; moves: s
     const r = solve4(n);
     if (!r.ok) return { ok: false, badCells: r.badCells };
     moves = r.moves;
+  } else if (size >= 5 && size <= 7) {
+    const r = solveN(n, size);
+    if (!r.ok) return { ok: false, badCells: r.badCells };
+    moves = r.moves;
   } else {
     return { ok: false, badCells: [] };
   }
@@ -417,7 +424,8 @@ function solveNet(size: number, n: Record<Face, string[]>): { ok: true; moves: s
   return { ok: true, moves };
 }
 
-function computeSolution(size: number, n: Record<Face, string[]>): string[] | null {
+async function computeSolution(size: number, n: Record<Face, string[]>): Promise<string[] | null> {
+  await ensureTables(size);
   const r = solveNet(size, n);
   return r.ok ? r.moves : null;
 }
@@ -435,7 +443,8 @@ function startSolve() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>`;
   // let the spinner paint before the (possibly multi-second) solve runs
-  setTimeout(() => {
+  setTimeout(async () => {
+    await ensureTables(net!.size);
     const solution = trySolve();
     btn.disabled = false;
     btn.textContent = "Go";
@@ -581,7 +590,7 @@ $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
 $("shareResult").onclick = () => {
   if (!net) return;
   const sv: Save = { ts: Date.now(), size: net.size, faces: net.current, moves: [], index: 0 };
-  void copyText(shareLink(sv), $("shareResult"));
+  void shareLink(sv).then((link) => copyText(link, $("shareResult")));
 };
 $("resetNet").onclick = resetNet;
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
@@ -611,7 +620,7 @@ $("importDialog").querySelector("form")!.onsubmit = (e) => {
   if (isLink) {
     importDialog.close();
     location.hash = hash;
-    openSharedLink();
+    void openSharedLink();
     return;
   }
   const parsed = fromFacelets(text);
@@ -641,7 +650,7 @@ $("save").onclick = saveCurrent;
 $("shareSolve").onclick = () => {
   if (!net) return;
   const sv: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex };
-  void copyText(shareLink(sv), $("shareSolve"));
+  void shareLink(sv).then((link) => copyText(link, $("shareSolve")));
 };
 renderSaves();
 $("sequence").onclick = (e) => {
@@ -664,13 +673,13 @@ $("play").onclick = () => {
 $("restart").onclick = () => void startCapture();
 $("copySeq").onclick = () => copyText(moves.map((m) => m.token).join(" "), $("copySeq"));
 // A shared link carries the cube (s), its solution (m) and the step reached (i) in the hash.
-function openSharedLink() {
+async function openSharedLink() {
   const q = new URLSearchParams(location.hash.slice(1));
   const z = q.get("z") ? decodeShare(q.get("z")!) : null;
   if (z) {
     stopPlaying();
     // no moves in the token: the solver reproduces them (the same solution the sender had)
-    const moves = z.moves ?? computeSolution(z.size, z.faces) ?? [];
+    const moves = z.moves ?? (await computeSolution(z.size, z.faces)) ?? [];
     openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index });
     history.replaceState(null, "", location.pathname);
     return;
@@ -689,8 +698,8 @@ function openSharedLink() {
   history.replaceState(null, "", location.pathname);
 }
 showScreen("setup");
-openSharedLink();
-window.addEventListener("hashchange", openSharedLink);
+void openSharedLink();
+window.addEventListener("hashchange", () => void openSharedLink());
 getHealth()
   .then((h) => $("mock").classList.toggle("hidden", !h.mock))
   .catch(() => undefined);

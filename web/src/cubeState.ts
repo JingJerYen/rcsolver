@@ -95,6 +95,13 @@ const FACE_AXIS: Record<Face, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
  * layers from that face) and single inner slices (2R, 3L: only the n-th layer from that face).
  */
 export function parseMove(token: string, size: number): Move {
+  // whole-cube rotations: x turns like R, y like U, z like F, with every layer moving
+  const rot = /^([xyz])(['2]?)$/.exec(token.trim());
+  if (rot) {
+    const face: Face = rot[1] === "x" ? "R" : rot[1] === "y" ? "U" : "F";
+    const base = parseMove(`${face}${rot[2]}`, size);
+    return { ...base, token, layers: layerValues(size) };
+  }
   const m = /^(\d*)([URFDLBurfdlb])(w?)(['2]?)$/.exec(token.trim());
   if (!m) throw new Error(`bad move: ${token}`);
   const [, numStr, letter, w, suffix] = m;
@@ -115,6 +122,36 @@ export function parseMove(token: string, size: number): Move {
   // A clockwise turn of a positive-axis face is a negative rotation about that axis.
   const angle = -sign * q * (Math.PI / 2);
   return { token, face, axis, layers, q, angle };
+}
+
+/**
+ * Rewrite a sequence so it has no whole-cube rotations: each later move is renamed to the face
+ * that physically sits where the rotation put it. Same effect on the cube, no x/y/z tokens.
+ */
+export function unrotate(tokens: string[], size: number): string[] {
+  const out: string[] = [];
+  // current[f] = the original face now standing where face f is named
+  let normals: Record<Face, Vec> = Object.fromEntries(FACE_ORDER.map((f) => [f, [...FACE_AXES[f].n] as Vec])) as Record<Face, Vec>;
+  const faceOfNormal = (n: Vec): Face => FACE_ORDER.find((f) => FACE_AXES[f].n.every((v, i) => v === n[i]))!;
+  for (const t of tokens) {
+    const rot = /^([xyz])(['2]?)$/.exec(t);
+    if (rot) {
+      const mv = parseMove(t, size);
+      // rotating the cube moves each original face's normal; the name of a position stays put
+      const next = {} as Record<Face, Vec>;
+      for (const f of FACE_ORDER) next[f] = rotateVec(normals[f], mv.axis, mv.angle).map(Math.round) as Vec;
+      normals = next;
+      continue;
+    }
+    const m = /^(\d*)([URFDLBurfdlb])(w?)(['2]?)$/.exec(t);
+    if (!m) throw new Error(`bad move: ${t}`);
+    const named = m[2]!.toUpperCase() as Face;
+    // which original face currently sits at the named position?
+    const original = FACE_ORDER.find((f) => faceOfNormal(normals[f]) === named)!;
+    const letter = m[2] === m[2]!.toLowerCase() ? original.toLowerCase() : original;
+    out.push(`${m[1]}${letter}${m[3]}${m[4]}`);
+  }
+  return out;
 }
 
 export function parseAlgorithm(alg: string, size: number): Move[] {
