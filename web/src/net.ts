@@ -1,4 +1,5 @@
 import { COLORS, FACES, type Color, type Face, type Recognition } from "./api.js";
+import { tr } from "./i18n.js";
 
 export const COLOR_HEX: Record<Color, string> = { W: "#f9fcff", Y: "#ffda35", R: "#ed4954", O: "#ff9435", G: "#21bb86", B: "#3485ed" };
 export const COLOR_NAME: Record<Color, string> = { W: "白", Y: "黃", R: "紅", O: "橘", G: "綠", B: "藍" };
@@ -93,7 +94,7 @@ export function renderNet(root: HTMLElement, s: NetState, onFace?: (face: Face) 
         cell.dataset.row = String(r);
         cell.dataset.col = String(c);
         if (Number(s.confidence[f][r]![c]) < LOW_CONFIDENCE) cell.classList.add("low");
-        cell.title = `${f} 第 ${r + 1} 列第 ${c + 1} 格，信心 ${s.confidence[f][r]![c]}`;
+        cell.title = tr(`${f} 第 ${r + 1} 列第 ${c + 1} 格，信心 ${s.confidence[f][r]![c]}`, `${f} row ${r + 1}, column ${c + 1}, confidence ${s.confidence[f][r]![c]}`);
         face.appendChild(cell);
       }
     }

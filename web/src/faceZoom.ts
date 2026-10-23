@@ -7,6 +7,7 @@
  */
 import { COLORS, type Color, type Face } from "./api.js";
 import { COLOR_HEX, LOW_CONFIDENCE, cellAt, setCell, type NetState } from "./net.js";
+import { tr } from "./i18n.js";
 
 /** Tabs in the order the faces were photographed. */
 const TAB_ORDER: Face[] = ["F", "R", "B", "L", "U", "D"];
@@ -56,7 +57,7 @@ export function renderFaceZoom(root: HTMLElement, s: NetState, o: FaceZoomOption
   }
   const bg = o.photo ? ` style="background-image:url('${o.photo}')"` : "";
   root.innerHTML = `
-    <div class="zoom-head"><button type="button" class="icon-btn small-btn" data-back aria-label="回到展開圖">${NET_ICON}</button><div class="zoom-tabs">${tabs}</div></div>
+    <div class="zoom-head"><button type="button" class="icon-btn small-btn" data-back aria-label="${tr("回到展開圖", "Back to the whole net")}">${NET_ICON}</button><div class="zoom-tabs">${tabs}</div></div>
     <div class="zoom-face${o.photo ? " photo" : ""}"${bg}><div class="zoom-grid" style="grid-template-columns:repeat(${n},1fr);grid-template-rows:repeat(${n},1fr)">${cells}</div></div>`;
 
   const closePicker = () => {

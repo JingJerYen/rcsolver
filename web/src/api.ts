@@ -1,3 +1,5 @@
+import { tr } from "./i18n.js";
+
 export type Face = "U" | "R" | "F" | "D" | "L" | "B";
 export const FACES: Face[] = ["U", "R", "F", "D", "L", "B"];
 export type Color = "W" | "Y" | "R" | "O" | "G" | "B";
@@ -49,9 +51,9 @@ async function parse<T>(res: Response): Promise<T> {
   try {
     j = (await res.json()) as typeof j;
   } catch {
-    throw new ApiError("BAD_RESPONSE", `伺服器回應異常（${res.status}）`, res.status);
+    throw new ApiError("BAD_RESPONSE", tr(`伺服器回應異常（${res.status}）`, `Unexpected server response (${res.status})`), res.status);
   }
-  if (!res.ok || j.ok === false) throw new ApiError(j.error?.code ?? "ERROR", j.error?.message ?? "發生錯誤", res.status, j.faces ?? []);
+  if (!res.ok || j.ok === false) throw new ApiError(j.error?.code ?? "ERROR", j.error?.message ?? tr("發生錯誤", "Something went wrong"), res.status, j.faces ?? []);
   return j;
 }
 

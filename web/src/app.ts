@@ -4,6 +4,7 @@ import { GuideCube } from "./guideCube.js";
 import { drawPhotoTips } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
+import { localizePage, tr } from "./i18n.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -13,6 +14,7 @@ import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, ty
 import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+localizePage(document);
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
@@ -158,7 +160,7 @@ function renderSaves() {
   list.forEach((sv, i) => {
     const el = document.createElement("div");
     el.className = "save";
-    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="改標題"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
+    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
     el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
