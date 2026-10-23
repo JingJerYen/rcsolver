@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 mkdirSync("public", { recursive: true });
 copyFileSync("web/styles.css", "public/styles.css");
 cpSync("web/tables", "public/tables", { recursive: true });
+cpSync("web/icons", "public/icons", { recursive: true });
+copyFileSync("web/manifest.webmanifest", "public/manifest.webmanifest");
 const v = createHash("sha1")
   .update(readFileSync("public/app.js"))
   .update(readFileSync("public/solveWorker.js"))

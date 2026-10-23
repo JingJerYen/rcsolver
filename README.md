@@ -14,6 +14,10 @@
 
 大方塊的中心查表（`web/tables/`，全部約 0.8 MB）是離線算好的，頁面在需要時才抓對應尺寸的那幾個檔；抓不到就在瀏覽器裡現算。產生器：`npm run gen:macros`（4×4 翼塊 3-循環公式庫）、`npm run gen:centre-macros 5`（某尺寸的中心公式庫）、`npm run gen:tables`（所有中心查表）。改了中心求解的走法集合後要重跑 `gen:tables`，測試會提醒。
 
+## 安裝成 app
+
+網站可以加到手機主畫面，名稱「Cube方塊」，打開時全螢幕：iPhone 用 Safari 的分享 →「加入主畫面」，Android 的 Chrome 會出現「安裝應用程式」。設定在 `web/manifest.webmanifest`，圖示原稿是 `web/icons/icon.svg`（Android 圓形裁切用的是方塊縮小的 `icon-maskable.svg`），PNG 是從 SVG 輸出的 180／192／512px。iPhone 上從主畫面打開的版本和 Safari 的存檔是分開的。
+
 ## 本機執行
 
 ```bash

@@ -1,0 +1,16 @@
+{
+  "name": "Cube方塊",
+  "short_name": "Cube方塊",
+  "description": "拍六面，辨色，一步一步教你復原 2×2 到 7×7 魔術方塊",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eff3f8",
+  "theme_color": "#eff3f8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
