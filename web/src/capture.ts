@@ -4,8 +4,6 @@ import type { Gesture } from "./guideCube.js";
 /** One step of the guided capture: the whole-cube turns to make, then which face is in front. */
 export interface Step {
   face: Face;
-  title: string;
-  gesture: string;
   turns: Gesture[];
 }
 
@@ -22,12 +20,12 @@ const UP: Gesture = { axis: "x", deg: -90 };
  * twice) has F at its top. That is exactly the standard net layout, so no image rotation is needed.
  */
 export const STEPS: Step[] = [
-  { face: "F", title: "第 1 面", gesture: "任一面正對你，像小方塊這樣拿。標「上」的那面整個過程都要保持在上面。對準框，拍照。", turns: [] },
-  { face: "R", title: "第 2 面", gesture: "照小方塊的示範，整顆轉一下：剛拍的那面轉到左邊，右邊那面轉到正對你。上面不動。", turns: [LEFT] },
-  { face: "B", title: "第 3 面", gesture: "再照示範轉一次，同一個方向，上面不動。", turns: [LEFT] },
-  { face: "L", title: "第 4 面", gesture: "再轉一次，同一個方向，上面不動。", turns: [LEFT] },
-  { face: "U", title: "第 5 面", gesture: "照示範：先再轉一次回到第 1 面，然後整顆往你的方向翻下來，讓「上」那面正對你。", turns: [LEFT, DOWN] },
-  { face: "D", title: "第 6 面", gesture: "照示範：整顆往遠離你的方向翻過去兩次，讓原本的底面正對你。", turns: [UP, UP] },
+  { face: "F", turns: [] },
+  { face: "R", turns: [LEFT] },
+  { face: "B", turns: [LEFT] },
+  { face: "L", turns: [LEFT] },
+  { face: "U", turns: [LEFT, DOWN] },
+  { face: "D", turns: [UP, UP] },
 ];
 
 /** All turns made before step `index`: the orientation the physical cube is in when that step starts. */

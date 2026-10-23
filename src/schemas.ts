@@ -12,7 +12,8 @@ export const FaceImageSchema = z.object({
 });
 
 export const RecognizeBodySchema = z.object({
-  size: z.number().int().min(MIN_SIZE).max(MAX_SIZE),
+  /** What the user picked, if anything; the model counts the stickers itself and its count wins. */
+  size: z.number().int().min(MIN_SIZE).max(MAX_SIZE).optional(),
   faces: z.object(Object.fromEntries(FACES.map((f) => [f, FaceImageSchema])) as Record<(typeof FACES)[number], typeof FaceImageSchema>),
 });
 export type RecognizeBody = z.infer<typeof RecognizeBodySchema>;
@@ -24,6 +25,7 @@ const FaceReadSchema = z.object({
 });
 
 export const ModelOutputSchema = z.object({
+  size: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe("Stickers per row on one face: 2 for a 2×2 cube, 3 for a 3×3, up to 7"),
   U: FaceReadSchema,
   R: FaceReadSchema,
   F: FaceReadSchema,
@@ -37,7 +39,7 @@ export type ModelOutput = z.infer<typeof ModelOutputSchema>;
 const colorRow = new RegExp(`^[${COLORS.join("")}]+$`);
 
 /** Check that every face is N×N of valid letters and digits; returns the problems found. */
-export function shapeProblems(out: ModelOutput, size: number): string[] {
+export function shapeProblems(out: ModelOutput, size = out.size): string[] {
   const problems: string[] = [];
   for (const f of FACES) {
     const face = out[f];

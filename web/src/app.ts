@@ -23,7 +23,8 @@ interface Run {
 
 const RUNS_KEY = "rcsolver.runs";
 
-let size = 3;
+/** null = let the model count. After recognition this holds the size the model saw. */
+let size: number | null = null;
 let stepIndex = 0;
 let images: Partial<Record<Face, FaceImage>> = {};
 let response: RecognizeResponse | null = null;
@@ -73,24 +74,23 @@ function renderRuns() {
 function thumbsHtml(current: number | null): string {
   return STEPS.map((s, i) => {
     const img = images[s.face];
-    const cls = `thumb${img ? "" : " empty"}${i === current ? " current" : ""}`;
-    return `<div class="${cls}">${img ? `<img src="${img.dataUrl}" alt="${s.face}">` : ""}<span>${s.face}</span></div>`;
+    const cls = `thumb${img ? " ok" : " empty"}${i === current ? " current" : ""}`;
+    return `<div class="${cls}">${img ? `<img src="${img.dataUrl}" alt="${s.face}">` : ""}<span>${i + 1}</span></div>`;
   }).join("");
 }
 
 function renderStep() {
   const step = STEPS[stepIndex]!;
-  $("stepBadge").textContent = step.title;
   $("stepCount").textContent = `${stepIndex + 1} / ${STEPS.length}`;
-  $("gesture").textContent = step.gesture;
   guide.show(turnsBefore(stepIndex), { gestures: step.turns, target: step.face });
-  $("frameLabel").textContent = `把 ${size}×${size} 的這一面對準框`;
   $("thumbs").innerHTML = thumbsHtml(stepIndex);
   $<HTMLButtonElement>("redo").disabled = stepIndex === 0;
 }
 
 async function startCapture() {
-  size = Number($<HTMLSelectElement>("size").value);
+  const picked = $<HTMLSelectElement>("size").value;
+  size = picked ? Number(picked) : null;
+  $("frame").style.setProperty("--n", String(size ?? 1));
   images = {};
   for (const f of FACES) guide.setPhoto(f, null);
   stepIndex = 0;
@@ -163,7 +163,12 @@ async function send() {
 
 function showResult() {
   if (!response) return;
+  size = response.size;
   net = makeState(size, response.recognition);
+  const sn = $("sizeNote");
+  const mm = response.sizeMismatch;
+  sn.classList.toggle("hidden", !mm);
+  sn.textContent = mm ? `你選的是 ${mm.requested}×${mm.requested}，照片看起來是 ${mm.detected}×${mm.detected}，已改用 ${mm.detected}×${mm.detected} 辨識。` : "";
   show("review", false);
   show("result", true);
   renderNet($("net"), net, refreshStats);
@@ -203,7 +208,7 @@ function recordRun() {
   const a = accuracy(net);
   const run: Run = {
     ts: new Date().toISOString(),
-    size,
+    size: response.size,
     model: response.model,
     mock: response.mock,
     ms: response.ms,

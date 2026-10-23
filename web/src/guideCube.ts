@@ -15,13 +15,13 @@ export interface Gesture {
 }
 
 /** Image axes for each face so that the photo is drawn the way the net expects it. */
-const FACE_AXES: Record<Face, { n: Vec; right: Vec; down: Vec; label: string }> = {
-  F: { n: [0, 0, 1], right: [1, 0, 0], down: [0, -1, 0], label: "前" },
-  R: { n: [1, 0, 0], right: [0, 0, -1], down: [0, -1, 0], label: "右" },
-  B: { n: [0, 0, -1], right: [-1, 0, 0], down: [0, -1, 0], label: "後" },
-  L: { n: [-1, 0, 0], right: [0, 0, 1], down: [0, -1, 0], label: "左" },
-  U: { n: [0, 1, 0], right: [1, 0, 0], down: [0, 0, 1], label: "上" },
-  D: { n: [0, -1, 0], right: [1, 0, 0], down: [0, 0, -1], label: "底" },
+const FACE_AXES: Record<Face, { n: Vec; right: Vec; down: Vec }> = {
+  F: { n: [0, 0, 1], right: [1, 0, 0], down: [0, -1, 0] },
+  R: { n: [1, 0, 0], right: [0, 0, -1], down: [0, -1, 0] },
+  B: { n: [0, 0, -1], right: [-1, 0, 0], down: [0, -1, 0] },
+  L: { n: [-1, 0, 0], right: [0, 0, 1], down: [0, -1, 0] },
+  U: { n: [0, 1, 0], right: [1, 0, 0], down: [0, 0, 1] },
+  D: { n: [0, -1, 0], right: [1, 0, 0], down: [0, 0, -1] },
 };
 
 const IDENTITY: Mat = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
@@ -162,14 +162,15 @@ export class GuideCube {
   }
 
   /**
-   * Curved arrow just outside the cube showing which way it is about to turn. It lives in world
-   * space (the up axis never changes), in the top-front quadrant where the camera can see it.
+   * Curved arrow around the turn axis through the cube's centre, so it reads as the whole cube
+   * turning. The 90° sweep is centred on the front, where the camera sees it, and ends with the
+   * arrowhead pointing the way the front face is about to move.
    */
   private drawArrow(g: Gesture, project: (p: Vec) => [number, number]) {
     const { ctx } = this;
-    const start: Vec = g.axis === "y" ? [0, 1.45, 1.35] : g.deg > 0 ? [1.45, 1.35, 0] : [1.45, 0, 1.35];
+    const front: Vec = [0, 0, 1.8];
     const pts: [number, number][] = [];
-    for (let i = 0; i <= 24; i++) pts.push(project(apply(rot(g.axis, (g.deg * i) / 24), start)));
+    for (let i = 0; i <= 24; i++) pts.push(project(apply(rot(g.axis, g.deg * (i / 24 - 0.5)), front)));
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const [width, color] of [[9, "rgba(255,255,255,.85)"], [4.5, "#195ed6"]] as const) {
@@ -252,30 +253,45 @@ export class GuideCube {
       ctx.strokeStyle = isTarget ? "#ffb703" : "#1b2a3d";
       ctx.stroke();
 
-      // Label at the face centre: the sticky "上" on the up face, "?" on faces not yet shot, "拍這面" on the target.
-      let cx = (p0[0] + p2[0]) / 2;
-      let cy = (p0[1] + p2[1]) / 2;
-      if (photo && f.face === "U") {
-        // keep the sticky "上" off the photo: near the face's top edge
-        cx = (p0[0] + p1[0]) / 2 * 0.3 + cx * 0.7;
-        cy = (p0[1] + p1[1]) / 2 * 0.3 + cy * 0.7;
-      }
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      let label = "";
-      if (f.face === "U") label = "上";
-      if (isTarget && done) label = "拍這面";
-      else if (!photo && !isTarget && f.face !== "U") label = FACE_AXES[f.face].label;
-      if (label) {
-        ctx.font = `700 ${label.length > 1 ? 13 : 16}px system-ui`;
-        ctx.lineWidth = 4;
+      // Markers instead of words: a dot on the face that must stay up, a camera on the face to shoot.
+      const cx = (p0[0] + p2[0]) / 2;
+      const cy = (p0[1] + p2[1]) / 2;
+      if (f.face === "U") {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+        ctx.fillStyle = "#2b3b52";
+        ctx.fill();
+        ctx.lineWidth = 3;
         ctx.strokeStyle = "rgba(255,255,255,.9)";
-        ctx.strokeText(label, cx, cy);
-        ctx.fillStyle = isTarget && done ? "#b35c00" : "#2b3b52";
-        ctx.fillText(label, cx, cy);
+        ctx.stroke();
       }
+      if (isTarget && done) this.drawCamera(cx, cy, 1 + 0.08 * pulse);
     }
     if (arrow) this.drawArrow(arrow, project);
+  }
+
+  private drawCamera(cx: number, cy: number, k: number) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(k, k);
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "#b35c00";
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.beginPath();
+    ctx.roundRect(-15, -9, 30, 20, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-6, -9);
+    ctx.lineTo(-3, -13);
+    ctx.lineTo(3, -13);
+    ctx.lineTo(6, -9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 1, 5.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   destroy() {

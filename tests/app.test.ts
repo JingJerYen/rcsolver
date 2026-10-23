@@ -6,7 +6,7 @@ import { MemoryQuota, KvQuota, type KvLike } from "../src/quota.js";
 import { FACES } from "../src/cube.js";
 
 const b64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD";
-const body = (size = 3) => ({ size, faces: Object.fromEntries(FACES.map((f) => [f, { mediaType: "image/jpeg", data: b64 }])) });
+const body = (size?: number) => ({ size, faces: Object.fromEntries(FACES.map((f) => [f, { mediaType: "image/jpeg", data: b64 }])) });
 
 function mockApp(env: Record<string, string> = {}, quota = new MemoryQuota()) {
   const config = loadConfig({ MOCK_MODE: "1", ...env });
@@ -33,9 +33,18 @@ test("recognize in mock mode returns a full grid for the requested size", async 
   const j = await res.json();
   assert.equal(j.ok, true);
   assert.equal(j.mock, true);
+  assert.equal(j.size, 4);
+  assert.equal(j.sizeMismatch, null);
   assert.equal(j.recognition.faces.U.length, 4);
   assert.equal(j.recognition.faces.U[0].length, 4);
   assert.deepEqual(j.warnings, []);
+});
+
+test("recognize without a size hint still answers (mock defaults to 3)", async () => {
+  const { app } = mockApp();
+  const res = await post(app, body());
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).size, 3);
 });
 
 test("bad bodies are rejected with BAD_REQUEST", async () => {

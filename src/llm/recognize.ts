@@ -10,6 +10,10 @@ import { getClient } from "./client.js";
 import { mockRecognition } from "./mock.js";
 
 export interface RecognizeOutcome {
+  /** Size the model counted (or the mock used). */
+  size: number;
+  /** Set when the user picked a size and the photos show a different one. */
+  sizeMismatch: { requested: number; detected: number } | null;
   recognition: Recognition;
   warnings: string[];
   model: string;
@@ -60,8 +64,9 @@ function describeApiError(err: unknown): Record<string, unknown> {
  */
 export async function recognizeCube(config: Config, body: RecognizeBody): Promise<RecognizeOutcome> {
   if (config.mockMode) {
-    const recognition = mockRecognition(body.size, body.size * 7919);
-    return { recognition, warnings: countWarnings(recognition.faces, body.size), model: "mock", mock: true, ms: 0, usage: null };
+    const size = body.size ?? 3;
+    const recognition = mockRecognition(size, size * 7919);
+    return { size, sizeMismatch: null, recognition, warnings: countWarnings(recognition.faces, size), model: "mock", mock: true, ms: 0, usage: null };
   }
 
   let lastError: string | null = null;
@@ -80,7 +85,7 @@ export async function recognizeCube(config: Config, body: RecognizeBody): Promis
       attempt,
       model: r.response.model,
       effort: config.effort,
-      size: body.size,
+      size_hint: body.size ?? null,
       input_tokens: u.input_tokens,
       output_tokens: u.output_tokens,
       stop_reason: r.response.stop_reason,
@@ -99,17 +104,21 @@ export async function recognizeCube(config: Config, body: RecognizeBody): Promis
 
     try {
       const parsed = ModelOutputSchema.parse(JSON.parse(r.text));
-      const problems = shapeProblems(parsed, body.size);
+      const problems = shapeProblems(parsed);
       if (problems.length) throw new Error(problems.join("; "));
-      const { notes, ...faces } = parsed;
+      const { notes, size, ...faces } = parsed;
+      const sizeMismatch = body.size && body.size !== size ? { requested: body.size, detected: size } : null;
+      if (sizeMismatch) log.info("size differs from hint", sizeMismatch);
       const recognition: Recognition = {
         faces: Object.fromEntries(FACES.map((f) => [f, faces[f].rows])) as Recognition["faces"],
         confidence: Object.fromEntries(FACES.map((f) => [f, faces[f].confidence])) as Recognition["confidence"],
         notes,
       };
       return {
+        size,
+        sizeMismatch,
         recognition,
-        warnings: countWarnings(recognition.faces, body.size),
+        warnings: countWarnings(recognition.faces, size),
         model: r.response.model,
         mock: false,
         ms: r.ms,

@@ -71,7 +71,7 @@ export function createApp({ config, quota, getIp }: AppDeps) {
       }
 
       const out = await recognizeCube(config, body);
-      return c.json({ ok: true, size: body.size, ...out });
+      return c.json({ ok: true, ...out });
     },
   );
 

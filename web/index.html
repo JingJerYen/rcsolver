@@ -10,55 +10,42 @@
 <main>
   <header class="top">
     <h1>魔術方塊辨色實驗</h1>
-    <p class="muted">照著小方塊的示範轉、拍六面，交給 AI 讀顏色，再核對它讀得準不準。<span id="health"></span></p>
+    <p class="muted">照著小方塊的示範轉、拍六面，AI 讀顏色，再核對它準不準。<span id="health"></span></p>
   </header>
 
   <section class="card" id="setup">
     <div class="row">
-      <label>方塊大小
-        <select id="size">
+      <label>
+        <select id="size" aria-label="方塊大小">
+          <option value="" selected>自動 / Auto</option>
           <option value="2">2×2</option>
-          <option value="3" selected>3×3</option>
+          <option value="3">3×3</option>
           <option value="4">4×4</option>
           <option value="5">5×5</option>
           <option value="6">6×6</option>
           <option value="7">7×7</option>
         </select>
       </label>
-      <button class="primary" id="start">開始拍攝</button>
+      <button class="primary big icon-text" id="start" aria-label="開始拍攝"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
-    <p class="notice">拍到的照片會上傳到雲端交給 AI 辨色，辨識完就丟掉，不會保存。只會上傳六張縮小後的照片，不會上傳影片。</p>
-    <details>
-      <summary>拿法與拍攝順序</summary>
-      <ol class="muted">
-        <li>隨便挑一面正對你，記住現在哪一面在上面；整個過程不要換上面。</li>
-        <li>每一步畫面上的小方塊會示範整顆怎麼轉，你拍過的照片會貼在它的面上，照著轉就好。</li>
-        <li>先拍前、右、後、左四面（每次整顆轉 90°），再翻下來拍上面，最後翻過去拍底面。</li>
-      </ol>
-    </details>
+    <p class="notice">拍到的照片會上傳到雲端交給 AI 辨色，辨識完就丟掉，不會保存。</p>
   </section>
 
   <section class="card hidden" id="capture">
     <div class="step-head">
-      <span class="badge" id="stepBadge"></span>
-      <span class="muted" id="stepCount"></span>
+      <span class="badge" id="stepCount"></span>
+      <button class="icon-btn" id="cancel" aria-label="取消"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </div>
-    <div class="gesture">
-      <canvas id="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
-      <p id="gesture"></p>
-    </div>
+    <canvas id="guide" class="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
     <div class="viewfinder">
       <video id="video" playsinline autoplay muted></video>
-      <div class="frame"><span class="frame-label" id="frameLabel"></span></div>
+      <div class="frame" id="frame"></div>
       <div class="cam-error hidden" id="camError"></div>
     </div>
-    <div class="controls">
-      <button class="primary big" id="shoot">拍這一面</button>
-    </div>
-    <div class="controls">
-      <label class="button">從相簿選擇<input type="file" id="file" accept="image/*" hidden></label>
-      <button id="redo" disabled>重拍上一面</button>
-      <button id="cancel">取消</button>
+    <div class="shutter-row">
+      <label class="icon-btn" aria-label="從相簿選擇"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="2" fill="currentColor"/><path d="M4 18l5-5 3 3 3-4 5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><input type="file" id="file" accept="image/*" hidden></label>
+      <button class="shutter" id="shoot" aria-label="拍這一面"></button>
+      <button class="icon-btn" id="redo" aria-label="重拍上一面" disabled><svg viewBox="0 0 24 24" width="26" height="26"><path d="M9 7H4V2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 7a8 8 0 1 1-2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
     <div class="thumbs" id="thumbs"></div>
   </section>
@@ -78,6 +65,7 @@
     <p class="muted">點格子可以換顏色，把 AI 讀錯的改成正確的。紅框是 AI 自己沒把握的格子。</p>
     <div id="net" class="net"></div>
     <div class="legend" id="legend"></div>
+    <div id="sizeNote" class="notice hidden"></div>
     <div id="warnings" class="notice hidden"></div>
     <ul id="notes" class="muted"></ul>
     <div class="stats" id="stats"></div>

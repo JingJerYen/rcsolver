@@ -17,7 +17,9 @@ export interface Recognition {
 
 export interface RecognizeResponse {
   ok: true;
+  /** Size the model counted. */
   size: number;
+  sizeMismatch: { requested: number; detected: number } | null;
   recognition: Recognition;
   warnings: string[];
   model: string;
@@ -57,9 +59,9 @@ export async function getHealth(): Promise<Health> {
   return parse<Health>(await fetch("/api/health"));
 }
 
-export async function recognize(size: number, faces: Record<Face, FaceImage>): Promise<RecognizeResponse> {
+export async function recognize(size: number | null, faces: Record<Face, FaceImage>): Promise<RecognizeResponse> {
   const body = {
-    size,
+    size: size ?? undefined,
     faces: Object.fromEntries(FACES.map((f) => [f, { mediaType: faces[f].mediaType, data: faces[f].data }])),
   };
   return parse<RecognizeResponse>(
