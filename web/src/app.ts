@@ -1,13 +1,13 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
-import { makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
+import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { checkFacelets, faceletCell, netToFacelets } from "./cube3.js";
 import { solve3, warmUp } from "./solver.js";
 import { solve2 } from "./solvers/cube2.js";
 import { solve4 } from "./solvers/cube4.js";
 import { buildCentreTables } from "./solvers/cube4centers.js";
-import { fromFacelets, toFacelets } from "./facelets.js";
+import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
@@ -49,7 +49,7 @@ function storeSaves(list: Save[]) {
  * the moves ride along only when they differ from what the solver gives for this cube.
  */
 function shareLink(sv: Save): string {
-  const own = computeSolution(sv.size, sv.faces);
+  const own = sv.moves.length ? computeSolution(sv.size, sv.faces) : null;
   const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
   const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }) });
   return `${location.origin}${location.pathname}#z=${token}`;
@@ -318,6 +318,23 @@ async function send() {
   showResult();
 }
 
+function onNetEdited() {
+  if (!net) return;
+  markBadCells($("net"), []);
+  $("invalidBadge").classList.add("hidden");
+  previewView.setState(net.size, fromNet(net.size, net.current));
+  renderLegend($("legend"), net);
+  $<HTMLButtonElement>("resetNet").disabled = accuracy(net).corrected === 0;
+}
+
+/** Put every sticker back to what the model read. */
+function resetNet() {
+  if (!net) return;
+  for (const f of FACES) net.current[f] = [...net.original[f]];
+  renderNet($("net"), net, onNetEdited);
+  onNetEdited();
+}
+
 function setEditor(open: boolean) {
   $("editor").classList.toggle("hidden", !open);
   $("fix").classList.toggle("on", open);
@@ -333,13 +350,9 @@ function showResult() {
   setEditor(false);
   previewView.setState(size, fromNet(size, net.current));
   previewView.resetView();
-  renderNet($("net"), net, () => {
-    markBadCells($("net"), []);
-    $("invalidBadge").classList.add("hidden");
-    if (net) previewView.setState(net.size, fromNet(net.size, net.current));
-    if (net) renderLegend($("legend"), net);
-  });
+  renderNet($("net"), net, onNetEdited);
   renderLegend($("legend"), net);
+  $<HTMLButtonElement>("resetNet").disabled = true;
   // a colour count that is off means at least one sticker is wrong: open the editor straight away
   if (response.warnings.length) setEditor(true);
   // Solving covers 2×2, 3×3 and 4×4 so far; other sizes stop at the checked net.
@@ -565,12 +578,12 @@ $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
 $("solve").onclick = startSolve;
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
-$("copyState").onclick = async () => {
+$("shareResult").onclick = () => {
   if (!net) return;
-  // face letters when the stickers map to faces, otherwise the raw colour letters
-  const text = toFacelets(net.current, net.size) ?? FACES.map((f) => net!.current[f].join("")).join("");
-  await copyText(text, $("copyState"));
+  const sv: Save = { ts: Date.now(), size: net.size, faces: net.current, moves: [], index: 0 };
+  void copyText(shareLink(sv), $("shareResult"));
 };
+$("resetNet").onclick = resetNet;
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
 const importDialog = $<HTMLDialogElement>("importDialog");
 const importText = $<HTMLTextAreaElement>("importText");

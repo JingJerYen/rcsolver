@@ -141,3 +141,5 @@ th{color:#607189;font-weight:600}
 .go-bar{padding-left:16px;padding-right:16px;gap:12px;align-items:center;max-width:720px;margin:auto}
 .go-bar .go{pointer-events:auto;min-height:72px;font-size:28px}
 #sendStatus{font-size:22px;min-height:30px}
+.legend-row{display:flex;align-items:center;gap:8px}
+.legend-row .legend{flex:1}
