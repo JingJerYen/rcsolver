@@ -121,9 +121,7 @@ function renderStep() {
 }
 
 async function startCapture() {
-  const picked = $<HTMLSelectElement>("size").value;
-  size = picked ? Number(picked) : null;
-  $("frame").style.setProperty("--n", String(size ?? 1));
+  size = null; // the model counts the stickers itself
   images = {};
   for (const f of FACES) guide.setPhoto(f, null);
   stepIndex = 0;

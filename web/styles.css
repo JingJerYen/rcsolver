@@ -8,8 +8,6 @@ p{line-height:1.6;margin:6px 0}
 .hidden{display:none!important}
 .card{background:#fff;border:1px solid #dde5ef;border-radius:16px;padding:16px;margin-top:12px}
 .row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
-.row label{justify-content:center}
-.row select{height:100%;min-height:60px;font-size:18px;padding:0 14px}
 label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:#39536e}
 button,select,.button{font:inherit;cursor:pointer;border:1px solid #cdd7e5;border-radius:12px;background:#fff;color:#233b55;padding:10px 14px;font-size:15px}
 button:disabled{opacity:.4;cursor:default}
