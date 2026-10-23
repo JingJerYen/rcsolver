@@ -91,3 +91,12 @@ th{color:#607189;font-weight:600}
 .step-head .badge+.badge{margin-left:8px}
 .icon-btn.on{background:#195ed6;color:#fff;border-color:#195ed6}
 .editor{margin-top:12px;padding-top:8px;border-top:1px dashed #dde5ef}
+.move-row{display:flex;align-items:center;justify-content:center;gap:18px;min-height:60px}
+.angle{font-size:22px;font-weight:700;color:#607189;min-width:64px;font-variant-numeric:tabular-nums}
+.strip{display:flex;flex-direction:column;gap:3px;min-width:34px;align-items:center}
+.strip i{display:block;height:9px;width:34px;background:#dee6f0;border-radius:3px;border:1px solid #bac9db}
+.strip i.on{background:#ffc458;border-color:#bd7b00}
+.strip b{font-size:11px;color:#607189;line-height:1}
+.strip.h{flex-direction:row}
+.strip.h i{width:9px;height:34px}
+.icon-btn.confirm{background:#fdecea;color:#b02a37;border-color:#e03131;animation:badpulse 1s ease-in-out infinite}

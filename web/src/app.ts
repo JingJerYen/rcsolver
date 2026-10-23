@@ -1,7 +1,7 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
-import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
+import { makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { checkFacelets, faceletCell, netToFacelets } from "./cube3.js";
 import { solve3, warmUp } from "./solver.js";
 import { solve2 } from "./solvers/cube2.js";
@@ -12,23 +12,6 @@ import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-interface Run {
-  ts: string;
-  size: number;
-  model: string;
-  mock: boolean;
-  ms: number;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  cells: number;
-  corrected: number;
-  correctedByFace: Record<Face, number>;
-  lowConfidence: number;
-  lowConfidenceCorrected: number;
-  warnings: string[];
-}
-
-const RUNS_KEY = "rcsolver.runs";
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
 /** null = let the model count. After recognition this holds the size the model saw. */
@@ -45,38 +28,6 @@ const previewView = new CubeView($<HTMLCanvasElement>("preview"));
 
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
-}
-
-function loadRuns(): Run[] {
-  try {
-    return JSON.parse(localStorage.getItem(RUNS_KEY) ?? "[]") as Run[];
-  } catch {
-    return [];
-  }
-}
-
-function saveRuns(runs: Run[]) {
-  try {
-    localStorage.setItem(RUNS_KEY, JSON.stringify(runs));
-  } catch {
-    /* storage unavailable: the table still shows this session */
-  }
-}
-
-function renderRuns() {
-  const runs = loadRuns();
-  $("historyCount").textContent = runs.length ? `${runs.length}` : "";
-  const tbody = $("runs").querySelector("tbody")!;
-  tbody.innerHTML = runs
-    .slice()
-    .reverse()
-    .map((r) => {
-      const acc = ((1 - r.corrected / r.cells) * 100).toFixed(1);
-      const tokens = r.input_tokens == null ? "–" : `${r.input_tokens}+${r.output_tokens}`;
-      const hit = r.lowConfidence ? `${r.lowConfidenceCorrected}/${r.lowConfidence}` : "–";
-      return `<tr><td>${r.ts.slice(5, 16).replace("T", " ")}</td><td>${r.size}×${r.size}</td><td>${r.mock ? "mock" : r.model}</td><td>${(r.ms / 1000).toFixed(1)}</td><td>${tokens}</td><td>${r.corrected}/${r.cells}</td><td>${acc}%</td><td>${hit}</td></tr>`;
-    })
-    .join("");
 }
 
 /* ---------- capture flow ---------- */
@@ -185,64 +136,16 @@ function showResult() {
     markBadCells($("net"), []);
     $("invalidBadge").classList.add("hidden");
     if (net) previewView.setState(net.size, fromNet(net.size, net.current));
-    refreshStats();
+    if (net) renderLegend($("legend"), net);
   });
-  const sn = $("sizeNote");
-  const mm = response.sizeMismatch;
-  sn.classList.toggle("hidden", !mm);
-  sn.textContent = mm ? `你選的是 ${mm.requested}×${mm.requested}，照片看起來是 ${mm.detected}×${mm.detected}，已改用 ${mm.detected}×${mm.detected} 辨識。` : "";
-  const warn = $("warnings");
-  warn.classList.toggle("hidden", response.warnings.length === 0);
-  warn.textContent = response.warnings.length ? `顏色數量對不上：${response.warnings.join("；")}。` : "";
-  $("notes").innerHTML = response.recognition.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
-  $<HTMLButtonElement>("record").disabled = false;
+  renderLegend($("legend"), net);
+  // a colour count that is off means at least one sticker is wrong: open the editor straight away
+  if (response.warnings.length) setEditor(true);
   // Solving covers 2×2, 3×3 and 4×4 so far; other sizes stop at the checked net.
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
   // The 4×4 centre tables take a few seconds: build them while the user checks the net.
   if (size === 4) idle(() => buildCentreTables());
-  refreshStats();
   window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function refreshStats() {
-  if (!net || !response) return;
-  renderLegend($("legend"), net);
-  const a = accuracy(net);
-  const tokens = response.usage ? `${response.usage.input_tokens} + ${response.usage.output_tokens}` : "–";
-  $("stats").innerHTML = [
-    stat(`${a.corrected} / ${a.cells}`, "你改了幾格（= AI 讀錯）"),
-    stat(`${((1 - a.corrected / a.cells) * 100).toFixed(1)}%`, "每格準確率"),
-    stat(`${a.lowConfidenceCorrected} / ${a.lowConfidence}`, "紅框格裡真的錯的"),
-    stat(`${(response.ms / 1000).toFixed(1)} s`, `${response.mock ? "mock" : response.model}`),
-    stat(tokens, "input + output tokens"),
-  ].join("");
-}
-
-function stat(value: string, label: string) {
-  return `<div class="stat"><b>${value}</b><small>${label}</small></div>`;
-}
-
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
-}
-
-function recordRun() {
-  if (!net || !response) return;
-  const a = accuracy(net);
-  const run: Run = {
-    ts: new Date().toISOString(),
-    size: response.size,
-    model: response.model,
-    mock: response.mock,
-    ms: response.ms,
-    input_tokens: response.usage?.input_tokens ?? null,
-    output_tokens: response.usage?.output_tokens ?? null,
-    ...a,
-    warnings: response.warnings,
-  };
-  saveRuns([...loadRuns(), run]);
-  renderRuns();
-  $<HTMLButtonElement>("record").disabled = true;
 }
 
 /* ---------- solving ---------- */
@@ -323,11 +226,40 @@ function pretty(token: string) {
   return token.replace("'", "′");
 }
 
+/**
+ * Layer strip: one box per layer along the turn axis, the moving ones lit, laid out the way the
+ * cube is seen: U above D, L left of R, F left of B, with the face letters at the two ends.
+ */
+function renderStrip(mv: Move | null) {
+  const strip = $("strip");
+  if (!mv || !net) {
+    strip.innerHTML = "";
+    return;
+  }
+  const n = net.size;
+  const ends = mv.axis === 1 ? ["U", "D"] : mv.axis === 0 ? ["L", "R"] : ["F", "B"];
+  // first box = U (+y) on top, L (-x) on the left, F (+z) on the left
+  const first = mv.axis === 0 ? -1 : 1;
+  const boxes: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const coord = first * (n - 1 - 2 * i);
+    boxes.push(`<i class="${mv.layers.includes(coord) ? "on" : ""}"></i>`);
+  }
+  strip.className = `strip ${mv.axis === 1 ? "" : "h"}`;
+  strip.innerHTML = `<b>${ends[0]}</b>${boxes.join("")}<b>${ends[1]}</b>`;
+}
+
+function showMove(mv: Move | null) {
+  $("move").textContent = mv ? pretty(mv.token) : "";
+  $("angle").textContent = mv ? (Math.abs(mv.q) === 2 ? "180°" : "90°") : "";
+  renderStrip(mv);
+}
+
 function renderSolve() {
   const done = moveIndex >= moves.length;
   $("progress").textContent = `${moveIndex} / ${moves.length}`;
   $("bar").style.width = `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`;
-  $("move").textContent = done ? "" : pretty(moves[moveIndex]!.token);
+  showMove(done ? null : moves[moveIndex]!);
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
   $<HTMLButtonElement>("play").disabled = done;
@@ -337,13 +269,31 @@ function renderSolve() {
   if (done && !isSolved(cubeView.getState())) $("move").textContent = "?";
 }
 
+/** A home tap while solving needs a second tap within 3 s, so a stray touch does not throw the solve away. */
+let homeArmed = 0;
+function homeFromSolve() {
+  const btn = $("closeSolve");
+  if (Date.now() - homeArmed < 3000) {
+    btn.classList.remove("confirm");
+    homeArmed = 0;
+    stopPlaying();
+    showScreen("setup");
+    return;
+  }
+  homeArmed = Date.now();
+  btn.classList.add("confirm");
+  setTimeout(() => {
+    if (Date.now() - homeArmed >= 2900) btn.classList.remove("confirm");
+  }, 3000);
+}
+
 async function step(delta: 1 | -1) {
   if (cubeView.animating) return;
   const target = moveIndex + delta;
   if (target < 0 || target > moves.length) return;
   const mv = moves[delta === 1 ? moveIndex : moveIndex - 1]!;
-  $("move").textContent = pretty(mv.token);
   renderSolve();
+  showMove(mv);
   await cubeView.animate(mv, delta, turnMs);
   moveIndex = target;
   renderSolve();
@@ -392,13 +342,9 @@ $<HTMLInputElement>("file").onchange = async (e) => {
 $("send").onclick = () => void send();
 $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
-$("record").onclick = recordRun;
 $("solve").onclick = startSolve;
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
-$("closeSolve").onclick = () => {
-  stopPlaying();
-  showScreen("result");
-};
+$("closeSolve").onclick = homeFromSolve;
 $("next").onclick = () => {
   stopPlaying();
   void step(1);
@@ -417,34 +363,9 @@ $("play").onclick = () => {
   void step(1);
 };
 $("restart").onclick = () => void startCapture();
-$("copyRuns").onclick = async () => {
-  const text = JSON.stringify(loadRuns(), null, 2);
-  try {
-    await navigator.clipboard.writeText(text);
-    $("copyRuns").textContent = "已複製";
-    setTimeout(() => ($("copyRuns").textContent = "複製紀錄 JSON"), 1500);
-  } catch {
-    prompt("複製下面的內容：", text);
-  }
-};
-$("clearRuns").onclick = () => {
-  if (loadRuns().length && confirm("確定清除所有實驗紀錄？")) {
-    saveRuns([]);
-    renderRuns();
-  }
-};
-
-renderRuns();
 getHealth()
-  .then((h) => {
-    const el = $("health");
-    el.textContent = h.mock ? `MOCK (${h.mockReason})` : `${h.model} · ${h.dailyUsed}/${h.dailyLimit}`;
-    el.classList.toggle("bad", h.mock);
-  })
-  .catch(() => {
-    $("health").textContent = "✕ server";
-    $("health").classList.add("bad");
-  });
+  .then((h) => $("mock").classList.toggle("hidden", !h.mock))
+  .catch(() => undefined);
 // Build the solver tables while the user is busy taking photos.
 (window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 500)))(() => warmUp());
 

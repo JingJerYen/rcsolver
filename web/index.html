@@ -8,7 +8,7 @@
 </head>
 <body>
 <main>
-  <header class="top"><span class="brand">rcsolver</span><span class="muted" id="health"></span></header>
+  <header class="top"><span class="brand">rcsolver</span><span class="badge warn hidden" id="mock">MOCK</span></header>
 
   <section class="card" id="setup">
     <div class="row">
@@ -31,7 +31,7 @@
   <section class="card hidden" id="capture">
     <div class="step-head">
       <span class="badge" id="stepCount"></span>
-      <button class="icon-btn" id="cancel" aria-label="取消"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <button class="icon-btn" id="cancel" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
     <canvas id="guide" class="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
     <div class="viewfinder">
@@ -71,23 +71,19 @@
       <button class="icon-btn" id="again" aria-label="再拍一組"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="primary go" id="solve">Go</button>
     </div>
-    <details class="lab">
-      <summary>🧪</summary>
-      <div id="sizeNote" class="notice hidden"></div>
-      <div id="warnings" class="notice hidden"></div>
-      <ul id="notes" class="muted"></ul>
-      <div class="stats" id="stats"></div>
-      <div class="controls"><button id="record">記錄這次結果</button></div>
-    </details>
   </section>
 
   <section class="card hidden" id="solveView">
     <div class="step-head">
       <span class="badge" id="progress"></span>
-      <button class="icon-btn" id="closeSolve" aria-label="回到核對"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <button class="icon-btn" id="closeSolve" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
     <canvas id="cube" class="cube" aria-label="可拖曳旋轉視角的方塊"></canvas>
-    <div class="move" id="move"></div>
+    <div class="move-row">
+      <div class="strip" id="strip" aria-label="哪幾層在轉"></div>
+      <div class="move" id="move"></div>
+      <div class="angle" id="angle"></div>
+    </div>
     <div class="progress"><div id="bar"></div></div>
     <div class="play-row">
       <button class="icon-btn" id="prev" aria-label="上一步"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -100,14 +96,6 @@
     </div>
   </section>
 
-  <details class="card lab" id="history">
-    <summary>🧪 <span class="muted" id="historyCount"></span></summary>
-    <div class="table-wrap"><table id="runs"><thead><tr><th>時間</th><th>大小</th><th>模型</th><th>秒</th><th>tokens</th><th>錯格</th><th>準確率</th><th>可疑格命中</th></tr></thead><tbody></tbody></table></div>
-    <div class="controls">
-      <button id="copyRuns">複製紀錄 JSON</button>
-      <button id="clearRuns">清除紀錄</button>
-    </div>
-  </details>
 </main>
 <script type="module" src="./app.js"></script>
 </body>

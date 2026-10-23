@@ -188,11 +188,11 @@ export class CubeView {
     const sweep = move.angle * dir; // a 180° turn gets a half-circle arrow
     const pts: [number, number][] = [];
     const steps = 28;
-    let hidden = false;
-    if (outerOnly) {
-      // A face turned away from the camera still gets its arrow, drawn as if seen through the cube:
-      // its projection shows the true motion of that layer, the same way its side stickers move.
-      hidden = n[0] * view[0] + n[1] * view[1] + n[2] * view[2] < 0.15;
+    const hidden = false;
+    // A face turned away from the camera gets the belt instead: a ring around the cube at that
+    // layer's height, in front of everything, sweeping the way its side stickers move.
+    const faceVisible = n[0] * view[0] + n[1] * view[1] + n[2] * view[2] >= 0.15;
+    if (outerOnly && faceVisible) {
       const out = size + 0.9;
       const r = size * 0.62;
       const centre: Vec = [n[0] * out, n[1] * out, n[2] * out];
@@ -218,16 +218,26 @@ export class CubeView {
     }
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    for (const [width, color] of [[11, "rgba(255,255,255,.9)"], [5.5, `rgba(25,94,214,${pulse})`]] as const) {
-      ctx.beginPath();
-      pts.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
-      ctx.lineWidth = width;
-      ctx.strokeStyle = color;
-      ctx.stroke();
+    // A half turn is drawn as two chained quarter arrows, so "turn twice" is visible at a glance.
+    const segments = Math.abs(move.q) === 2 ? [[0, 13], [15, steps]] : [[0, steps]];
+    for (const [from, to] of segments) {
+      const part = pts.slice(from, to + 1);
+      for (const [width, color] of [[11, "rgba(255,255,255,.9)"], [5.5, `rgba(25,94,214,${pulse})`]] as const) {
+        ctx.beginPath();
+        part.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
+        ctx.lineWidth = width;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      this.drawHead(part[part.length - 1]!, part[part.length - 3]!);
+      if (hidden) ctx.setLineDash([9, 7]);
     }
-    ctx.setLineDash([]);
-    const end = pts[pts.length - 1]!;
-    const prev = pts[pts.length - 3]!;
+    ctx.restore();
+  }
+
+  private drawHead(end: [number, number], prev: [number, number]) {
+    const { ctx } = this;
     const a = Math.atan2(end[1] - prev[1], end[0] - prev[0]);
     const head = 16;
     ctx.beginPath();
@@ -240,7 +250,6 @@ export class CubeView {
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = "rgba(255,255,255,.9)";
     ctx.stroke();
-    ctx.restore();
   }
 
   destroy() {
