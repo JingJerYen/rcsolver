@@ -9,9 +9,10 @@ export function getClient(config: Config): Anthropic {
   if (!config.apiKey) {
     throw new Error("RCSOLVER_ANTHROPIC_KEY is not set; real model calls are unavailable");
   }
-  if (!client || clientKey !== config.apiKey) {
-    client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2, timeout: 120_000 });
-    clientKey = config.apiKey;
+  const key = `${config.apiKey}@${config.apiBaseUrl ?? ""}`;
+  if (!client || clientKey !== key) {
+    client = new Anthropic({ apiKey: config.apiKey, baseURL: config.apiBaseUrl, maxRetries: 2, timeout: 120_000 });
+    clientKey = key;
   }
   return client;
 }

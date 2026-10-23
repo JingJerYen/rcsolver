@@ -262,7 +262,7 @@ function finishCapture() {
   singleShot = false;
   showScreen("review");
   $("reviewThumbs").innerHTML = thumbsHtml(null);
-  $("sendStatus").textContent = badFaces.length ? "⚠" : "";
+  $("sendError").classList.toggle("hidden", !badFaces.length);
   $<HTMLButtonElement>("send").disabled = false;
 }
 
@@ -300,19 +300,22 @@ async function send() {
   const faces = images as Record<Face, FaceImage>;
   if (FACES.some((f) => !faces[f])) return;
   $<HTMLButtonElement>("send").disabled = true;
+  $("sendError").classList.add("hidden");
   $("sendStatus").innerHTML = `<span class="spinner"></span>`;
   try {
     response = await recognize(size, faces);
   } catch (err) {
-    if (err instanceof ApiError && err.code === "NO_CUBE") {
-      // point at the photos without a cube; tapping one re-shoots that face
-      badFaces = err.faces.length ? err.faces : [...FACES];
-      $("reviewThumbs").innerHTML = thumbsHtml(null);
-      $("sendStatus").textContent = "⚠";
-    } else {
-      const msg = err instanceof ApiError ? `${err.message}（${err.code}）` : err instanceof Error ? err.message : String(err);
-      $("sendStatus").textContent = `✕ ${msg}`;
-    }
+    // Any failure shows the same wordless warning and a shake; photos without a cube are also
+    // marked, and tapping one re-shoots that face. The detail goes to the console only.
+    if (err instanceof ApiError && err.code === "NO_CUBE") badFaces = err.faces.length ? err.faces : [...FACES];
+    else console.error("recognize failed", err);
+    $("reviewThumbs").innerHTML = thumbsHtml(null);
+    $("sendStatus").textContent = "";
+    $("sendError").classList.remove("hidden");
+    const card = $("review");
+    card.classList.remove("shake");
+    void card.offsetWidth;
+    card.classList.add("shake");
     $<HTMLButtonElement>("send").disabled = false;
     return;
   }

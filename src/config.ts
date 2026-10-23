@@ -19,6 +19,8 @@ function effortEnv(env: EnvMap, name: string, fallback: Effort): Effort {
 export interface Config {
   port: number;
   apiKey: string | undefined;
+  /** Where the SDK sends requests; only tests point this at a fake server. */
+  apiBaseUrl: string | undefined;
   mockMode: boolean;
   mockReason: string | null;
   trustProxy: boolean;
@@ -39,6 +41,7 @@ export function loadConfig(env: EnvMap): Config {
   return {
     port: intEnv(env, "PORT", 3000, 1, 65535),
     apiKey,
+    apiBaseUrl: env.RCSOLVER_API_BASE_URL?.trim() || undefined,
     mockMode: forcedMock || !apiKey,
     mockReason: forcedMock ? "MOCK_MODE=1" : apiKey ? null : "RCSOLVER_ANTHROPIC_KEY not set",
     trustProxy: env.TRUST_PROXY === "1",
