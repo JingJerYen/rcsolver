@@ -128,8 +128,8 @@ th{color:#607189;font-weight:600}
 .token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
 .small-btn{width:44px;height:44px;flex:none}
 .icon-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
-.saves{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
-.save{position:relative;background:#f4f7fb;border:1px solid #dde5ef;border-radius:12px;padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.saves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:4px}
+.save{position:relative;min-width:0;background:#f4f7fb;border:1px solid #dde5ef;border-radius:12px;padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
 .save:active{transform:scale(.97)}
 .save .mini{width:100%;aspect-ratio:1/1;display:block;touch-action:auto;pointer-events:none}
 .save .badge{font-size:12px;padding:3px 8px}
@@ -200,3 +200,8 @@ th{color:#607189;font-weight:600}
 .picker{position:absolute;z-index:5;display:flex;gap:6px;width:min(100%,304px);padding:8px;background:#fff;border-radius:14px;box-shadow:0 8px 28px rgba(10,20,40,.35)}
 .picker button{flex:1 1 0;min-width:0;aspect-ratio:1/1;padding:0;border-radius:10px;border:2px solid #cdd7e5;font-size:12px;font-weight:700;color:rgba(0,0,0,.55);cursor:pointer}
 .picker button.current{border-color:#195ed6;box-shadow:0 0 0 2px #195ed6}
+.save .save-title{width:100%;min-width:0;padding:2px 4px;border:none;border-radius:6px;background:none;font-size:13px;font-weight:700;color:#233b55;display:flex;align-items:center;justify-content:center;gap:3px}
+.save .save-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.save .save-title::after{content:"✎";flex:none;font-size:11px;color:#8a97a8}
+.title-input{font:inherit;font-size:17px;border:1px solid #cdd7e5;border-radius:10px;padding:12px;width:100%}
+.title-input:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
