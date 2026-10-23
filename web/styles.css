@@ -105,3 +105,9 @@ th{color:#607189;font-weight:600}
 .token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
 .small-btn{width:44px;height:44px;flex:none}
 .icon-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
+.saves{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.save{position:relative;background:#f4f7fb;border:1px solid #dde5ef;border-radius:12px;padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.save:active{transform:scale(.97)}
+.save .mini{width:100%;aspect-ratio:1/1;display:block;touch-action:auto;pointer-events:none}
+.save .badge{font-size:12px;padding:3px 8px}
+.save .del{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;padding:0;font-size:12px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}

@@ -15,6 +15,35 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
+/* ---------- saved solves (this browser only, newest first, three at most) ---------- */
+
+interface Save {
+  ts: number;
+  size: number;
+  faces: Record<Face, string[]>;
+  moves: string[];
+  index: number;
+}
+const SAVES_KEY = "rcsolver.saves";
+const MAX_SAVES = 3;
+
+function loadSaves(): Save[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(SAVES_KEY) ?? "[]") as Save[];
+    return Array.isArray(list) ? list.slice(0, MAX_SAVES) : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeSaves(list: Save[]) {
+  try {
+    localStorage.setItem(SAVES_KEY, JSON.stringify(list.slice(0, MAX_SAVES)));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 /** null = let the model count. After recognition this holds the size the model saw. */
 let size: number | null = null;
 let stepIndex = 0;
@@ -26,6 +55,48 @@ const video = $<HTMLVideoElement>("video");
 const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
 const previewView = new CubeView($<HTMLCanvasElement>("preview"));
+const miniViews = Array.from(document.querySelectorAll<HTMLCanvasElement>("#saves .mini"), (c) => new CubeView(c));
+
+function renderSaves() {
+  const list = loadSaves();
+  $("saves").classList.toggle("hidden", list.length === 0);
+  document.querySelectorAll<HTMLElement>("#saves .save").forEach((el, i) => {
+    const sv = list[i];
+    el.classList.toggle("hidden", !sv);
+    if (!sv) return;
+    el.querySelector(".badge")!.textContent = `${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}`;
+    const start = fromNet(sv.size, sv.faces);
+    miniViews[i]!.setState(sv.size, applyAlgorithm(start, parseAlgorithm(sv.moves.slice(0, sv.index).join(" "), sv.size)));
+    miniViews[i]!.resetView();
+  });
+}
+
+function saveCurrent() {
+  if (!net) return;
+  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex };
+  storeSaves([entry, ...loadSaves()]);
+  renderSaves();
+  const btn = $("save");
+  btn.classList.add("ok");
+  setTimeout(() => btn.classList.remove("ok"), 1500);
+}
+
+function openSave(i: number) {
+  const sv = loadSaves()[i];
+  if (!sv) return;
+  size = sv.size;
+  const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: sv.size }, () => "9".repeat(sv.size))])) as Record<Face, string[]>;
+  response = { ok: true, size: sv.size, sizeMismatch: null, recognition: { faces: sv.faces, confidence, notes: [] }, warnings: [], model: "saved", mock: false, ms: 0, usage: null };
+  net = makeState(sv.size, response.recognition);
+  renderNet($("net"), net, () => undefined);
+  moves = parseAlgorithm(sv.moves.join(" "), sv.size);
+  startState = fromNet(sv.size, sv.faces);
+  moveIndex = Math.min(sv.index, moves.length);
+  cubeView.setState(sv.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
+  cubeView.resetView();
+  showScreen("solveView");
+  renderSolve();
+}
 
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
@@ -375,6 +446,20 @@ $("next").onclick = () => {
   void step(1);
 };
 $("rewind").onclick = () => jumpTo(0);
+$("save").onclick = saveCurrent;
+document.querySelectorAll<HTMLElement>("#saves .save").forEach((el, i) => {
+  el.onclick = (e) => {
+    if ((e.target as HTMLElement).classList.contains("del")) {
+      const list = loadSaves();
+      list.splice(i, 1);
+      storeSaves(list);
+      renderSaves();
+      return;
+    }
+    openSave(i);
+  };
+});
+renderSaves();
 $("sequence").onclick = (e) => {
   const t = (e.target as HTMLElement).closest(".token") as HTMLElement | null;
   if (t?.dataset.i) jumpTo(Number(t.dataset.i));
