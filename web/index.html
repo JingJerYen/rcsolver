@@ -30,11 +30,12 @@
     <div class="viewfinder">
       <video id="video" playsinline autoplay muted></video>
       <div class="frame" id="frame"></div>
-      <div class="cam-error hidden" id="camError"></div>
+      <div class="cam-error hidden" id="camError"><svg viewBox="0 0 24 24" width="72" height="72"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 3l18 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
     </div>
     <div class="shutter-row">
       <label class="icon-btn" aria-label="從相簿選擇"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="2" fill="currentColor"/><path d="M4 18l5-5 3 3 3-4 5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><input type="file" id="file" accept="image/*" hidden></label>
       <button class="shutter" id="shoot" aria-label="拍這一面"></button>
+      <input type="file" id="fileCapture" accept="image/*" capture="environment" hidden>
       <button class="icon-btn" id="redo" aria-label="重拍上一面" disabled><svg viewBox="0 0 24 24" width="26" height="26"><path d="M9 7H4V2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 7a8 8 0 1 1-2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
     <div class="thumbs" id="thumbs"></div>

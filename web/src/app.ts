@@ -49,7 +49,7 @@ async function shareLink(sv: Save): Promise<string> {
   const own = sv.moves.length ? await computeSolution(sv.size, sv.faces) : null;
   const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
   const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }) });
-  return `${location.origin}${location.pathname}#z=${token}`;
+  return `${location.origin}${location.pathname}?openExternalBrowser=1#z=${token}`;
 }
 
 async function copyText(text: string, btn: HTMLElement) {
@@ -74,6 +74,23 @@ let response: RecognizeResponse | null = null;
 let net: NetState | null = null;
 
 const video = $<HTMLVideoElement>("video");
+/**
+ * In-app browsers (LINE, Facebook, Instagram…) refuse the live camera. The shutter then opens the
+ * phone's own camera app through a file input instead, so every face can still be taken in place.
+ */
+let nativeCamera = false;
+
+async function startPreview() {
+  $("camError").classList.add("hidden");
+  nativeCamera = false;
+  try {
+    await openCamera(video);
+  } catch (err) {
+    console.warn("live camera unavailable, using the camera app", err);
+    nativeCamera = true;
+    $("camError").classList.remove("hidden");
+  }
+}
 const guide = new GuideCube($<HTMLCanvasElement>("guide"));
 const cubeView = new CubeView($<HTMLCanvasElement>("cube"));
 const previewView = new CubeView($<HTMLCanvasElement>("preview"));
@@ -223,16 +240,7 @@ async function startCapture() {
   stopPlaying();
   showScreen("capture");
   renderStep();
-  $("camError").classList.add("hidden");
-  $<HTMLButtonElement>("shoot").disabled = false;
-  try {
-    await openCamera(video);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    $("camError").textContent = `📷 ✕  ${msg}`;
-    $("camError").classList.remove("hidden");
-    $<HTMLButtonElement>("shoot").disabled = true;
-  }
+  await startPreview();
 }
 
 function acceptImage(img: FaceImage) {
@@ -268,16 +276,8 @@ async function recapture(index: number) {
   stepIndex = index;
   showScreen("capture");
   renderStep();
-  $("camError").classList.add("hidden");
-  $<HTMLButtonElement>("shoot").disabled = false;
   $<HTMLButtonElement>("redo").disabled = true;
-  try {
-    await openCamera(video);
-  } catch (err) {
-    $("camError").textContent = `📷 ✕  ${err instanceof Error ? err.message : String(err)}`;
-    $("camError").classList.remove("hidden");
-    $<HTMLButtonElement>("shoot").disabled = true;
-  }
+  await startPreview();
 }
 
 function cancelCapture() {
@@ -537,6 +537,10 @@ function stopPlaying() {
 $("start").onclick = () => void startCapture();
 $("cancel").onclick = cancelCapture;
 $("shoot").onclick = () => {
+  if (nativeCamera) {
+    $<HTMLInputElement>("fileCapture").click();
+    return;
+  }
   try {
     acceptImage(captureFromVideo(video));
   } catch (err) {
@@ -551,7 +555,7 @@ $("redo").onclick = () => {
     renderStep();
   }
 };
-$<HTMLInputElement>("file").onchange = async (e) => {
+const onFilePicked = async (e: Event) => {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = "";
@@ -562,6 +566,8 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     alert(err instanceof Error ? err.message : String(err));
   }
 };
+$<HTMLInputElement>("file").onchange = onFilePicked;
+$<HTMLInputElement>("fileCapture").onchange = onFilePicked;
 $("send").onclick = () => void send();
 $("homeReview").onclick = () => showScreen("setup");
 $("homeResult").onclick = () => showScreen("setup");
