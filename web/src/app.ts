@@ -363,7 +363,8 @@ function jumpTo(index: number) {
 function renderSequence() {
   const seq = $("sequence");
   seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}" data-i="${i}">${pretty(m.token)}</span>`).join("");
-  seq.querySelector(".token.next")?.scrollIntoView({ block: "nearest" });
+  const next = seq.querySelector<HTMLElement>(".token.next") ?? seq.lastElementChild;
+  if (next instanceof HTMLElement) seq.scrollTo({ left: next.offsetLeft - seq.clientWidth / 2 + next.offsetWidth / 2, behavior: "smooth" });
 }
 
 function renderSolve() {

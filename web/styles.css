@@ -93,9 +93,10 @@ th{color:#607189;font-weight:600}
 .move-row{display:flex;align-items:center;justify-content:center;gap:18px;min-height:60px}
 .angle{font-size:22px;font-weight:700;color:#607189;min-width:64px;font-variant-numeric:tabular-nums}
 .icon-btn.confirm{background:#fdecea;color:#b02a37;border-color:#e03131;animation:badpulse 1s ease-in-out infinite}
-.sequence-row{display:flex;gap:8px;align-items:flex-start;margin-top:16px;padding-top:12px;border-top:1px dashed #dde5ef}
-.sequence{display:flex;gap:5px;flex-wrap:wrap;flex:1;max-height:150px;overflow-y:auto}
-.token{font:15px ui-monospace,monospace;padding:4px 6px;border-radius:5px;background:#edf1f7;color:#536981}
+.sequence-row{display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px dashed #dde5ef}
+.sequence{display:flex;gap:6px;flex-wrap:nowrap;flex:1;overflow-x:auto;overflow-y:hidden;padding:4px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(to right,transparent,#000 8%,#000 92%,transparent)}
+.sequence::-webkit-scrollbar{display:none}
+.token{font:16px ui-monospace,monospace;padding:6px 8px;border-radius:6px;background:#edf1f7;color:#536981;flex:none}
 .token.done{background:#e3f4e9;color:#2d7251}
 .token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
 .small-btn{width:44px;height:44px;flex:none}
