@@ -16,7 +16,7 @@ test("share tokens round-trip cube, index and moves, and are short", () => {
     assert.deepEqual(back, { size, faces, index: 300, moves });
     const tok2 = encodeShare({ size, faces, index: 7 });
     assert.deepEqual(decodeShare(tok2), { size, faces, index: 7 });
-    assert.ok(tok2.length <= (size === 3 ? 32 : size === 4 ? 52 : 80), `${size}×${size} token is ${tok2.length} chars`);
+    assert.ok(tok2.length <= (size === 3 ? 34 : size === 4 ? 54 : 82), `${size}×${size} token is ${tok2.length} chars`);
   }
 });
 

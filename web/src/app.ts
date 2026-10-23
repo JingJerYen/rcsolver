@@ -3,7 +3,7 @@ import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turn
 import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
-import type { Cell, Segment } from "./solveAny.js";
+import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
@@ -24,6 +24,8 @@ interface Save {
   index: number;
   /** What each stretch of the moves does, when the moves came from our solver. */
   segments?: Segment[];
+  /** Solved with the teaching method (3×3 layer by layer). */
+  teach?: boolean;
 }
 const SAVES_KEY = "rcsolver.saves";
 
@@ -49,9 +51,10 @@ function storeSaves(list: Save[]) {
  * the moves ride along only when they differ from what the solver gives for this cube.
  */
 async function shareLink(sv: Save): Promise<string> {
-  const own = sv.moves.length ? await computeSolution(sv.size, sv.faces) : null;
+  const mode: SolveMode = sv.teach ? "teach" : "fast";
+  const own = sv.moves.length ? await computeSolution(sv.size, sv.faces, mode) : null;
   const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
-  const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }) });
+  const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }), ...(sv.teach ? { teach: true } : {}) });
   return `${location.origin}${location.pathname}?openExternalBrowser=1#z=${token}`;
 }
 
@@ -168,7 +171,7 @@ function renderSaves() {
 
 function saveCurrent() {
   if (!net) return;
-  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
+  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(solveMode === "teach" ? { teach: true } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   const btn = $("save");
@@ -194,6 +197,8 @@ function openSaved(sv: Save) {
   renderNet($("net"), net, () => undefined);
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
   segments = sv.segments ?? null;
+  solveMode = sv.teach ? "teach" : "fast";
+  if (sv.teach) guideOn = true;
   startState = fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
   shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
@@ -362,6 +367,7 @@ function showResult() {
   // a colour count that is off means at least one sticker is wrong: open the editor straight away
   if (response.warnings.length) setEditor(true);
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
+  $("teach").classList.toggle("hidden", size !== 3);
   // The 4×4 centre tables take a few seconds to build and the bigger cubes fetch theirs: start now.
   idle(() => warmAsync(n));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -378,6 +384,9 @@ let playTimer = 0;
 let turnMs = 1200;
 /** Stages of the current solution (null when the moves did not come from our solver). */
 let segments: Segment[] | null = null;
+let solveMode: SolveMode = "fast";
+/** Auto-play stops when this index is reached (the formula replay in the guide). */
+let playUntil: number | null = null;
 const GUIDE_KEY = "rcsolver.guide";
 let guideOn = false;
 try {
@@ -424,32 +433,37 @@ function setBusy(on: boolean, fraction = 0) {
   bar.style.width = `${Math.round(Math.min(fraction, 1) * 100)}%`;
 }
 
-async function computeSolution(size: number, n: Record<Face, string[]>): Promise<string[] | null> {
-  const r = await solveAsync(size, n);
+async function computeSolution(size: number, n: Record<Face, string[]>, mode: SolveMode = "fast"): Promise<string[] | null> {
+  const r = await solveAsync(size, n, undefined, mode);
   return r.ok ? r.moves : null;
 }
 
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
-async function trySolve(onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
+async function trySolve(mode: SolveMode, onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
-  const r = await solveAsync(net.size, net.current, onProgress);
+  const r = await solveAsync(net.size, net.current, onProgress, mode);
   return r.ok ? { moves: r.moves, segments: r.segments } : fail(r.badCells);
 }
 
-function startSolve() {
+function startSolve(mode: SolveMode = "fast") {
   if (!net) return;
   const btn = $<HTMLButtonElement>("solve");
   btn.disabled = true;
+  $<HTMLButtonElement>("teach").disabled = true;
   btn.innerHTML = `<span class="spinner"></span>`;
   setBusy(true);
   void (async () => {
-    const solution = await trySolve((f) => setBusy(true, f));
+    const solution = await trySolve(mode, (f) => setBusy(true, f));
     setBusy(false);
     btn.disabled = false;
+    $<HTMLButtonElement>("teach").disabled = false;
     btn.textContent = "Go";
     if (!solution || !net) return;
     moves = parseAlgorithm(solution.moves.join(" "), net.size);
     segments = solution.segments;
+    solveMode = mode;
+    // the teaching solve is all about the explanations: open the guide with it
+    if (mode === "teach") guideOn = true;
     moveIndex = 0;
     shownIndex = 0;
     startState = fromNet(net.size, net.current);
@@ -513,6 +527,7 @@ const CHIP_ICONS: Record<Segment["kind"], string> = {
   parity: `<svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   cube3: `<span>3×3</span>`,
   optimal: `<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>`,
+  lbl: "", // teaching stages show their number instead
 };
 
 /**
@@ -538,19 +553,38 @@ function renderGuide() {
       const done = moveIndex >= c.to;
       const current = at >= c.from && at < c.to;
       const p = Math.max(0, Math.min(1, (moveIndex - c.from) / (c.to - c.from)));
-      return `<button class="chip${done ? " complete" : ""}${current ? " current" : ""}" data-i="${i}" style="--p:${Math.round(p * 100)}%">${CHIP_ICONS[c.kind]}</button>`;
+      const icon = c.kind === "lbl" ? `<span>${c.stage}</span>` : CHIP_ICONS[c.kind];
+      return `<button class="chip${done ? " complete" : ""}${current ? " current" : ""}" data-i="${i}" style="--p:${Math.round(p * 100)}%">${icon}</button>`;
     })
     .join("");
   const seg = segmentAt(segments, at);
   // only the pieces this stage works on keep their colours; the rest go grey
-  cubeView.setFocus(focusKeys(seg, net.size));
+  if (seg?.kind === "lbl") cubeView.setFocus(seg.pieces ? { pieces: new Set(seg.pieces) } : null);
+  else {
+    const keys = focusKeys(seg, net.size);
+    cubeView.setFocus(keys ? { keys } : null);
+  }
   const text = $("guideText");
   text.classList.toggle("hidden", !seg);
   if (seg) {
     const d = describe(seg, net.size);
     $("guideTitle").textContent = d.title;
     $("guideBody").textContent = d.body;
+    $("guideAlg").textContent = d.alg ?? "";
+    $("guideAlgRow").classList.toggle("hidden", !d.alg);
   }
+}
+
+/** Watch the current formula again: back to the start of this segment, then play to its end. */
+function replaySegment() {
+  if (!segments || cubeView.animating) return;
+  const seg = segmentAt(segments, Math.min(shownIndex, Math.max(0, moves.length - 1)));
+  if (!seg) return;
+  jumpTo(seg.from, seg.from);
+  playUntil = seg.to;
+  playing = true;
+  renderSolve();
+  void step(1);
 }
 
 /** A home tap while solving needs a second tap within 3 s, so a stray touch does not throw the solve away. */
@@ -582,13 +616,14 @@ async function step(delta: 1 | -1) {
   moveIndex = target;
   renderSolve();
   if (playing) {
-    if (moveIndex >= moves.length) stopPlaying();
+    if (moveIndex >= moves.length || (playUntil !== null && moveIndex >= playUntil)) stopPlaying();
     else playTimer = window.setTimeout(() => void step(1), playGapMs);
   }
 }
 
 function stopPlaying() {
   playing = false;
+  playUntil = null;
   clearTimeout(playTimer);
   if (!$("solveView").classList.contains("hidden")) renderSolve();
 }
@@ -640,7 +675,9 @@ $("reviewThumbs").onclick = (e) => {
 };
 $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
-$("solve").onclick = startSolve;
+$("solve").onclick = () => startSolve("fast");
+$("teach").onclick = () => startSolve("teach");
+$("replayAlg").onclick = replaySegment;
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
 $("shareResult").onclick = () => {
   if (!net) return;
@@ -729,7 +766,7 @@ renderPace();
 $("save").onclick = saveCurrent;
 $("shareSolve").onclick = () => {
   if (!net) return;
-  const sv: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex };
+  const sv: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(solveMode === "teach" ? { teach: true } : {}) };
   void shareLink(sv).then((link) => copyText(link, $("shareSolve")));
 };
 renderSaves();
@@ -763,12 +800,12 @@ async function openSharedLink() {
     let segs: Segment[] | undefined;
     if (!moves) {
       setBusy(true);
-      const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f));
+      const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f), z.teach ? "teach" : "fast");
       setBusy(false);
       moves = r.ok ? r.moves : [];
       if (r.ok) segs = r.segments;
     }
-    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index, ...(segs ? { segments: segs } : {}) });
+    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index, ...(segs ? { segments: segs } : {}), ...(z.teach ? { teach: true } : {}) });
     history.replaceState(null, "", location.pathname);
     return;
   }

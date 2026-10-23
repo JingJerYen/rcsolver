@@ -24,11 +24,14 @@ export class CubeView {
   private orbitRaf = 0;
   /** Direction arrows during turns; off for decorative views. */
   showArrows = true;
-  /** Sticker keys ("x,y,z|nx,ny,nz") drawn in colour; every other sticker is plain grey. Null colours all. */
-  private focus: Set<string> | null = null;
+  /**
+   * What stays in colour while the rest is plain grey: sticker keys ("x,y,z|nx,ny,nz") by position,
+   * or pieces by their colour signature (sorted colours), which follows the piece as it moves.
+   */
+  private focus: { keys: Set<string> } | { pieces: Set<string> } | null = null;
 
-  setFocus(keys: Set<string> | null) {
-    this.focus = keys;
+  setFocus(focus: { keys: Set<string> } | { pieces: Set<string> } | null) {
+    this.focus = focus;
     if (!this.anim) this.draw();
   }
 
@@ -150,6 +153,19 @@ export class CubeView {
       if (Math.abs(x) !== size - 1 && Math.abs(y) !== size - 1 && Math.abs(z) !== size - 1) continue;
       const c: Vec = [x, y, z];
       const active = !!anim && anim.move.layers.includes(c[anim.move.axis]);
+      const focus = this.focus;
+      let pieceMuted = false;
+      if (focus && "pieces" in focus) {
+        const cols: string[] = [];
+        for (let ax = 0; ax < 3; ax++) {
+          if (Math.abs(c[ax]!) !== size - 1) continue;
+          const n: Vec = [0, 0, 0];
+          n[ax] = Math.sign(c[ax]!);
+          const col = this.lookup.get(`${c.join(",")}|${n.join(",")}`);
+          if (col) cols.push(col);
+        }
+        pieceMuted = !focus.pieces.has(cols.sort().join(""));
+      }
       for (let ax = 0; ax < 3; ax++) for (const sign of [-1, 1] as const) {
         const n: Vec = [0, 0, 0];
         n[ax] = sign;
@@ -166,7 +182,7 @@ export class CubeView {
           });
         const key = `${c.join(",")}|${n.join(",")}`;
         const raw = this.lookup.get(key);
-        const muted = this.focus !== null && !this.focus.has(key);
+        const muted = focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted);
         const centre: Vec = [...c] as Vec;
         centre[ax] += sign;
         faces.push({
