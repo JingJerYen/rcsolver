@@ -13,6 +13,9 @@ command = "npm run build:web"
 [observability]
 enabled = true
 
+# Pushes to branches other than main run `wrangler preview`, which needs this block (it can stay empty).
+[previews]
+
 [assets]
 directory = "./public"
 # Only API paths run the Worker; everything else is served straight from ./public.
