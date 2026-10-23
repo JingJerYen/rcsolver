@@ -67,9 +67,9 @@ const CAM = (() => {
   return { right: [cy, 0, -sy] as Vec, up: [-sy * sp, cp, -cy * sp] as Vec, view: [sy * cp, sp, cy * cp] as Vec };
 })();
 
-const HOLD_BEFORE = 900;
-const TURN_MS = 1100;
-const HOLD_AFTER = 1400;
+const HOLD_BEFORE = 1300;
+const TURN_MS = 2200;
+const HOLD_AFTER = 1800;
 
 export interface GuideStep {
   /** The face that is in front before the gestures. */
@@ -140,13 +140,13 @@ export class GuideCube {
     this.ctx.setTransform(d, 0, 0, d, 0, 0);
   }
 
-  /** Orientation at animation time `ms`, plus whether the gestures are all done. */
-  private orientation(ms: number): { m: Mat; done: boolean; turning: boolean } {
+  /** Orientation at animation time `ms`; `arrow` is the gesture whose direction arrow to show, if any. */
+  private orientation(ms: number): { m: Mat; done: boolean; arrow: Gesture | null } {
     const g = this.step.gestures;
     const total = HOLD_BEFORE + g.length * TURN_MS + HOLD_AFTER;
     const t = g.length ? ms % total : 0;
     let m = this.base;
-    if (t < HOLD_BEFORE) return { m, done: g.length === 0, turning: false };
+    if (t < HOLD_BEFORE) return { m, done: g.length === 0, arrow: g[0] ?? null };
     let rest = t - HOLD_BEFORE;
     for (const gesture of g) {
       if (rest >= TURN_MS) {
@@ -156,16 +156,50 @@ export class GuideCube {
       }
       const f = rest / TURN_MS;
       const eased = f * f * (3 - 2 * f);
-      return { m: mul(rot(gesture.axis, gesture.deg * eased), m), done: false, turning: true };
+      return { m: mul(rot(gesture.axis, gesture.deg * eased), m), done: false, arrow: gesture };
     }
-    return { m, done: true, turning: false };
+    return { m, done: true, arrow: null };
+  }
+
+  /**
+   * Curved arrow just outside the cube showing which way it is about to turn. It lives in world
+   * space (the up axis never changes), in the top-front quadrant where the camera can see it.
+   */
+  private drawArrow(g: Gesture, project: (p: Vec) => [number, number]) {
+    const { ctx } = this;
+    const start: Vec = g.axis === "y" ? [0, 1.45, 1.35] : g.deg > 0 ? [1.45, 1.35, 0] : [1.45, 0, 1.35];
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 24; i++) pts.push(project(apply(rot(g.axis, (g.deg * i) / 24), start)));
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const [width, color] of [[9, "rgba(255,255,255,.85)"], [4.5, "#195ed6"]] as const) {
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+    const end = pts[pts.length - 1]!;
+    const prev = pts[pts.length - 3]!;
+    const a = Math.atan2(end[1] - prev[1], end[0] - prev[0]);
+    const head = 13;
+    ctx.beginPath();
+    ctx.moveTo(end[0] + Math.cos(a) * head * 0.6, end[1] + Math.sin(a) * head * 0.6);
+    ctx.lineTo(end[0] + Math.cos(a + 2.5) * head, end[1] + Math.sin(a + 2.5) * head);
+    ctx.lineTo(end[0] + Math.cos(a - 2.5) * head, end[1] + Math.sin(a - 2.5) * head);
+    ctx.closePath();
+    ctx.fillStyle = "#195ed6";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,.85)";
+    ctx.stroke();
   }
 
   private draw(now: number) {
     const { ctx, w, h } = this;
     ctx.clearRect(0, 0, w, h);
-    const { m, done } = this.orientation(now - this.t0);
-    const s = Math.min(w, h) * 0.3;
+    const { m, done, arrow } = this.orientation(now - this.t0);
+    const s = Math.min(w, h) * 0.27;
     const project = (p: Vec): [number, number] => [w / 2 + dot(p, CAM.right) * s, h / 2 + 6 - dot(p, CAM.up) * s];
     const pulse = 0.5 + 0.5 * Math.sin(now / 180);
 
@@ -241,6 +275,7 @@ export class GuideCube {
         ctx.fillText(label, cx, cy);
       }
     }
+    if (arrow) this.drawArrow(arrow, project);
   }
 
   destroy() {
