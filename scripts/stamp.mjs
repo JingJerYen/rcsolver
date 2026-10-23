@@ -7,9 +7,14 @@ copyFileSync("web/styles.css", "public/styles.css");
 cpSync("web/tables", "public/tables", { recursive: true });
 const v = createHash("sha1")
   .update(readFileSync("public/app.js"))
+  .update(readFileSync("public/solveWorker.js"))
   .update(readFileSync("public/styles.css"))
   .digest("hex")
   .slice(0, 10);
+// the page names its worker script by a literal; version it the same way so the pair stays matched
+const appJs = readFileSync("public/app.js", "utf8");
+if (!appJs.includes('"./solveWorker.js"')) throw new Error("worker url literal not found in app.js");
+writeFileSync("public/app.js", appJs.replace('"./solveWorker.js"', `"./solveWorker.js?v=${v}"`));
 const html = readFileSync("web/index.html", "utf8")
   .replace('href="./styles.css"', `href="./styles.css?v=${v}"`)
   .replace('src="./app.js"', `src="./app.js?v=${v}"`);

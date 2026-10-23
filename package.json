@@ -10,7 +10,7 @@
     "dev": "npm run build:web && tsx watch src/server.ts",
     "mock": "npm run build:web && MOCK_MODE=1 tsx src/server.ts",
     "build": "npm run build:web && npm run build:server",
-    "build:web": "esbuild web/src/app.ts --bundle --format=esm --target=es2020 --outfile=public/app.js --minify && node scripts/stamp.mjs",
+    "build:web": "esbuild web/src/app.ts --bundle --format=esm --target=es2020 --outfile=public/app.js --minify && esbuild web/src/solveWorker.ts --bundle --format=esm --target=es2020 --outfile=public/solveWorker.js --minify && node scripts/stamp.mjs",
     "build:server": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",

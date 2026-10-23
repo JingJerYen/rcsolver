@@ -61,6 +61,13 @@ th{color:#607189;font-weight:600}
 .footer{text-align:center;margin-top:20px}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #cdd7e5;border-top-color:#195ed6;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+.busy{position:fixed;inset:0;background:rgba(239,243,248,.82);display:flex;align-items:center;justify-content:center;z-index:50}
+.busy-box{display:flex;flex-direction:column;align-items:center;gap:18px;width:min(60vw,220px)}
+.spinner.big{width:56px;height:56px;border-width:5px;margin:0}
+.bar{width:100%;height:8px;border-radius:8px;background:#dde5ef;overflow:hidden}
+.bar>div{height:100%;border-radius:8px;background:#195ed6;transition:width .2s}
+.bar>div.indeterminate{width:40%!important;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
 #health.bad{color:#b02a37}
 .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .top #import{margin-left:auto}

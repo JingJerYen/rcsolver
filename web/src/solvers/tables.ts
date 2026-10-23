@@ -16,15 +16,20 @@ async function gunzip(buf: ArrayBuffer): Promise<Uint8Array> {
 }
 
 /** Make every table the size needs available, fetching precomputed ones where possible. */
-export function ensureTables(size: number, base = "./tables/"): Promise<void> {
+export function ensureTables(size: number, base = "./tables/", onProgress?: (fraction: number) => void): Promise<void> {
   if (size < 4) return Promise.resolve();
   let p = pending.get(size);
   if (p) return p;
   p = (async () => {
     const specs = new Map(tableSpecs(size).map((s) => [s.key, s]));
+    let done = 0;
+    const total = specs.size;
     await Promise.all(
       Array.from(specs.values()).map(async (spec) => {
-        if (hasTable(spec.key)) return;
+        if (hasTable(spec.key)) {
+          onProgress?.(++done / total);
+          return;
+        }
         try {
           const res = await fetch(`${base}${tableHash(spec.key)}.bin.gz`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -34,6 +39,7 @@ export function ensureTables(size: number, base = "./tables/"): Promise<void> {
         } catch {
           installTable(spec.key, buildTable(spec.stage, spec.perms));
         }
+        onProgress?.(++done / total);
       }),
     );
   })();

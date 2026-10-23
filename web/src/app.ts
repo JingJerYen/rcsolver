@@ -2,13 +2,8 @@ import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type 
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
-import { checkFacelets, faceletCell, netToFacelets } from "./cube3.js";
-import { solve3, warmUp } from "./solver.js";
-import { solve2 } from "./solvers/cube2.js";
-import { solve4 } from "./solvers/cube4.js";
-import { buildCentreTables } from "./solvers/cube4centers.js";
-import { solveN } from "./solvers/solveN.js";
-import { ensureTables } from "./solvers/tables.js";
+import { solveAsync, warmAsync } from "./solveClient.js";
+import type { Cell } from "./solveAny.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -364,8 +359,7 @@ function showResult() {
   if (response.warnings.length) setEditor(true);
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
   // The 4×4 centre tables take a few seconds to build and the bigger cubes fetch theirs: start now.
-  if (size === 4) idle(() => buildCentreTables());
-  if (n >= 5) idle(() => void ensureTables(n));
+  idle(() => warmAsync(n));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -407,51 +401,25 @@ function fail(badCells: { face: Face; row: number; col: number }[]) {
   return null;
 }
 
-type Cell = { face: Face; row: number; col: number };
+/* ---------- busy overlay: shown while a solve runs off the main thread ---------- */
 
-/** Solve a net with the right solver; a failure names the cells that cannot be right (maybe none). */
-function solveNet(size: number, n: Record<Face, string[]>): { ok: true; moves: string[] } | { ok: false; badCells: Cell[] } {
-  let moves: string[];
-  if (size === 3) {
-    const conv = netToFacelets(n);
-    if (!conv) return { ok: false, badCells: FACES.map((face) => ({ face, row: 1, col: 1 })) };
-    const v = checkFacelets(conv.facelets);
-    if (!v.ok) return { ok: false, badCells: v.badFacelets.map(faceletCell) };
-    try {
-      moves = solve3(conv.facelets);
-    } catch {
-      return { ok: false, badCells: [] };
-    }
-  } else if (size === 2) {
-    const r = solve2(n);
-    if (!r.ok) return { ok: false, badCells: r.badFacelets.map((i) => ({ face: FACES[Math.floor(i / 4)]!, row: Math.floor((i % 4) / 2), col: i % 2 })) };
-    moves = r.moves;
-  } else if (size === 4) {
-    const r = solve4(n);
-    if (!r.ok) return { ok: false, badCells: r.badCells };
-    moves = r.moves;
-  } else if (size >= 5 && size <= 7) {
-    const r = solveN(n, size);
-    if (!r.ok) return { ok: false, badCells: r.badCells };
-    moves = r.moves;
-  } else {
-    return { ok: false, badCells: [] };
-  }
-  // Belt and braces: replay the solution on our own model before trusting it.
-  if (!isSolved(applyAlgorithm(fromNet(size, n), parseAlgorithm(moves.join(" "), size)))) return { ok: false, badCells: [] };
-  return { ok: true, moves };
+function setBusy(on: boolean, fraction = 0) {
+  $("busy").classList.toggle("hidden", !on);
+  const bar = $("busyBar");
+  // table loading reports real progress; the solve itself has none, so the bar then slides
+  bar.classList.toggle("indeterminate", fraction >= 1);
+  bar.style.width = `${Math.round(Math.min(fraction, 1) * 100)}%`;
 }
 
 async function computeSolution(size: number, n: Record<Face, string[]>): Promise<string[] | null> {
-  await ensureTables(size);
-  const r = solveNet(size, n);
+  const r = await solveAsync(size, n);
   return r.ok ? r.moves : null;
 }
 
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
-function trySolve(): string[] | null {
+async function trySolve(onProgress?: (f: number) => void): Promise<string[] | null> {
   if (!net) return null;
-  const r = solveNet(net.size, net.current);
+  const r = await solveAsync(net.size, net.current, onProgress);
   return r.ok ? r.moves : fail(r.badCells);
 }
 
@@ -460,10 +428,10 @@ function startSolve() {
   const btn = $<HTMLButtonElement>("solve");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>`;
-  // let the spinner paint before the (possibly multi-second) solve runs
-  setTimeout(async () => {
-    await ensureTables(net!.size);
-    const solution = trySolve();
+  setBusy(true);
+  void (async () => {
+    const solution = await trySolve((f) => setBusy(true, f));
+    setBusy(false);
     btn.disabled = false;
     btn.textContent = "Go";
     if (!solution || !net) return;
@@ -475,7 +443,7 @@ function startSolve() {
     cubeView.resetView();
     showScreen("solveView");
     renderSolve();
-  }, 40);
+  })();
 }
 
 /** R → R, R' → R′, 2R → 2R (inner slice), Rw → Rw (two layers). */
@@ -709,7 +677,13 @@ async function openSharedLink() {
   if (z) {
     stopPlaying();
     // no moves in the token: the solver reproduces them (the same solution the sender had)
-    const moves = z.moves ?? (await computeSolution(z.size, z.faces)) ?? [];
+    let moves = z.moves;
+    if (!moves) {
+      setBusy(true);
+      const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f));
+      setBusy(false);
+      moves = r.ok ? r.moves : [];
+    }
     openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index });
     history.replaceState(null, "", location.pathname);
     return;
@@ -733,8 +707,8 @@ window.addEventListener("hashchange", () => void openSharedLink());
 getHealth()
   .then((h) => $("mock").classList.toggle("hidden", !h.mock))
   .catch(() => undefined);
-// Build the solver tables while the user is busy taking photos.
-(window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 500)))(() => warmUp());
+// Start the solver worker and its 3×3 tables while the user is busy taking photos.
+idle(() => warmAsync(3));
 
 /** Hooks for the end-to-end test: feed a recognised net without the camera. */
 (window as unknown as { rcsolverTest: unknown }).rcsolverTest = {
