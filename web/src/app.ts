@@ -550,6 +550,8 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   }
 };
 $("send").onclick = () => void send();
+$("homeReview").onclick = () => showScreen("setup");
+$("homeResult").onclick = () => showScreen("setup");
 $("reviewThumbs").onclick = (e) => {
   const el = (e.target as HTMLElement).closest(".thumb");
   if (!el) return;
