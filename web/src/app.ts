@@ -364,7 +364,7 @@ function renderSequence() {
   const seq = $("sequence");
   seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}" data-i="${i}">${pretty(m.token)}</span>`).join("");
   const next = seq.querySelector<HTMLElement>(".token.next") ?? seq.lastElementChild;
-  if (next instanceof HTMLElement) seq.scrollTo({ left: next.offsetLeft - seq.clientWidth / 2 + next.offsetWidth / 2, behavior: "smooth" });
+  if (next instanceof HTMLElement) seq.scrollTo({ left: next.offsetLeft - seq.offsetLeft - seq.clientWidth / 2 + next.offsetWidth / 2, behavior: "smooth" });
 }
 
 function renderSolve() {
