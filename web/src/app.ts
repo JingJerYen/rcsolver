@@ -180,6 +180,7 @@ function openSaved(sv: Save) {
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
   startState = fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
+  shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
   cubeView.setState(sv.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
   cubeView.resetView();
   showScreen("solveView");
@@ -376,7 +377,9 @@ let moveIndex = 0;
 let startState: Sticker[] = [];
 let playing = false;
 let playTimer = 0;
-let turnMs = 900;
+let turnMs = 1200;
+/** Move shown in the label, counter and sequence: the one being turned, which stays until the next turn starts. */
+let shownIndex = 0;
 /** Pause between moves during auto-play: a small button cycles through a few choices, remembered on this device. */
 const GAP_KEY = "rcsolver.gap";
 const GAP_CHOICES = [1000, 2000, 3000, 5000];
@@ -466,6 +469,7 @@ function startSolve() {
     if (!solution || !net) return;
     moves = parseAlgorithm(solution.join(" "), net.size);
     moveIndex = 0;
+    shownIndex = 0;
     startState = fromNet(net.size, net.current);
     cubeView.setState(net.size, startState);
     cubeView.resetView();
@@ -485,10 +489,11 @@ function showMove(mv: Move | null) {
 }
 
 /** Jump straight to step `index` (0 = as read), without animation. */
-function jumpTo(index: number) {
+function jumpTo(index: number, show = index) {
   if (!net || cubeView.animating) return;
   stopPlaying();
   moveIndex = Math.max(0, Math.min(moves.length, index));
+  shownIndex = Math.max(0, Math.min(moves.length - 1, show));
   cubeView.setState(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
   renderSolve();
 }
@@ -496,19 +501,19 @@ function jumpTo(index: number) {
 /** The whole solution as tokens: done ones green, the next one highlighted and scrolled into view. Tap one to jump there. */
 function renderSequence() {
   const seq = $("sequence");
-  seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}" data-i="${i}">${pretty(m.token)}</span>`).join("");
+  seq.innerHTML = moves.map((m, i) => `<span class="token${i === shownIndex ? " next" : i < moveIndex ? " done" : ""}" data-i="${i}">${pretty(m.token)}</span>`).join("");
   const next = seq.querySelector<HTMLElement>(".token.next") ?? seq.lastElementChild;
   if (next instanceof HTMLElement) seq.scrollTo({ left: next.offsetLeft - seq.offsetLeft - seq.clientWidth / 2 + next.offsetWidth / 2, behavior: "smooth" });
 }
 
 function renderSolve() {
   const done = moveIndex >= moves.length;
-  $("progress").textContent = `${moveIndex} / ${moves.length}`;
+  $("progress").textContent = `${moves.length ? shownIndex + 1 : 0} / ${moves.length}`;
   const slider = $<HTMLInputElement>("slider");
   slider.max = String(moves.length);
   slider.value = String(moveIndex);
   slider.style.setProperty("--p", `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`);
-  showMove(done ? null : moves[moveIndex]!);
+  showMove(moves[shownIndex] ?? null);
   renderSequence();
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
@@ -541,10 +546,10 @@ async function step(delta: 1 | -1) {
   if (cubeView.animating) return;
   const target = moveIndex + delta;
   if (target < 0 || target > moves.length) return;
-  const mv = moves[delta === 1 ? moveIndex : moveIndex - 1]!;
+  shownIndex = delta === 1 ? moveIndex : moveIndex - 1;
+  const mv = moves[shownIndex]!;
   renderSolve();
-  showMove(mv);
-  await cubeView.animate(mv, delta, turnMs);
+  await cubeView.animate(mv, delta, Math.abs(mv.q) === 2 ? turnMs * 1.4 : turnMs);
   moveIndex = target;
   renderSolve();
   if (playing) {
@@ -659,7 +664,7 @@ $<HTMLInputElement>("slider").oninput = (e) => {
     (e.target as HTMLInputElement).value = String(moveIndex);
     return;
   }
-  jumpTo(v);
+  jumpTo(v, Math.max(0, v - 1));
 };
 $("pace").onclick = () => {
   playGapMs = GAP_CHOICES[(GAP_CHOICES.indexOf(playGapMs) + 1) % GAP_CHOICES.length]!;
