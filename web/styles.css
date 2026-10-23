@@ -128,3 +128,10 @@ th{color:#607189;font-weight:600}
 .thumb.bad{border-color:#e03131;animation:badpulse 1s ease-in-out infinite}
 .thumb.bad::after{content:"⚠";position:absolute;right:3px;bottom:1px;font-size:14px;color:#fff;text-shadow:0 1px 2px #000}
 #reviewThumbs .thumb{cursor:pointer}
+.dialog{border:none;border-radius:18px;padding:0;width:min(92vw,420px);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.dialog::backdrop{background:rgba(20,30,45,.45)}
+.dialog-body{padding:18px;display:flex;flex-direction:column;gap:10px}
+.dialog-title{margin:0;font-size:16px;font-weight:700;color:#233b55;line-height:1.5}
+.dialog textarea{font:15px ui-monospace,monospace;border:1px solid #cdd7e5;border-radius:10px;padding:10px;resize:none;word-break:break-all}
+.dialog textarea:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
+.small-hint{margin:0;color:#b02a37}

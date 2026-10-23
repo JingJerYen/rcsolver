@@ -551,14 +551,37 @@ $("copyState").onclick = async () => {
   const text = toFacelets(net.current, net.size) ?? FACES.map((f) => net!.current[f].join("")).join("");
   await copyText(text, $("copyState"));
 };
-$("import").onclick = () => {
-  const text = prompt("", "");
-  if (!text) return;
-  const parsed = fromFacelets(text);
+/** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
+const importDialog = $<HTMLDialogElement>("importDialog");
+const importText = $<HTMLTextAreaElement>("importText");
+$("import").onclick = async () => {
+  $("importError").classList.add("hidden");
+  importText.value = "";
+  try {
+    const clip = (await navigator.clipboard.readText()).trim();
+    if (clip && (clip.includes("#s=") || fromFacelets(clip))) importText.value = clip;
+  } catch {
+    /* no clipboard access: the user pastes by hand */
+  }
+  importDialog.showModal();
+  importText.focus();
+};
+$("importCancel").onclick = () => importDialog.close();
+$("importDialog").querySelector("form")!.onsubmit = (e) => {
+  e.preventDefault();
+  const text = importText.value.trim();
+  // a shared link: take the state (and solution) out of its hash
+  const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : "";
+  const q = new URLSearchParams(hash);
+  const parsed = fromFacelets(q.get("s") ?? text);
   if (!parsed) {
-    const btn = $("import");
-    btn.classList.add("confirm");
-    setTimeout(() => btn.classList.remove("confirm"), 1200);
+    $("importError").classList.remove("hidden");
+    return;
+  }
+  importDialog.close();
+  if (q.get("s")) {
+    location.hash = hash;
+    openSharedLink();
     return;
   }
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: parsed.size }, () => "9".repeat(parsed.size))])) as Record<Face, string[]>;

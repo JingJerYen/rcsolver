@@ -96,6 +96,17 @@
   </section>
 
 </main>
+<dialog id="importDialog" class="dialog">
+  <form method="dialog" class="dialog-body">
+    <p class="dialog-title">貼上方塊狀態或分享連結<br><span class="muted">Paste a cube state or a shared link</span></p>
+    <textarea id="importText" rows="4" spellcheck="false" autocapitalize="characters" placeholder="UUUUUUUUURRRRRRRRRFFFFFFFFF…"></textarea>
+    <p class="muted small-hint hidden" id="importError">✕ 看不懂這段內容 / Not a cube state</p>
+    <div class="go-row">
+      <button type="button" class="icon-btn" id="importCancel" aria-label="取消"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <button type="submit" class="primary go" id="importOk">Go</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="./app.js"></script>
 </body>
 </html>
