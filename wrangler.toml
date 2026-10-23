@@ -1,9 +1,17 @@
-# Cloudflare Workers deployment: `npm run cf:deploy` (after `npx wrangler login`).
-# Secrets: `npx wrangler secret put RCSOLVER_ANTHROPIC_KEY`. Never put the key in this file.
+# Cloudflare Workers deployment. One-time setup is in README.md; after that every push to main deploys.
+# The API key is a Worker secret (dashboard or `npx wrangler secret put RCSOLVER_ANTHROPIC_KEY`), never this file.
 name = "rcsolver"
 main = "src/worker.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# `wrangler deploy` bundles the web page first, so no separate build step is needed anywhere.
+[build]
+command = "npm run build:web"
+
+[observability]
+enabled = true
 
 [assets]
 directory = "./public"

@@ -14,8 +14,8 @@
     "build:server": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
-    "cf:dev": "npm run build:web && wrangler dev",
-    "cf:deploy": "npm run build:web && wrangler deploy"
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
   },
   "engines": {
     "node": ">=20"

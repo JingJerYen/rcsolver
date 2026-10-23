@@ -13,17 +13,19 @@ npm run dev                 # http://localhost:3000
 npm test
 ```
 
-手機要開相機必須走 https（或 localhost）。要在手機上試本機伺服器，用 `npx wrangler dev --local --ip 0.0.0.0` 搭配 Cloudflare Tunnel，或直接部署。
+手機要開相機必須走 https（或 localhost），所以用手機實測最簡單的方式就是部署上去。
 
-## 部署到 Cloudflare Workers
+## 部署到 Cloudflare（設定一次，之後推 main 就自動部署）
 
-```bash
-npx wrangler login
-npx wrangler secret put RCSOLVER_ANTHROPIC_KEY
-npm run cf:deploy
-```
+1. 到 Cloudflare dashboard → Workers & Pages → Create → 選「Import a repository」，連結 GitHub 的 `rcsolver`，分支選 `main`。
+   建置設定保持預設（deploy command 是 `npx wrangler deploy`，前端會在部署時自動打包）。
+2. 建好後到這個 Worker 的 Settings → Variables and Secrets，新增 Secret `RCSOLVER_ANTHROPIC_KEY`，貼上專用金鑰。
+3. 網址是 `https://rcsolver.<你的帳號>.workers.dev`，已經是 https，手機直接開就能用相機。
+   之後每次推到 main，Cloudflare 會自己重新部署；dashboard 的 Logs 看得到每次辨識的 token 用量。
 
-靜態檔由 Workers Static Assets 直接供應，只有 `/api/*` 進 Worker。每日額度預設每個 isolate 各算一份；要全站共用，建一個 KV namespace 綁到 `QUOTA`（見 `wrangler.toml`）。
+不想連 GitHub 也可以手動：`npx wrangler login`、`npx wrangler secret put RCSOLVER_ANTHROPIC_KEY`、`npm run cf:deploy`。
+
+每日額度（`DAILY_LIMIT`）預設每個 Worker isolate 各算一份，只是粗略的保險；要全站精確共用，建一個 KV namespace 綁到 `QUOTA`（`wrangler.toml` 有範例）。模型、effort、限流都在 `wrangler.toml` 的 `[vars]` 改，改完推上去就生效。
 
 也能跑在任何 Node 主機（Render、Fly）：`npm run build && npm start`，記得設 `TRUST_PROXY=1`。
 
