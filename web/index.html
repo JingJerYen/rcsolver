@@ -80,7 +80,6 @@
     </div>
     <canvas id="cube" class="cube" aria-label="可拖曳旋轉視角的方塊"></canvas>
     <div class="move-row">
-      <div class="strip" id="strip" aria-label="哪幾層在轉"></div>
       <div class="move" id="move"></div>
       <div class="angle" id="angle"></div>
     </div>
@@ -93,6 +92,10 @@
     <div class="done hidden" id="done">
       <div class="check">✓</div>
       <button class="primary go" id="restart" aria-label="再來一次"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+    </div>
+    <div class="sequence-row">
+      <div class="sequence" id="sequence"></div>
+      <button class="icon-btn small-btn" id="copySeq" aria-label="複製整段轉法"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
   </section>
 

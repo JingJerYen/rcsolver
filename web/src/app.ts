@@ -226,33 +226,16 @@ function pretty(token: string) {
   return token.replace("'", "′");
 }
 
-/**
- * Layer strip: one box per layer along the turn axis, the moving ones lit, laid out the way the
- * cube is seen: U above D, L left of R, F left of B, with the face letters at the two ends.
- */
-function renderStrip(mv: Move | null) {
-  const strip = $("strip");
-  if (!mv || !net) {
-    strip.innerHTML = "";
-    return;
-  }
-  const n = net.size;
-  const ends = mv.axis === 1 ? ["U", "D"] : mv.axis === 0 ? ["L", "R"] : ["F", "B"];
-  // first box = U (+y) on top, L (-x) on the left, F (+z) on the left
-  const first = mv.axis === 0 ? -1 : 1;
-  const boxes: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const coord = first * (n - 1 - 2 * i);
-    boxes.push(`<i class="${mv.layers.includes(coord) ? "on" : ""}"></i>`);
-  }
-  strip.className = `strip ${mv.axis === 1 ? "" : "h"}`;
-  strip.innerHTML = `<b>${ends[0]}</b>${boxes.join("")}<b>${ends[1]}</b>`;
-}
-
 function showMove(mv: Move | null) {
   $("move").textContent = mv ? pretty(mv.token) : "";
   $("angle").textContent = mv ? (Math.abs(mv.q) === 2 ? "180°" : "90°") : "";
-  renderStrip(mv);
+}
+
+/** The whole solution as tokens: done ones green, the next one highlighted and scrolled into view. */
+function renderSequence() {
+  const seq = $("sequence");
+  seq.innerHTML = moves.map((m, i) => `<span class="token${i < moveIndex ? " done" : i === moveIndex ? " next" : ""}">${pretty(m.token)}</span>`).join("");
+  seq.querySelector(".token.next")?.scrollIntoView({ block: "nearest" });
 }
 
 function renderSolve() {
@@ -260,6 +243,7 @@ function renderSolve() {
   $("progress").textContent = `${moveIndex} / ${moves.length}`;
   $("bar").style.width = `${moves.length ? (moveIndex / moves.length) * 100 : 100}%`;
   showMove(done ? null : moves[moveIndex]!);
+  renderSequence();
   $<HTMLButtonElement>("prev").disabled = moveIndex === 0 || cubeView.animating;
   $<HTMLButtonElement>("next").disabled = done || cubeView.animating;
   $<HTMLButtonElement>("play").disabled = done;
@@ -363,6 +347,17 @@ $("play").onclick = () => {
   void step(1);
 };
 $("restart").onclick = () => void startCapture();
+$("copySeq").onclick = async () => {
+  const text = moves.map((m) => m.token).join(" ");
+  const btn = $("copySeq");
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.classList.add("ok");
+    setTimeout(() => btn.classList.remove("ok"), 1500);
+  } catch {
+    prompt("", text);
+  }
+};
 getHealth()
   .then((h) => $("mock").classList.toggle("hidden", !h.mock))
   .catch(() => undefined);

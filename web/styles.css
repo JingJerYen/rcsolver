@@ -93,10 +93,11 @@ th{color:#607189;font-weight:600}
 .editor{margin-top:12px;padding-top:8px;border-top:1px dashed #dde5ef}
 .move-row{display:flex;align-items:center;justify-content:center;gap:18px;min-height:60px}
 .angle{font-size:22px;font-weight:700;color:#607189;min-width:64px;font-variant-numeric:tabular-nums}
-.strip{display:flex;flex-direction:column;gap:3px;min-width:34px;align-items:center}
-.strip i{display:block;height:9px;width:34px;background:#dee6f0;border-radius:3px;border:1px solid #bac9db}
-.strip i.on{background:#ffc458;border-color:#bd7b00}
-.strip b{font-size:11px;color:#607189;line-height:1}
-.strip.h{flex-direction:row}
-.strip.h i{width:9px;height:34px}
 .icon-btn.confirm{background:#fdecea;color:#b02a37;border-color:#e03131;animation:badpulse 1s ease-in-out infinite}
+.sequence-row{display:flex;gap:8px;align-items:flex-start;margin-top:16px;padding-top:12px;border-top:1px dashed #dde5ef}
+.sequence{display:flex;gap:5px;flex-wrap:wrap;flex:1;max-height:150px;overflow-y:auto}
+.token{font:15px ui-monospace,monospace;padding:4px 6px;border-radius:5px;background:#edf1f7;color:#536981}
+.token.done{background:#e3f4e9;color:#2d7251}
+.token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
+.small-btn{width:44px;height:44px;flex:none}
+.small-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
