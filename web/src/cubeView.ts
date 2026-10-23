@@ -22,6 +22,8 @@ export class CubeView {
   private ro: ResizeObserver;
   private orbitSpeed = 0;
   private orbitRaf = 0;
+  /** Direction arrows during turns; off for decorative views. */
+  showArrows = true;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -188,7 +190,7 @@ export class CubeView {
         ctx.stroke();
       }
     }
-    if (anim) this.drawArrow(anim.move, anim.dir, project, b.view, now);
+    if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
   }
 
   /**

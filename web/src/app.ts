@@ -77,6 +77,7 @@ let miniViews: CubeView[] = [];
 
 /* ---------- empty-state hero: a 4×4 that keeps turning while the camera drifts ---------- */
 const heroView = new CubeView($<HTMLCanvasElement>("heroCube"));
+heroView.showArrows = false;
 let heroOn = false;
 let heroTimer = 0;
 const HERO_TOKENS = ["U", "U'", "R", "R'", "F", "F'", "D", "L'", "B", "2U", "2U'", "2R", "2R'", "2F", "Rw", "Rw'", "Uw", "Fw'"];
