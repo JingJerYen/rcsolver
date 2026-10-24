@@ -8,7 +8,7 @@ import { localizePage, tr } from "./i18n.js";
 import { deltaTurn, keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
-import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
+import { chipsFor, describe, focusKeys, segmentAt, studyGroups } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -656,7 +656,7 @@ function renderGuide() {
   if (!segments || !net || !guideOn) {
     row.classList.add("hidden");
     $("guideText").classList.add("hidden");
-    cubeView.setFocus(null);
+    cubeView.setFocus(studyFocusKeys());
     return;
   }
   row.classList.remove("hidden");
@@ -757,6 +757,21 @@ let studyDepth = 1;
 let studyWide = false;
 /** An edit arrived while a turn was animating: jump to the new end once it finishes. */
 let studyDirty = false;
+/** Study mode's "?": which of studyGroups() is in colour, -1 for all of them. Separate from guide mode's switch. */
+let studyFocus = -1;
+let studyGroupList: Set<string>[] = [];
+
+function studyFocusKeys(): { keys: Set<string> } | null {
+  const g = studying && studyFocus >= 0 ? studyGroupList[studyFocus] : undefined;
+  return g ? { keys: g } : null;
+}
+
+function setStudyFocus(i: number) {
+  studyFocus = i;
+  $("studyFocusBtn").classList.toggle("on", i >= 0);
+  cubeView.setFocus(studyFocusKeys());
+}
+
 /** The solve a study was opened from, to go back to exactly as it was (the study's own moves are dropped). */
 let studyFrom: { net: NetState; start: Sticker[]; moves: Move[]; segments: Segment[] | null; mode: SolveMode; index: number } | null = null;
 const STUDY_COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
@@ -800,10 +815,12 @@ function startStudy(n: number, start: Sticker[]) {
   studyWide = false;
   studyFrom = null;
   $("backToSolve").classList.add("hidden");
+  studyGroupList = studyGroups(n);
   $<HTMLInputElement>("studyText").value = "";
   $("studyText").classList.remove("bad");
   setStudying(true);
   renderKeys();
+  setStudyFocus(-1);
   cubeView.setState(n, start);
   showScreen("solveView");
   renderSolve();
@@ -921,6 +938,9 @@ $("toStudy").onclick = () => {
   studyFrom = from;
   $("backToSolve").classList.remove("hidden");
 };
+
+/** Each tap colours the next group (centre orbits, then edges, then corners); after the last, everything again. */
+$("studyFocusBtn").onclick = () => setStudyFocus(studyFocus + 1 < studyGroupList.length ? studyFocus + 1 : -1);
 
 /** Back to the solve this study came from, at the step it was left on. Go, by contrast, solves afresh. */
 $("backToSolve").onclick = () => {

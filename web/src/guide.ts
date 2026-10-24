@@ -63,6 +63,48 @@ export function focusKeys(seg: Segment | null, size: number): Set<string> | null
   return null;
 }
 
+/**
+ * Study mode's "?" steps through these one at a time: the same groups guide mode colours (each
+ * centre orbit, then each wing orbit, with the fixed centres and middle edges of odd cubes), then
+ * the corners. Every group is closed under turns, so the stickers in its positions are always its
+ * own pieces, whatever has been turned. Together they cover every sticker exactly once.
+ */
+export function studyGroups(size: number): Set<string>[] {
+  const m = size - 1;
+  const odd = size % 2 === 1;
+  const groups: Set<string>[] = [];
+  if (size >= 4) {
+    for (const orbit of centreSolverFor(size).orbits) groups.push(new Set(orbit.positions.map((pos) => key(pos.p, pos.n))));
+  }
+  if (odd && size >= 3) {
+    const centres = new Set<string>();
+    for (let ax = 0; ax < 3; ax++) {
+      for (const s of [-1, 1]) {
+        const n: Vec = [0, 0, 0];
+        n[ax] = s;
+        centres.add(key([n[0] * m, n[1] * m, n[2] * m] as Vec, n));
+      }
+    }
+    groups.push(centres);
+  }
+  if (size >= 4) {
+    for (const orbit of wingOrbits(size)) {
+      const g = new Set<string>();
+      for (const w of orbit.positions) for (const n of w.faces) g.add(key(w.p, n));
+      groups.push(g);
+    }
+  }
+  if (odd && size >= 3) {
+    const edges = new Set<string>();
+    for (const p of edgeMidPositions(size)) for (const n of edgeNormals(p, m)) edges.add(key(p, n));
+    groups.push(edges);
+  }
+  const corners = new Set<string>();
+  for (const x of [-m, m]) for (const y of [-m, m]) for (const z of [-m, m]) for (const n of edgeNormals([x, y, z], m)) corners.add(key([x, y, z], n));
+  groups.push(corners);
+  return groups;
+}
+
 function edgeNormals(p: Vec, m: number): Vec[] {
   const out: Vec[] = [];
   for (let ax = 0; ax < 3; ax++) {

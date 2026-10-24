@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deltaTurn, keyToken, readMoves, studyMove, tokenize, withModifier } from "../web/src/study.js";
 import { applyAlgorithm, fromNet, isSolved } from "../web/src/cubeState.js";
+import { studyGroups } from "../web/src/guide.js";
 import type { Face } from "../web/src/api.js";
 
 const COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
@@ -59,4 +60,26 @@ test("study: changing the last move turns by the difference", () => {
     const direct = applyAlgorithm(solved(n), [studyMove(b, n)!]);
     assert.equal(JSON.stringify(viaDelta.map((s) => s.c)), JSON.stringify(direct.map((s) => s.c)), `${a} → ${b}`);
   }
+});
+
+test("study: the ? groups cover every sticker once and stay closed under turns", () => {
+  const counts: number[] = [];
+  for (let n = 2; n <= 7; n++) {
+    const groups = studyGroups(n);
+    counts.push(groups.length);
+    const all = solved(n).map((s) => `${s.p.join(",")}|${s.n.join(",")}`);
+    const seen = new Map<string, number>();
+    groups.forEach((g, i) => g.forEach((k) => seen.set(k, (seen.get(k) ?? 0) + 1) && i));
+    assert.equal(seen.size, all.length, `${n}×${n}: every sticker is in some group`);
+    assert.ok([...seen.values()].every((c) => c === 1), `${n}×${n}: no sticker is in two groups`);
+    assert.ok(all.every((k) => seen.has(k)), `${n}×${n}`);
+    // a group's positions hold the same pieces after any turn: turning moves stickers between its own positions
+    const moves = readMoves(n >= 4 ? ["R", "2U", "Fw'", "x", "3R"].filter((t) => !t.startsWith("3") || n >= 6) : ["R", "U'", "F2", "y"], n).moves;
+    const at = (st: ReturnType<typeof solved>) => new Map(st.map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s] as const));
+    const before = solved(n).map((s, i) => ({ ...s, c: String(i) }) as typeof s);
+    const ids = new Map(before.map((s) => [s.c, `${s.p.join(",")}|${s.n.join(",")}`] as const));
+    const after = at(applyAlgorithm(before, moves));
+    for (const g of groups) for (const k of g) assert.ok(g.has(ids.get(after.get(k)!.c)!), `${n}×${n}: ${k} keeps its group`);
+  }
+  assert.deepEqual(counts, [1, 3, 3, 6, 7, 11]);
 });

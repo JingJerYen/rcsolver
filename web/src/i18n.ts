@@ -52,6 +52,7 @@ const LABELS_EN: Record<string, string> = {
   選方塊大小: "Choose a cube size",
   回到求解: "Back to the solve",
   轉回正面: "Back to the front view",
+  分區顯示: "Show one group of pieces",
 };
 
 /** On an English device, switch the page language and the Chinese labels written in index.html. */
