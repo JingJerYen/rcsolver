@@ -193,9 +193,19 @@ export class CubeView {
     return [hit.poly.reduce((a, p) => a + p[0], 0) / 4, hit.poly.reduce((a, p) => a + p[1], 0) / 4];
   }
 
-  /** Let drags that start on a sticker turn its layer (study mode's hand-turn switch). */
+  /**
+   * Let drags that start on a sticker turn its layer (study mode's hand-turn switch). The cube is
+   * drawn larger meanwhile, so the stickers of a big cube are easier to hit; it then fills the
+   * canvas at the usual angles and only clips a corner at extreme ones.
+   */
   setTwisting(on: boolean) {
     this.twisting = on;
+    if (!this.anim) this.draw();
+  }
+
+  /** Pixels per cube unit. */
+  private scale(): number {
+    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.twisting ? 1.3 : 1);
   }
 
   /**
@@ -211,7 +221,7 @@ export class CubeView {
     if (!g.turn) {
       if (Math.hypot(dx, dy) < 8) return;
       const b = this.basis();
-      const scale = (Math.min(this.w, this.h) * 0.42) / (this.size * 1.75);
+      const scale = this.scale();
       const screen = (v: Vec): [number, number] => [(v[0] * b.right[0] + v[1] * b.right[1] + v[2] * b.right[2]) * scale, -(v[0] * b.up[0] + v[1] * b.up[1] + v[2] * b.up[2]) * scale];
       const normal = g.n.findIndex((v) => v !== 0);
       let best: { along: number; ax: number; sd: [number, number] } | null = null;
@@ -345,7 +355,7 @@ export class CubeView {
     ctx.clearRect(0, 0, w, h);
     const b = this.basis();
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
-    const scale = (Math.min(w, h) * 0.42) / (size * 1.75);
+    const scale = this.scale();
     const project = (p: Vec): [number, number] => [w / 2 + dot(p, b.right) * scale, h / 2 - dot(p, b.up) * scale];
     const vals = layerValues(size);
     const anim = this.anim;

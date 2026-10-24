@@ -22,6 +22,9 @@ export function runTour(dialog: HTMLDialogElement, steps: TourStep[]) {
   const dots = dialog.querySelector<HTMLElement>(".tour-dots")!;
   const next = dialog.querySelector<HTMLButtonElement>(".tour-next")!;
   const skip = dialog.querySelector<HTMLButtonElement>(".tour-skip")!;
+  // a step whose part is not on screen right now (hidden by a switch) is left out
+  steps = steps.filter((s) => s.targets.some((t) => t.getClientRects().length));
+  if (!steps.length) return;
   let at = 0;
 
   const place = () => {
