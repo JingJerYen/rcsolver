@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deltaTurn, keyToken, readMoves, studyMove, tokenize } from "../web/src/study.js";
-import { applyAlgorithm, fromNet, isSolved } from "../web/src/cubeState.js";
+import { deltaTurn, keyToken, pushMove, readMoves, studyMove, tokenize } from "../web/src/study.js";
+import { applyAlgorithm, fromNet, isSolved, toNet } from "../web/src/cubeState.js";
 import { studyGroups } from "../web/src/guide.js";
 import type { Face } from "../web/src/api.js";
 
@@ -24,6 +24,29 @@ test("study: keypad tokens", () => {
   assert.equal(keyToken("R", 2, false), "2R");
   assert.equal(keyToken("R", 2, true), "Rw");
   assert.equal(keyToken("U", 3, true), "3Uw");
+});
+
+test("study: pressing the same layer again merges into the last move", () => {
+  const press = (...keys: string[]) => keys.reduce<string[]>((t, k) => pushMove(t, k), []).join(" ");
+  assert.equal(press("L", "L"), "L2");
+  assert.equal(press("L", "L", "L"), "L'");
+  assert.equal(press("L", "L", "L", "L"), "", "four quarter turns cancel out");
+  assert.equal(press("L", "L'"), "");
+  assert.equal(press("L2", "L'"), "L");
+  assert.equal(press("L'", "L'"), "L2");
+  assert.equal(press("R", "L", "L"), "R L2");
+  assert.equal(press("R", "L", "L'"), "R", "a cancelled move leaves the one before it alone");
+  assert.equal(press("2R", "R"), "2R R", "another layer is a new move");
+  assert.equal(press("Rw", "R"), "Rw R", "another width is a new move");
+  assert.equal(press("3Rw", "3Rw'"), "");
+  assert.equal(press("y", "y"), "y2");
+  // the merged moves leave the cube where the separate presses would
+  for (const keys of [["L", "L", "L"], ["2R", "2R'", "U"], ["Fw", "Fw", "Fw", "R"]]) {
+    const n = 4;
+    const separate = applyAlgorithm(solved(n), readMoves(keys, n).moves);
+    const merged = applyAlgorithm(solved(n), readMoves(press(...keys).split(" ").filter(Boolean), n).moves);
+    assert.deepEqual(toNet(n, merged), toNet(n, separate), keys.join(" "));
+  }
 });
 
 test("study: a sequence and its reverse bring the cube back, on every size", () => {
@@ -53,7 +76,7 @@ test("study: changing the last move turns by the difference", () => {
     const d = deltaTurn(a, b, n)!;
     const viaDelta = applyAlgorithm(applyAlgorithm(solved(n), [studyMove(a, n)!]), [d.dir === 1 ? d.move : { ...d.move, angle: -d.move.angle, q: -d.move.q }]);
     const direct = applyAlgorithm(solved(n), [studyMove(b, n)!]);
-    assert.equal(JSON.stringify(viaDelta.map((s) => s.c)), JSON.stringify(direct.map((s) => s.c)), `${a} → ${b}`);
+    assert.deepEqual(toNet(n, viaDelta), toNet(n, direct), `${a} → ${b}`);
   }
 });
 

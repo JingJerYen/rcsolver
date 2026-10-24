@@ -42,6 +42,23 @@ export function keyToken(face: string, depth: number, wide: boolean): string {
   return `${depth}${face}`;
 }
 
+/** Quarter turns clockwise in a move's suffix: R 1, R2 2, R' 3. */
+const quarters = (token: string) => (token.endsWith("2") ? 2 : token.endsWith("'") ? 3 : 1);
+
+/**
+ * A key press added to the moves: the same layer as the last move merges into it, the way the
+ * turns add up on the cube. L L → L2, L2 L → L′, L′ L → nothing (the two cancel), L2 L′ → L.
+ * Another face, layer or width is a new move.
+ */
+export function pushMove(tokens: string[], token: string): string[] {
+  const last = tokens[tokens.length - 1];
+  const base = token.replace(/['2]$/, "");
+  if (!last || last.replace(/['2]$/, "") !== base) return [...tokens, token];
+  const q = (quarters(last) + quarters(token)) % 4;
+  const rest = tokens.slice(0, -1);
+  return q === 0 ? rest : [...rest, base + ["", "", "2", "'"][q]];
+}
+
 /**
  * When only the last move changed on the same layer (R → R2, R → R', typed), the
  * extra turn from the old move to the new one, so the cube can turn into place instead of jumping.
