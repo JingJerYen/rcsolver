@@ -1,7 +1,8 @@
 /**
- * Compact share tokens: `#z=<base64url>` carrying the cube and the step reached. The solvers are
- * deterministic, so the solution is recomputed on open; only a solution that differs from what
- * the solver would produce (an imported one) travels with the link.
+ * Compact share tokens: `#z=<base64url>` carrying a cube and, when shared from study mode, its
+ * moves and the step reached. Every link opens in study mode. Older links shared from a solve
+ * carry the starting cube and the step only; the solvers are deterministic, so the receiver
+ * re-solves to rebuild the cube at that step.
  *
  * Bytes: version(1) size(1) flags(1, v2 only: bit 0 = teaching solve) index(2) movesCount(2)
  * stickers(⌈6N²/3⌉, three colours per byte) moves(1 each)

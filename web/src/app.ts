@@ -77,11 +77,9 @@ function storeSaves(list: Save[]) {
  * A short link that opens this page on the same cube and step. The solvers are deterministic, so
  * the moves ride along only when they differ from what the solver gives for this cube.
  */
-async function shareLink(sv: Save): Promise<string> {
-  const mode: SolveMode = sv.teach ? "teach" : "fast";
-  const own = sv.moves.length ? await computeSolution(sv.size, sv.faces, mode) : null;
-  const same = own !== null && own.length === sv.moves.length && own.every((t, i) => t === sv.moves[i]);
-  const token = encodeShare({ size: sv.size, faces: sv.faces, index: sv.index, ...(same ? {} : { moves: sv.moves }), ...(sv.teach ? { teach: true } : {}) });
+/** A link that opens this cube in study mode, with the moves and step when shared from study mode. */
+function shareLink(size: number, faces: Record<Face, string[]>, moves: string[] = [], index = 0): string {
+  const token = encodeShare({ size, faces, index, ...(moves.length ? { moves } : {}) });
   return `${location.origin}${location.pathname}?openExternalBrowser=1#z=${token}`;
 }
 
@@ -594,11 +592,6 @@ function setBusy(on: boolean, fraction = 0) {
   bar.style.width = `${Math.round(Math.min(fraction, 1) * 100)}%`;
 }
 
-async function computeSolution(size: number, n: Record<Face, string[]>, mode: SolveMode = "fast"): Promise<string[] | null> {
-  const r = await solveAsync(size, n, undefined, mode);
-  return r.ok ? r.moves : null;
-}
-
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
 async function trySolve(mode: SolveMode, onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
@@ -872,6 +865,7 @@ function startStudy(n: number, start: Sticker[]) {
   cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
   showScreen("solveView");
   renderSolve();
+  firstStudyTour();
 }
 
 /** New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now. */
@@ -997,7 +991,21 @@ $("studyText").onkeydown = (e) => {
 /* The ⓘ in study mode: a step-by-step tour of the screen, one part lit at a time. */
 const tourDialog = $<HTMLDialogElement>("tourDialog");
 tourDialog.querySelector(".tour-skip")!.textContent = tr("略過", "Skip");
-$("studyHelp").onclick = () => {
+$("studyHelp").onclick = () => studyTour();
+const TOUR_KEY = "rcsolver.studyTour";
+/** The tour runs by itself the first time study mode opens on this device. */
+function firstStudyTour() {
+  try {
+    if (localStorage.getItem(TOUR_KEY) === "1") return;
+    localStorage.setItem(TOUR_KEY, "1");
+  } catch {
+    return; // storage unavailable: it would run every time, so leave it to the ⓘ
+  }
+  setTimeout(() => {
+    if (studying && !$("solveView").classList.contains("hidden")) studyTour();
+  }, 400);
+}
+function studyTour() {
   const big = (net?.size ?? 3) >= 4;
   runTour(tourDialog, [
     {
@@ -1041,7 +1049,7 @@ $("studyHelp").onclick = () => {
       body: tr("把這次的研究存在首頁，之後點回來繼續。", "Keeps this study on the home page so you can come back to it."),
     },
   ]);
-};
+}
 
 /** Go: solve the cube as it is on screen and continue on the ordinary solve screen. */
 $("studyGo").onclick = () => {
@@ -1225,9 +1233,7 @@ $("teach").onclick = () => startSolve("teach");
 $("replayAlg").onclick = replaySegment;
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
 $("shareResult").onclick = () => {
-  if (!net) return;
-  const sv: Save = { ts: Date.now(), size: net.size, faces: net.current, moves: [], index: 0 };
-  void shareLink(sv).then((link) => copyText(link, $("shareResult")));
+  if (net) void copyText(shareLink(net.size, net.current), $("shareResult"));
 };
 $("resetNet").onclick = resetNet;
 // the cube button jumps back to the starting angle after any amount of dragging
@@ -1311,10 +1317,14 @@ $("pace").onclick = () => {
 };
 renderPace();
 $("save").onclick = saveCurrent;
+/* Sharing always lands in study mode: from a solve, the cube as it is at this step (the receiver
+   presses Go to solve it); from study mode, the starting cube with the moves and the step. */
 $("shareSolve").onclick = () => {
   if (!net) return;
-  const sv: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(solveMode === "teach" ? { teach: true } : {}) };
-  void shareLink(sv).then((link) => copyText(link, $("shareSolve")));
+  const link = studying
+    ? shareLink(net.size, toNet(net.size, startState), moves.map((m) => m.token), moveIndex)
+    : shareLink(net.size, toNet(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex))));
+  void copyText(link, $("shareSolve"));
 };
 renderSaves();
 $("sequence").onclick = (e) => {
@@ -1342,17 +1352,17 @@ async function openSharedLink() {
   const z = q.get("z") ? decodeShare(q.get("z")!) : null;
   if (z) {
     stopPlaying();
-    // no moves in the token: the solver reproduces them (the same solution the sender had)
-    let moves = z.moves;
-    let segs: Segment[] | undefined;
-    if (!moves) {
+    let faces = z.faces;
+    let index = z.index;
+    if (!z.moves && index > 0) {
+      // an older link shared partway through a solve: rebuild the cube at that step
       setBusy(true);
       const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f), z.teach ? "teach" : "fast");
       setBusy(false);
-      moves = r.ok ? r.moves : [];
-      if (r.ok) segs = r.segments;
+      if (r.ok) faces = toNet(z.size, applyAlgorithm(fromNet(z.size, z.faces), parseAlgorithm(r.moves.slice(0, index).join(" "), z.size)));
+      index = 0;
     }
-    openSaved({ ts: Date.now(), size: z.size, faces: z.faces, moves, index: z.index, ...(segs ? { segments: segs } : {}), ...(z.teach ? { teach: true } : {}) });
+    openStudy({ ts: Date.now(), size: z.size, faces, moves: z.moves ?? [], index, study: true });
     history.replaceState(null, "", location.pathname);
     return;
   }
@@ -1366,7 +1376,7 @@ async function openSharedLink() {
     ok = false;
   }
   stopPlaying();
-  openSaved({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0 });
+  openStudy({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0, study: true });
   history.replaceState(null, "", location.pathname);
 }
 // LINE's in-app browser has no live camera, but it opens any link carrying this flag in the
@@ -1401,6 +1411,10 @@ if ("serviceWorker" in navigator) {
   },
   get marks() {
     return cubeView.markedKeys();
+  },
+  /** The cube on screen as a net, to compare states across pages. */
+  get cubeNet() {
+    return net ? toNet(net.size, cubeView.getState()) : null;
   },
   get solved() {
     return isSolved(cubeView.getState());
