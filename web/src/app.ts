@@ -763,6 +763,10 @@ function netFor(n: number, stickers: Sticker[]): NetState {
 function setStudying(on: boolean) {
   studying = on;
   $("solveView").classList.toggle("study", on);
+  // the pace and copy buttons sit either side of the move text in study mode, of the token strip otherwise
+  const row = on ? $("studyTextRow") : $("sequence").parentElement!;
+  row.prepend($("pace"));
+  row.append($("copySeq"));
 }
 
 function renderKeys() {
