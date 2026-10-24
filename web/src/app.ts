@@ -829,6 +829,9 @@ function netFor(n: number, stickers: Sticker[]): NetState {
 function setStudying(on: boolean) {
   studying = on;
   $("solveView").classList.toggle("study", on);
+  // tapping a sticker marks it in study mode; every new study starts without marks
+  cubeView.setMarking(on);
+  cubeView.clearMarks();
   // the pace and copy buttons sit either side of the move text in study mode, of the token strip otherwise
   const row = on ? $("studyTextRow") : $("sequence").parentElement!;
   row.prepend($("pace"));
@@ -1312,6 +1315,9 @@ if ("serviceWorker" in navigator) {
   },
   get moveIndex() {
     return moveIndex;
+  },
+  get marks() {
+    return cubeView.markedKeys();
   },
   get solved() {
     return isSolved(cubeView.getState());
