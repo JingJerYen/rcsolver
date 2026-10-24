@@ -108,6 +108,14 @@ export class CubeView {
     return [...this.marks].map((i) => `${this.stickers[i]!.p.join(",")}|${this.stickers[i]!.n.join(",")}`);
   }
 
+  /** Mark the sticker now at this position ("x,y,z|nx,ny,nz"). */
+  mark(key: string) {
+    const index = this.indexAt.get(key);
+    if (index === undefined) return;
+    this.marks.add(index);
+    if (!this.anim) this.draw();
+  }
+
   clearMarks() {
     this.marks.clear();
     if (!this.anim) this.draw();

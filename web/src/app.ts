@@ -865,11 +865,12 @@ function startStudy(n: number, start: Sticker[]) {
   renderKeys();
   setStudyFocus(-1);
   cubeView.setState(n, start);
+  // a dot on the front face's centre to start with, so it is easy to see where the front went
+  if (n % 2) cubeView.mark(`0,0,${n - 1}|0,0,1`);
   showScreen("solveView");
   renderSolve();
 }
 
-/** New tokens from the keypad or the text field; a key that adds a move animates it in. */
 /** New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now. */
 function setStudyTokens(tokens: string[], pressed?: string) {
   if (!net) return;
