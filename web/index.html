@@ -17,7 +17,7 @@
 </head>
 <body>
 <main>
-  <header class="top"><span class="brand">Rubik Cube Solver <span class="nowrap">魔術方塊</span></span><span class="badge warn hidden" id="mock">MOCK</span><button class="icon-btn small-btn hidden" id="import" aria-label="貼上方塊狀態"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="5" y="4" width="14" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></header>
+  <header class="top"><span class="brand">Rubik Cube Solver <span class="nowrap">魔術方塊</span></span><span class="badge warn hidden" id="mock">MOCK</span><button class="icon-btn small-btn hidden" id="home" aria-label="回到開始"><svg id="homeIcon" viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><svg id="homeX" class="hidden" viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></header>
 
   <section id="setup">
     <div class="hero hidden" id="hero">
@@ -26,8 +26,9 @@
     </div>
     <div class="saves hidden" id="saves"></div>
     <div class="bottom-bar">
+      <button class="side-btn import-btn" id="import" aria-label="貼上方塊狀態"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="5" y="4" width="14" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button class="primary shutter-main" id="start" aria-label="開始拍攝"><svg viewBox="0 0 24 24" width="40" height="40"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
-      <button class="study-btn" id="study" aria-label="研究模式"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 15h9" stroke="currentColor" stroke-width="2"/></svg></button>
+      <button class="side-btn study-btn" id="study" aria-label="研究模式"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 15h9" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
   </section>
 
@@ -35,7 +36,6 @@
     <div class="step-head">
       <span class="badge" id="stepCount"></span>
       <button class="icon-btn small-btn tips-btn" id="tips" aria-label="怎麼拍"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.8" r="1.2" fill="currentColor"/></svg></button>
-      <button class="icon-btn" id="cancel" aria-label="回到開始"><svg id="cancelHome" viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><svg id="cancelX" class="hidden" viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </div>
     <canvas id="guide" class="guide" aria-label="示範怎麼轉方塊的動畫"></canvas>
     <div class="viewfinder">
@@ -53,7 +53,6 @@
   </section>
 
   <section class="hidden" id="review">
-    <div class="step-head"><button class="icon-btn" id="homeReview" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>
     <div class="thumbs big" id="reviewThumbs"></div>
     <p class="muted center" id="sendStatus"></p>
     <div class="big-error hidden" id="sendError" role="alert"><svg viewBox="0 0 24 24" width="96" height="96"><path d="M12 2.5 23 21H1z" fill="#e03131"/><rect x="10.9" y="9" width="2.2" height="6" rx="1" fill="#fff"/><circle cx="12" cy="17.6" r="1.3" fill="#fff"/></svg><p class="big-error-text" id="sendErrorText">格式不正確，請重新拍照。</p></div>
@@ -71,7 +70,6 @@
       <span class="badge warn hidden" id="invalidBadge">⚠</span>
       <button class="icon-btn" id="shareResult" aria-label="分享"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn" id="fix" aria-label="修正顏色"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18l3 3 6.5-6.5a4 4 0 0 0 5.2-5.2l-2.6 2.6-2.1-2.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-      <button class="icon-btn" id="homeResult" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
     <canvas id="preview" class="cube" aria-label="辨識出來的方塊，可拖曳旋轉"></canvas>
     <div id="editor" class="editor hidden">
@@ -96,7 +94,6 @@
       <button class="icon-btn solve-only study-entry" id="toStudy" aria-label="研究模式"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 15h9" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn solve-only" id="shareSolve" aria-label="分享"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn solve-only" id="save" aria-label="儲存"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 3v6h7V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-      <button class="icon-btn" id="closeSolve" aria-label="回到開始"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="stages-row solve-only hidden" id="stagesRow"><div class="stages" id="stages"></div></div>
     <div class="guide-text solve-only hidden" id="guideText"><b id="guideTitle"></b><span id="guideBody"></span>
