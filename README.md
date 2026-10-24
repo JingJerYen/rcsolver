@@ -24,6 +24,8 @@
 
 網站可以加到手機主畫面，名稱「Cube方塊」，打開時全螢幕：iPhone 用 Safari 的分享 →「加入主畫面」，Android 的 Chrome 會出現「安裝應用程式」。設定在 `web/manifest.webmanifest`，圖示原稿是 `web/icons/icon.svg`（Android 圓形裁切用的是方塊縮小的 `icon-maskable.svg`），PNG 是從 SVG 輸出的 180／192／512px。iPhone 上從主畫面打開的版本和 Safari 的存檔是分開的。
 
+**離線也能用**：第一次有網路打開後，`sw.js`（service worker）會在背景把網頁和 4×4～7×7 的求解表（合計約 1.4 MB）存在手機上，之後沒網路也能打開、拍照、手動填色、求解、研究和開分享連結；只有 AI 辨色需要網路，離線時按 Go 會直接改成自己填色。網頁本身每次先向網站拿最新版（4 秒拿不到才用存著的），其他檔案檔名帶版本號，所以有網路時永遠是最新版。`scripts/stamp.mjs` 在建置時把要存的檔案清單和版本號寫進 `public/sw.js`，版本一變，手機就換一份新的、刪掉舊的。
+
 ## 本機執行
 
 ```bash
