@@ -5,7 +5,7 @@ import { drawPhotoTips } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
+import { deltaTurn, keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -35,6 +35,8 @@ interface Save {
   teach?: boolean;
   /** Name the user gave it; without one the card shows when it was saved. */
   title?: string;
+  /** A study: `faces` is where it started, `moves` everything typed (kept as typed), `index` the step shown. */
+  study?: boolean;
 }
 const SAVES_KEY = "rcsolver.saves";
 
@@ -150,7 +152,6 @@ function setHero(on: boolean) {
     heroView.orbit(0);
   }
 }
-const SHARE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg>`;
 
 function renderSaves() {
   const list = loadSaves();
@@ -163,13 +164,15 @@ function renderSaves() {
   list.forEach((sv, i) => {
     const el = document.createElement("div");
     el.className = "save";
-    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${sv.moves.length}</span><button class="icon-btn share" aria-label="分享">${SHARE_ICON}</button><button class="del" aria-label="刪除">✕</button>`;
+    const done = readMoves(sv.moves, sv.size).moves;
+    // sharing happens inside a save, so the card only opens, renames and deletes
+    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${done.length}</span><button class="del" aria-label="刪除">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
     el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
     miniViews.push(view);
     const start = fromNet(sv.size, sv.faces);
-    view.setState(sv.size, applyAlgorithm(start, parseAlgorithm(sv.moves.slice(0, sv.index).join(" "), sv.size)));
+    view.setState(sv.size, applyAlgorithm(start, done.slice(0, sv.index)));
     view.resetView();
     el.onclick = (e) => {
       const t = e.target as HTMLElement;
@@ -180,8 +183,6 @@ function renderSaves() {
         renderSaves();
       } else if (t.closest(".save-title")) {
         renameSave(sv.ts);
-      } else if (t.closest(".share")) {
-        void shareLink(sv).then((link) => copyText(link, t.closest(".share") as HTMLElement));
       } else {
         openSave(i);
       }
@@ -219,7 +220,9 @@ $("titleCancel").onclick = () => titleDialog.close();
 
 function saveCurrent() {
   if (!net) return;
-  const entry: Save = { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(solveMode === "teach" ? { teach: true } : {}) };
+  const entry: Save = studying
+    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true }
+    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(solveMode === "teach" ? { teach: true } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   const btn = $("save");
@@ -234,7 +237,12 @@ function openSave(i: number) {
 
 /** Show a saved or shared solve at its step (or just the cube when it has no solution yet). */
 function openSaved(sv: Save) {
+  if (sv.study) {
+    openStudy(sv);
+    return;
+  }
   setStudying(false);
+  studyFrom = null;
   size = sv.size;
   images = {}; // photos from an earlier capture belong to another cube
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: sv.size }, () => "9".repeat(sv.size))])) as Record<Face, string[]>;
@@ -747,6 +755,8 @@ let studyDepth = 1;
 let studyWide = false;
 /** An edit arrived while a turn was animating: jump to the new end once it finishes. */
 let studyDirty = false;
+/** The solve a study was opened from, to go back to exactly as it was (the study's own moves are dropped). */
+let studyFrom: { net: NetState; start: Sticker[]; moves: Move[]; segments: Segment[] | null; mode: SolveMode; index: number } | null = null;
 const STUDY_COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
 
 function solvedState(n: number): Sticker[] {
@@ -786,6 +796,8 @@ function startStudy(n: number, start: Sticker[]) {
   studyTokens = [];
   studyDepth = 1;
   studyWide = false;
+  studyFrom = null;
+  $("backToSolve").classList.add("hidden");
   $<HTMLInputElement>("studyText").value = "";
   $("studyText").classList.remove("bad");
   setStudying(true);
@@ -800,6 +812,8 @@ function setStudyTokens(tokens: string[], animateNew: boolean) {
   if (!net) return;
   stopPlaying();
   const before = moves.length;
+  const prevTokens = moves.map((m) => m.token);
+  const prevLast = prevTokens[before - 1];
   studyTokens = tokens;
   const read = readMoves(tokens, net.size);
   $("studyText").classList.toggle("bad", read.bad);
@@ -813,7 +827,30 @@ function setStudyTokens(tokens: string[], animateNew: boolean) {
     void step(1);
     return;
   }
+  const delta = moves.length === before && moveIndex === before && before > 0 ? deltaTurn(prevLast!, moves[before - 1]!.token, net.size) : null;
+  if (delta && moves.slice(0, -1).every((m, i) => m.token === prevTokens[i])) {
+    // R → R2 or R → R′: turn from the old move into the new one
+    shownIndex = before - 1;
+    renderSolve();
+    void cubeView.animate(delta.move, delta.dir, Math.abs(delta.move.q) === 2 ? turnMs * 1.4 : turnMs).then(() => {
+      studyDirty = false;
+      jumpTo(moves.length, Math.max(0, moves.length - 1));
+    });
+    return;
+  }
   jumpTo(moves.length, Math.max(0, moves.length - 1));
+}
+
+/** Open a saved study as it was left: same start, same text, same step. */
+function openStudy(sv: Save) {
+  startStudy(sv.size, fromNet(sv.size, sv.faces));
+  studyTokens = sv.moves;
+  $<HTMLInputElement>("studyText").value = sv.moves.join(" ");
+  const read = readMoves(sv.moves, sv.size);
+  $("studyText").classList.toggle("bad", read.bad);
+  moves = read.moves;
+  const at = Math.min(sv.index, moves.length);
+  jumpTo(at, Math.max(0, at - 1));
 }
 
 $("studyKeys").onclick = (e) => {
@@ -867,6 +904,7 @@ $("studyGo").onclick = () => {
     solveMode = "fast";
     moveIndex = 0;
     shownIndex = 0;
+    studyFrom = null;
     setStudying(false);
     cubeView.setState(n, from);
     renderSolve();
@@ -876,7 +914,26 @@ $("studyGo").onclick = () => {
 /** From a solve: study the cube as it is at this step. */
 $("toStudy").onclick = () => {
   if (!net || cubeView.animating) return;
+  const from = { net, start: startState, moves, segments, mode: solveMode, index: moveIndex };
   startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
+  studyFrom = from;
+  $("backToSolve").classList.remove("hidden");
+};
+
+/** Back to the solve this study came from, at the step it was left on. Go, by contrast, solves afresh. */
+$("backToSolve").onclick = () => {
+  if (!studyFrom || cubeView.animating) return;
+  stopPlaying();
+  const f = studyFrom;
+  studyFrom = null;
+  net = f.net;
+  startState = f.start;
+  moves = f.moves;
+  segments = f.segments;
+  solveMode = f.mode;
+  setStudying(false);
+  cubeView.setState(net.size, f.start);
+  jumpTo(f.index, Math.max(0, f.index - 1));
 };
 
 /* Home: the study button opens a picker of cube sizes, each a small solved cube. */

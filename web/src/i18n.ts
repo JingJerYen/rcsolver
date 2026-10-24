@@ -50,6 +50,7 @@ const LABELS_EN: Record<string, string> = {
   求解: "Solve",
   轉法: "Moves",
   選方塊大小: "Choose a cube size",
+  回到求解: "Back to the solve",
 };
 
 /** On an English device, switch the page language and the Chinese labels written in index.html. */

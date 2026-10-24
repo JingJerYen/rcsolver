@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { keyToken, readMoves, studyMove, tokenize, withModifier } from "../web/src/study.js";
+import { deltaTurn, keyToken, readMoves, studyMove, tokenize, withModifier } from "../web/src/study.js";
 import { applyAlgorithm, fromNet, isSolved } from "../web/src/cubeState.js";
 import type { Face } from "../web/src/api.js";
 
@@ -37,5 +37,26 @@ test("study: a sequence and its reverse bring the cube back, on every size", () 
     assert.equal(bad, false, `${n}×${n}`);
     const back = moves.slice().reverse().map((m) => ({ ...m, angle: -m.angle, q: -m.q }));
     assert.ok(isSolved(applyAlgorithm(applyAlgorithm(solved(n), moves), back)), `${n}×${n}`);
+  }
+});
+
+test("study: changing the last move turns by the difference", () => {
+  const turn = (a: string, b: string) => {
+    const d = deltaTurn(a, b, 3);
+    return d ? `${d.move.token}${d.dir === -1 ? " back" : ""}` : null;
+  };
+  assert.equal(turn("R", "R2"), "R", "R → R2 continues a quarter turn");
+  assert.equal(turn("R'", "R2"), "R'", "R' → R2 continues the other way");
+  assert.equal(turn("R2", "R"), "R'", "R2 → R comes back a quarter");
+  assert.equal(turn("R", "R'"), "R2 back", "R → R' goes back half a turn");
+  assert.equal(turn("R'", "R"), "R2");
+  assert.equal(turn("R", "U"), null, "another face is not a change of the last move");
+  assert.equal(turn("R", "R"), null);
+  for (const [a, b] of [["R", "R2"], ["R'", "R2"], ["R2", "R"], ["R", "R'"], ["R'", "R"], ["2Rw", "2Rw'"]] as const) {
+    const n = 4;
+    const d = deltaTurn(a, b, n)!;
+    const viaDelta = applyAlgorithm(applyAlgorithm(solved(n), [studyMove(a, n)!]), [d.dir === 1 ? d.move : { ...d.move, angle: -d.move.angle, q: -d.move.q }]);
+    const direct = applyAlgorithm(solved(n), [studyMove(b, n)!]);
+    assert.equal(JSON.stringify(viaDelta.map((s) => s.c)), JSON.stringify(direct.map((s) => s.c)), `${a} → ${b}`);
   }
 });
