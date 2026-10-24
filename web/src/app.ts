@@ -18,7 +18,6 @@ import { runTour } from "./tour.js";
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
 $("sendErrorText").textContent = tr("格式不正確，請重新拍照。", "Invalid format. Please retake the photos.");
-$("studyTag").textContent = tr("研究", "Study");
 $("aiFailTitle").textContent = tr("AI 暫時無法辨識", "The AI can't read the photos right now");
 $("aiFailText").textContent = tr("選方塊大小，接著照著照片自己填顏色。", "Pick the cube size, then fill in the colours from your photos.");
 $("aiRetry").textContent = tr("再試一次 AI", "Try the AI again");
