@@ -23,6 +23,26 @@ export class CubeView {
   /** Where each visible sticker was last drawn, front last, for finding the one under a tap. */
   private hits: { poly: [number, number][]; key: string }[] = [];
   private press: { x: number; y: number; moved: boolean } | null = null;
+  /**
+   * Turning layers by hand (study mode's switch): a drag that starts on a sticker turns its layer,
+   * which follows the finger and settles on the nearest quarter turn when let go.
+   */
+  private twisting = false;
+  /** The sticker a hand turn started on and, once the drag has a direction, the layer it turns. */
+  private grab: {
+    x: number;
+    y: number;
+    c: Vec;
+    n: Vec;
+    /** Fixed after the first few pixels: turn axis, layer, screen direction of a positive turn and pixels per radian. */
+    turn: { axis: 0 | 1 | 2; layer: number; dir: [number, number]; pxPerRad: number } | null;
+  } | null = null;
+  /** The layer being turned by hand and how far, in radians. */
+  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number } | null = null;
+  /** Asked before a hand turn starts; false leaves the drag to turn the view. */
+  canTwist: () => boolean = () => true;
+  /** A hand turn that landed: its axis, layer and quarter turns (right-hand rule), already applied. */
+  onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number) => void) | null = null;
   private w = 300;
   private h = 300;
   private yaw = DEFAULT_VIEW.yaw;
@@ -59,13 +79,25 @@ export class CubeView {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas);
     canvas.addEventListener("pointerdown", (e) => {
-      this.drag = { x: e.clientX, y: e.clientY };
       this.press = { x: e.clientX, y: e.clientY, moved: false };
       canvas.setPointerCapture(e.pointerId);
+      const r = canvas.getBoundingClientRect();
+      const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
+      if (key && this.canTwist()) {
+        const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
+        this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null };
+        this.drag = null;
+        return;
+      }
+      this.drag = { x: e.clientX, y: e.clientY };
     });
     canvas.addEventListener("pointermove", (e) => {
-      if (!this.drag) return;
       if (this.press && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 6) this.press.moved = true;
+      if (this.grab) {
+        this.turnByHand(e.clientX, e.clientY);
+        return;
+      }
+      if (!this.drag) return;
       // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
       this.yaw -= (e.clientX - this.drag.x) * 0.009;
       this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
@@ -75,6 +107,15 @@ export class CubeView {
     const up = () => (this.drag = null);
     canvas.addEventListener("pointerup", (e) => {
       up();
+      if (this.grab) {
+        const turned = this.grab.turn !== null;
+        this.grab = null;
+        if (turned) {
+          this.press = null;
+          this.settleTwist();
+          return;
+        }
+      }
       // a tap (not a drag) on a sticker toggles its mark
       const press = this.press;
       this.press = null;
@@ -85,6 +126,8 @@ export class CubeView {
     canvas.addEventListener("pointercancel", () => {
       up();
       this.press = null;
+      if (this.grab?.turn) this.settleTwist(true);
+      this.grab = null;
     });
     this.resize();
   }
@@ -121,7 +164,8 @@ export class CubeView {
     if (!this.anim) this.draw();
   }
 
-  private toggleMarkAt(x: number, y: number) {
+  /** The sticker drawn under (x, y), front first, as its "x,y,z|nx,ny,nz" key. */
+  private stickerAt(x: number, y: number): string | null {
     const inside = (poly: [number, number][]) => {
       let hit = false;
       for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -130,14 +174,100 @@ export class CubeView {
       }
       return hit;
     };
-    for (let i = this.hits.length - 1; i >= 0; i--) {
-      if (!inside(this.hits[i]!.poly)) continue;
-      const index = this.indexAt.get(this.hits[i]!.key);
-      if (index === undefined) return;
-      if (!this.marks.delete(index)) this.marks.add(index);
-      this.draw();
-      return;
+    for (let i = this.hits.length - 1; i >= 0; i--) if (inside(this.hits[i]!.poly)) return this.hits[i]!.key;
+    return null;
+  }
+
+  private toggleMarkAt(x: number, y: number) {
+    const key = this.stickerAt(x, y);
+    const index = key === null ? undefined : this.indexAt.get(key);
+    if (index === undefined) return;
+    if (!this.marks.delete(index)) this.marks.add(index);
+    this.draw();
+  }
+
+  /** Where a visible sticker was last drawn (its centre, canvas pixels), or null. */
+  pointOf(key: string): [number, number] | null {
+    const hit = this.hits.find((h) => h.key === key);
+    if (!hit) return null;
+    return [hit.poly.reduce((a, p) => a + p[0], 0) / 4, hit.poly.reduce((a, p) => a + p[1], 0) / 4];
+  }
+
+  /** Let drags that start on a sticker turn its layer (study mode's hand-turn switch). */
+  setTwisting(on: boolean) {
+    this.twisting = on;
+  }
+
+  /**
+   * Follow the finger. The first few pixels pick the turn: of the sticker's face's two directions,
+   * the one the drag runs along is how the sticker moves, so the layer turns about the third axis.
+   * After that the angle is the drag's length along that direction over the sticker's distance from
+   * the axis, so the sticker stays under the finger.
+   */
+  private turnByHand(x: number, y: number) {
+    const g = this.grab!;
+    const dx = x - g.x;
+    const dy = y - g.y;
+    if (!g.turn) {
+      if (Math.hypot(dx, dy) < 8) return;
+      const b = this.basis();
+      const scale = (Math.min(this.w, this.h) * 0.42) / (this.size * 1.75);
+      const screen = (v: Vec): [number, number] => [(v[0] * b.right[0] + v[1] * b.right[1] + v[2] * b.right[2]) * scale, -(v[0] * b.up[0] + v[1] * b.up[1] + v[2] * b.up[2]) * scale];
+      const normal = g.n.findIndex((v) => v !== 0);
+      let best: { along: number; ax: number; sd: [number, number] } | null = null;
+      for (let ax = 0; ax < 3; ax++) {
+        if (ax === normal) continue;
+        const e: Vec = [0, 0, 0];
+        e[ax] = 1;
+        const sd = screen(e);
+        const len = Math.hypot(...sd);
+        if (len < 1e-6) continue;
+        const along = (dx * sd[0] + dy * sd[1]) / len;
+        if (!best || Math.abs(along) > Math.abs(best.along)) best = { along, ax, sd };
+      }
+      if (!best) return;
+      const axis = (3 - normal - best.ax) as 0 | 1 | 2;
+      // the sticker's centre on the surface, and which way it moves for a positive turn about `axis`
+      const p: Vec = [g.c[0] + g.n[0], g.c[1] + g.n[1], g.c[2] + g.n[2]];
+      const e: Vec = [0, 0, 0];
+      e[axis] = 1;
+      const vel: Vec = [e[1] * p[2] - e[2] * p[1], e[2] * p[0] - e[0] * p[2], e[0] * p[1] - e[1] * p[0]];
+      // `vel` is the sticker's velocity for one radian per unit time, so its screen length is pixels per radian
+      const sv = screen(vel);
+      const len = Math.hypot(...sv) || 1;
+      g.turn = { axis, layer: g.c[axis], dir: [sv[0] / len, sv[1] / len], pxPerRad: len };
+      this.twist = { axis, layers: [g.c[axis]], angle: 0 };
     }
+    const t = g.turn!;
+    this.twist!.angle = (dx * t.dir[0] + dy * t.dir[1]) / t.pxPerRad;
+    this.draw();
+  }
+
+  /** Let go: settle on the nearest quarter turn (or back to where it was) and report it. */
+  private settleTwist(back = false) {
+    const tw = this.twist;
+    if (!tw) return;
+    const quarter = Math.PI / 2;
+    const q = back ? 0 : Math.max(-2, Math.min(2, Math.round(tw.angle / quarter)));
+    const from = tw.angle;
+    const to = q * quarter;
+    const start = performance.now();
+    const ms = 90 + 120 * Math.min(1, Math.abs(to - from) / quarter);
+    const tick = (now: number) => {
+      const f = Math.min(1, (now - start) / ms);
+      tw.angle = from + (to - from) * (1 - (1 - f) * (1 - f));
+      this.draw(now);
+      if (f < 1) {
+        this.raf = requestAnimationFrame(tick);
+        return;
+      }
+      this.twist = null;
+      if (q % 4 !== 0) {
+        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: to } as Move));
+        this.onTwist?.(tw.axis, tw.layers[0]!, q);
+      } else this.draw();
+    };
+    this.raf = requestAnimationFrame(tick);
   }
 
   getState(): Sticker[] {
@@ -145,7 +275,7 @@ export class CubeView {
   }
 
   get animating() {
-    return this.anim !== null;
+    return this.anim !== null || this.twist !== null;
   }
 
   resetView() {
@@ -219,8 +349,9 @@ export class CubeView {
     const project = (p: Vec): [number, number] => [w / 2 + dot(p, b.right) * scale, h / 2 - dot(p, b.up) * scale];
     const vals = layerValues(size);
     const anim = this.anim;
-    const angle = anim ? anim.move.angle * anim.dir * anim.f : 0;
-    const rot = (p: Vec, active: boolean): Vec => (active && anim ? rotateVec(p, anim.move.axis, angle) : p);
+    // the layer turning now: an animated move, or one being turned by hand
+    const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f } : this.twist;
+    const rot = (p: Vec, active: boolean): Vec => (active && turn ? rotateVec(p, turn.axis, turn.angle) : p);
 
     type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; key: string; marked: boolean };
     const GREY = "#9aa6b5";
@@ -229,7 +360,7 @@ export class CubeView {
       // only cubies on the surface have stickers; skip the hidden interior
       if (Math.abs(x) !== size - 1 && Math.abs(y) !== size - 1 && Math.abs(z) !== size - 1) continue;
       const c: Vec = [x, y, z];
-      const shown = anim?.move ?? this.preview;
+      const shown = turn ?? this.preview;
       const active = !!shown && shown.layers.includes(c[shown.axis]);
       const focus = this.focus;
       let pieceMuted = false;
