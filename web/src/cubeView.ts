@@ -355,19 +355,13 @@ export class CubeView {
     ctx.restore();
   }
 
-  /** A mark: a dark dot with a white ring in the middle of the sticker, and a dark outline round it. */
+  /** A mark: a dark dot with a thin white ring in the middle of the sticker. */
   private drawMark(st: [number, number][]) {
     const { ctx } = this;
     const cx = st.reduce((a, p) => a + p[0], 0) / st.length;
     const cy = st.reduce((a, p) => a + p[1], 0) / st.length;
     const side = Math.min(Math.hypot(st[1]![0] - st[0]![0], st[1]![1] - st[0]![1]), Math.hypot(st[3]![0] - st[0]![0], st[3]![1] - st[0]![1]));
     ctx.save();
-    ctx.beginPath();
-    st.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
-    ctx.closePath();
-    ctx.strokeStyle = "#172336";
-    ctx.lineWidth = Math.max(2.5, side * 0.11);
-    ctx.stroke();
     ctx.beginPath();
     ctx.arc(cx, cy, Math.max(4, side * 0.2), 0, Math.PI * 2);
     ctx.fillStyle = "#172336";
