@@ -10,6 +10,12 @@ workers_dev = true
 [build]
 command = "npm run build:web"
 
+# Run the API in the US. Left to the nearest data centre, phones in Taiwan are sometimes served from
+# Hong Kong, where the Anthropic API answers 403 "Request not allowed". Static files still come from
+# the nearest data centre; only /api/* runs here, and one long model call barely notices the hop.
+[placement]
+region = "aws:us-east-1"
+
 [observability]
 enabled = true
 
