@@ -1027,6 +1027,9 @@ $("shareResult").onclick = () => {
   void shareLink(sv).then((link) => copyText(link, $("shareResult")));
 };
 $("resetNet").onclick = resetNet;
+// the cube button jumps back to the starting angle after any amount of dragging
+$("viewHome").onclick = () => cubeView.resetView();
+$("previewHome").onclick = () => previewView.resetView();
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
 const importDialog = $<HTMLDialogElement>("importDialog");
 const importText = $<HTMLTextAreaElement>("importText");
