@@ -97,6 +97,7 @@
       <span class="badge progress-badge" id="progress"></span>
       <span class="mode-tag study-only" id="studyTag">研究</span>
       <button class="icon-btn solve-only study-entry" id="toStudy" aria-label="研究模式"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 15h9" stroke="currentColor" stroke-width="2"/></svg></button>
+      <button class="icon-btn study-only" id="studyHelp" aria-label="說明"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></svg></button>
       <button class="icon-btn study-only back-solve hidden" id="backToSolve" aria-label="回到求解"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
       <button class="icon-btn solve-only" id="shareSolve" aria-label="分享"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn" id="save" aria-label="儲存"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 3v6h7V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
@@ -177,6 +178,21 @@
     </div>
     <div class="size-grid" id="sizeGrid"></div>
     <button type="button" class="link-btn hidden" id="aiRetry">再試一次 AI</button>
+  </div>
+</dialog>
+<dialog id="leaveDialog" class="dialog leave" aria-label="回到開始">
+  <div class="dialog-body">
+    <p class="dialog-title" id="leaveTitle">回到首頁？</p>
+    <p class="muted" id="leaveText"></p>
+    <div class="leave-row"><button type="button" id="leaveCancel">取消</button><button type="button" class="primary" id="leaveGo">回首頁</button></div>
+  </div>
+</dialog>
+<dialog id="tourDialog" class="tour" aria-label="說明">
+  <div class="tour-spot"></div>
+  <div class="tour-bubble">
+    <p class="tour-head"><span class="tour-count"></span><b class="tour-title"></b></p>
+    <p class="tour-body"></p>
+    <div class="tour-nav"><span class="tour-dots"></span><button type="button" class="tour-skip">略過</button><button type="button" class="primary tour-next">下一步</button></div>
   </div>
 </dialog>
 <script type="module" src="./app.js"></script>

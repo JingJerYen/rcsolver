@@ -13,6 +13,7 @@ import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
+import { runTour } from "./tour.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
@@ -21,6 +22,9 @@ $("studyTag").textContent = tr("研究", "Study");
 $("aiFailTitle").textContent = tr("AI 暫時無法辨識", "The AI can't read the photos right now");
 $("aiFailText").textContent = tr("選方塊大小，接著照著照片自己填顏色。", "Pick the cube size, then fill in the colours from your photos.");
 $("aiRetry").textContent = tr("再試一次 AI", "Try the AI again");
+$("leaveTitle").textContent = tr("回到首頁？", "Back to the home page?");
+$("leaveCancel").textContent = tr("取消", "Cancel");
+$("leaveGo").textContent = tr("回首頁", "Go home");
 $("manualNote").textContent = tr("AI 暫時無法辨識。點一面放大，照著照片填顏色。", "The AI couldn't read the photos. Tap a face and fill in the colours from its photo.");
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
@@ -229,6 +233,7 @@ function saveCurrent() {
     : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(solveMode === "teach" ? { teach: true } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
+  savedKey = progressKey();
   const btn = $("save");
   btn.classList.add("ok");
   setTimeout(() => btn.classList.remove("ok"), 1500);
@@ -237,6 +242,17 @@ function saveCurrent() {
 function openSave(i: number) {
   const sv = loadSaves()[i];
   if (sv) openSaved(sv);
+}
+
+/** What a save would hold now; leaving needs no confirmation while it matches the last save. */
+let savedKey = "";
+function progressKey(): string {
+  if (!net) return "";
+  return JSON.stringify([studying, net.size, toNet(net.size, startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
+}
+/** The same for the result screen: a saved cube opened before it was solved, as long as it is unchanged. */
+function resultKey(): string {
+  return net ? JSON.stringify(["result", net.current]) : "";
 }
 
 /** Show a saved or shared solve at its step (or just the cube when it has no solution yet). */
@@ -253,6 +269,7 @@ function openSaved(sv: Save) {
   response = { ok: true, size: sv.size, sizeMismatch: null, recognition: { faces: sv.faces, confidence, notes: [] }, warnings: [], model: "saved", mock: false, ms: 0, usage: null };
   if (!sv.moves.length) {
     showResult();
+    savedKey = resultKey();
     return;
   }
   net = makeState(sv.size, response.recognition);
@@ -268,6 +285,7 @@ function openSaved(sv: Save) {
   cubeView.resetView();
   showScreen("solveView");
   renderSolve();
+  savedKey = progressKey();
 }
 
 function showScreen(id: (typeof SCREENS)[number]) {
@@ -734,24 +752,6 @@ function replaySegment() {
   void step(1);
 }
 
-/** A home tap while solving needs a second tap within 3 s, so a stray touch does not throw the solve away. */
-let homeArmed = 0;
-function homeFromSolve() {
-  const btn = $("home");
-  if (Date.now() - homeArmed < 3000) {
-    btn.classList.remove("confirm");
-    homeArmed = 0;
-    stopPlaying();
-    showScreen("setup");
-    return;
-  }
-  homeArmed = Date.now();
-  btn.classList.add("confirm");
-  setTimeout(() => {
-    if (Date.now() - homeArmed >= 2900) btn.classList.remove("confirm");
-  }, 3000);
-}
-
 async function step(delta: 1 | -1) {
   if (cubeView.animating) return;
   const target = moveIndex + delta;
@@ -930,6 +930,7 @@ function openStudy(sv: Save) {
   moves = read.moves;
   const at = Math.min(sv.index, moves.length);
   jumpTo(at, Math.max(0, at - 1));
+  savedKey = progressKey();
 }
 
 /*
@@ -991,6 +992,55 @@ studyKeys.onclick = (e) => {
 $("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value));
 $("studyText").onkeydown = (e) => {
   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+};
+
+/* The ⓘ in study mode: a step-by-step tour of the screen, one part lit at a time. */
+const tourDialog = $<HTMLDialogElement>("tourDialog");
+tourDialog.querySelector(".tour-skip")!.textContent = tr("略過", "Skip");
+$("studyHelp").onclick = () => {
+  const big = (net?.size ?? 3) >= 4;
+  runTour(tourDialog, [
+    {
+      targets: [$("cube").parentElement!],
+      title: tr("3D 方塊", "The cube"),
+      body: tr(
+        "拖曳可以轉視角，右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
+        "Drag to turn the view; the small cube at the bottom right turns it back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
+      ),
+    },
+    {
+      targets: [$("studyKeys")],
+      title: tr("轉動鍵盤", "Move keys"),
+      body:
+        tr(
+          "點一下就轉一層；藍色是順時針，淺藍是逆時針。按住不放，方塊上會先標出要轉哪幾層。連按同一顆會自動合併：L L → L2，L L′ 會抵消。",
+          "Tap to turn a layer: dark blue clockwise, light blue anticlockwise. Hold a key to see which layers it turns first. Pressing the same key again merges: L L → L2, and L L′ cancel out.",
+        ) + (big ? tr("最上面一排先選第幾層，或「多層」一次轉好幾層。", " The top row picks the layer, or Wide to turn several at once.") : ""),
+    },
+    {
+      targets: [$("studyTextRow")],
+      title: tr("轉法文字框", "The moves"),
+      body: tr(
+        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。左邊調整播放時每步停留的時間，右邊複製整段轉法。",
+        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the left, how long each move stays during playback; on the right, copy the whole sequence.",
+      ),
+    },
+    {
+      targets: [$("slider"), $("prev").parentElement!],
+      title: tr("播放", "Playback"),
+      body: tr("上一步、下一步一次走一步，中間的播放鍵自動播完；拖曳滑桿可以跳到任何一步。", "Previous and next go one move at a time, play runs to the end, and the slider jumps to any move."),
+    },
+    {
+      targets: [$("studyGo")],
+      title: tr("求解", "Solve"),
+      body: tr("Go 會把畫面上的方塊交給求解器，接著照解法一步一步教你轉回去。", "Go hands the cube on screen to the solver and then walks you through solving it, move by move."),
+    },
+    {
+      targets: [$("save")],
+      title: tr("存檔", "Save"),
+      body: tr("把這次的研究存在首頁，之後點回來繼續。", "Keeps this study on the home page so you can come back to it."),
+    },
+  ]);
 };
 
 /** Go: solve the cube as it is on screen and continue on the ordinary solve screen. */
@@ -1092,13 +1142,42 @@ sizeDialog.addEventListener("click", (e) => {
 /* ---------- wiring ---------- */
 
 $("start").onclick = () => void startCapture();
-/** The header's home button: cancel a capture, leave a solve on a second tap, otherwise just go home. */
+/**
+ * The header's home button. Leaving would lose photos, a reading or an unsaved solve, so it asks
+ * first; with nothing to lose (the home page, re-shooting one face, a solve just saved or opened
+ * and not moved since, a study with no moves yet) it goes straight away.
+ */
+const leaveDialog = $<HTMLDialogElement>("leaveDialog");
+function goHome(current: (typeof SCREENS)[number] | undefined) {
+  if (current === "capture") cancelCapture();
+  else {
+    stopPlaying();
+    showScreen("setup");
+  }
+}
 $("home").onclick = () => {
   const current = SCREENS.find((s) => !$(s).classList.contains("hidden"));
-  if (current === "capture") cancelCapture();
-  else if (current === "solveView") homeFromSolve();
-  else showScreen("setup");
+  const keep =
+    current === "capture" ? (singleShot || Object.keys(images).length === 0 ? null : tr("已經拍的照片會不見。", "The photos taken so far will be lost."))
+    : current === "review" ? tr("已經拍的照片會不見。", "The photos taken so far will be lost.")
+    : current === "result" && resultKey() !== savedKey ? tr("辨識的結果會不見。", "The colours that were read will be lost.")
+    : current === "solveView" && !(studying && studyTokens.length === 0) && progressKey() !== savedKey ? tr("沒存檔的進度會不見。", "Anything not saved will be lost.")
+    : null;
+  if (!keep) {
+    goHome(current);
+    return;
+  }
+  $("leaveText").textContent = keep;
+  leaveDialog.showModal();
+  $("leaveGo").onclick = () => {
+    leaveDialog.close();
+    goHome(current);
+  };
 };
+$("leaveCancel").onclick = () => leaveDialog.close();
+leaveDialog.addEventListener("click", (e) => {
+  if (e.target === leaveDialog) leaveDialog.close();
+});
 $("tips").onclick = showTips;
 $("shoot").onclick = () => {
   if (nativeCamera) {
