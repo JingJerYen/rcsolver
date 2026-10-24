@@ -79,7 +79,9 @@ export function createApp({ config, quota, getIp }: AppDeps) {
 
   app.onError((err, c) => {
     if (err instanceof AppError) {
-      if (err.status >= 500) log.error("request failed", { code: err.code, message: err.message, details: err.details });
+      // colo: the Cloudflare data centre that ran the request, since the model API refuses some regions
+      const colo = (c.req.raw as { cf?: { colo?: string } }).cf?.colo;
+      if (err.status >= 500) log.error("request failed", { code: err.code, message: err.message, details: err.details, colo });
       // NO_CUBE carries the faces to retake so the page can point at them
       const extra = err.code === "NO_CUBE" ? (err.details as { faces: string[] }) : {};
       return c.json({ ok: false, error: { code: err.code, message: err.message }, ...extra }, err.status as 400);
