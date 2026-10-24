@@ -46,6 +46,10 @@ const LABELS_EN: Record<string, string> = {
   修正顏色: "Fix colours",
   下一步: "Next move",
   上一步: "Previous move",
+  研究模式: "Study mode",
+  求解: "Solve",
+  轉法: "Moves",
+  選方塊大小: "Choose a cube size",
 };
 
 /** On an English device, switch the page language and the Chinese labels written in index.html. */

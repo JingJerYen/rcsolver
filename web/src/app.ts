@@ -5,6 +5,7 @@ import { drawPhotoTips } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
+import { keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -16,6 +17,7 @@ import { CubeView } from "./cubeView.js";
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
 $("sendErrorText").textContent = tr("格式不正確，請重新拍照。", "Invalid format. Please retake the photos.");
+$("studyTag").textContent = tr("研究", "Study");
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
@@ -232,6 +234,7 @@ function openSave(i: number) {
 
 /** Show a saved or shared solve at its step (or just the cube when it has no solution yet). */
 function openSaved(sv: Save) {
+  setStudying(false);
   size = sv.size;
   images = {}; // photos from an earlier capture belong to another cube
   const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: sv.size }, () => "9".repeat(sv.size))])) as Record<Face, string[]>;
@@ -562,6 +565,7 @@ function startSolve(mode: SolveMode = "fast") {
     moveIndex = 0;
     shownIndex = 0;
     startState = fromNet(net.size, net.current);
+    setStudying(false);
     cubeView.setState(net.size, startState);
     cubeView.resetView();
     showScreen("solveView");
@@ -613,7 +617,8 @@ function renderSolve() {
   $("done").classList.toggle("hidden", !done);
   $("playIcon").classList.toggle("hidden", playing);
   $("pauseIcon").classList.toggle("hidden", !playing);
-  if (done && !isSolved(cubeView.getState())) $("move").textContent = "?";
+  // a study sequence may end anywhere; only a solution that does not solve is a "?"
+  if (done && !studying && !isSolved(cubeView.getState())) $("move").textContent = "?";
 }
 
 const CHIP_ICONS: Record<Segment["kind"], string> = {
@@ -708,6 +713,12 @@ async function step(delta: 1 | -1) {
   const mv = moves[shownIndex]!;
   renderSolve();
   await cubeView.animate(mv, delta, Math.abs(mv.q) === 2 ? turnMs * 1.4 : turnMs);
+  if (studyDirty) {
+    // the moves were edited during this turn: land on the new end instead
+    studyDirty = false;
+    jumpTo(moves.length, Math.max(0, moves.length - 1));
+    return;
+  }
   moveIndex = target;
   renderSolve();
   if (playing) {
@@ -722,6 +733,170 @@ function stopPlaying() {
   clearTimeout(playTimer);
   if (!$("solveView").classList.contains("hidden")) renderSolve();
 }
+
+/* ---------- study mode: the solve screen driven by the user's own moves ---------- */
+
+let studying = false;
+/** Everything typed, including tokens that are not moves (those are skipped and the field turns red). */
+let studyTokens: string[] = [];
+let studyDepth = 1;
+let studyWide = false;
+/** An edit arrived while a turn was animating: jump to the new end once it finishes. */
+let studyDirty = false;
+const STUDY_COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
+
+function solvedState(n: number): Sticker[] {
+  return fromNet(n, Object.fromEntries(FACES.map((f) => [f, Array.from({ length: n }, () => STUDY_COLORS[f].repeat(n))])) as Record<Face, string[]>);
+}
+
+/** A net state for `stickers`, so saving, sharing and solving work on it like on a read cube. */
+function netFor(n: number, stickers: Sticker[]): NetState {
+  const faces = toNet(n, stickers);
+  const confidence = Object.fromEntries(FACES.map((f) => [f, Array.from({ length: n }, () => "9".repeat(n))])) as Record<Face, string[]>;
+  return makeState(n, { faces, confidence, notes: [] });
+}
+
+function setStudying(on: boolean) {
+  studying = on;
+  $("solveView").classList.toggle("study", on);
+}
+
+function renderKeys() {
+  if (net) $("studyKeys").innerHTML = keypadHtml(net.size, studyDepth, studyWide);
+}
+
+/** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
+function startStudy(n: number, start: Sticker[]) {
+  stopPlaying();
+  net = netFor(n, start);
+  startState = start;
+  moves = [];
+  moveIndex = 0;
+  shownIndex = 0;
+  segments = null;
+  solveMode = "fast";
+  studyTokens = [];
+  studyDepth = 1;
+  studyWide = false;
+  $<HTMLInputElement>("studyText").value = "";
+  $("studyText").classList.remove("bad");
+  setStudying(true);
+  renderKeys();
+  cubeView.setState(n, start);
+  showScreen("solveView");
+  renderSolve();
+}
+
+/** New tokens from the keypad or the text field; a key that adds a move animates it in. */
+function setStudyTokens(tokens: string[], animateNew: boolean) {
+  if (!net) return;
+  stopPlaying();
+  const before = moves.length;
+  studyTokens = tokens;
+  const read = readMoves(tokens, net.size);
+  $("studyText").classList.toggle("bad", read.bad);
+  moves = read.moves;
+  if (cubeView.animating) {
+    studyDirty = true;
+    return;
+  }
+  if (animateNew && moves.length === before + 1) {
+    jumpTo(before, before);
+    void step(1);
+    return;
+  }
+  jumpTo(moves.length, Math.max(0, moves.length - 1));
+}
+
+$("studyKeys").onclick = (e) => {
+  const k = (e.target as HTMLElement).closest<HTMLElement>("button");
+  if (!k || !net) return;
+  if (k.dataset.depth) {
+    studyDepth = Number(k.dataset.depth);
+    if (studyDepth === 1) studyWide = false;
+    renderKeys();
+    return;
+  }
+  if (k.dataset.wide !== undefined) {
+    studyWide = !studyWide;
+    if (studyWide && studyDepth === 1) studyDepth = 2;
+    renderKeys();
+    return;
+  }
+  let next: string[];
+  if (k.dataset.tok) next = [...studyTokens, k.dataset.tok];
+  else if (k.dataset.mod) next = withModifier(studyTokens, k.dataset.mod as "'" | "2");
+  else if (k.dataset.del !== undefined) next = studyTokens.slice(0, -1);
+  else return;
+  $<HTMLInputElement>("studyText").value = next.join(" ");
+  setStudyTokens(next, k.dataset.tok !== undefined);
+};
+$("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value), false);
+$("studyText").onkeydown = (e) => {
+  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+};
+
+/** Go: solve the cube as it is on screen and continue on the ordinary solve screen. */
+$("studyGo").onclick = () => {
+  if (!net || cubeView.animating) return;
+  stopPlaying();
+  const n = net.size;
+  const from = applyAlgorithm(startState, moves.slice(0, moveIndex));
+  const btn = $<HTMLButtonElement>("studyGo");
+  btn.disabled = true;
+  setBusy(true);
+  void (async () => {
+    const studyNet = netFor(n, from);
+    const r = await solveAsync(n, studyNet.current, (f) => setBusy(true, f), "fast");
+    setBusy(false);
+    btn.disabled = false;
+    // every study state comes from turning a solved cube, so it always solves
+    if (!r.ok) return;
+    net = studyNet;
+    startState = from;
+    moves = parseAlgorithm(r.moves.join(" "), n);
+    segments = r.segments;
+    solveMode = "fast";
+    moveIndex = 0;
+    shownIndex = 0;
+    setStudying(false);
+    cubeView.setState(n, from);
+    renderSolve();
+  })();
+};
+
+/** From a solve: study the cube as it is at this step. */
+$("toStudy").onclick = () => {
+  if (!net || cubeView.animating) return;
+  startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
+};
+
+/* Home: the study button opens a picker of cube sizes, each a small solved cube. */
+const sizeDialog = $<HTMLDialogElement>("sizeDialog");
+let sizeViews: CubeView[] = [];
+$("study").onclick = () => {
+  sizeDialog.showModal();
+  if (sizeViews.length) return;
+  $("sizeGrid").innerHTML = SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("");
+  sizeViews = Array.from($("sizeGrid").querySelectorAll("canvas"), (c, i) => {
+    const n = SOLVABLE[i]!;
+    const v = new CubeView(c);
+    v.setState(n, solvedState(n));
+    v.resetView();
+    return v;
+  });
+};
+$("sizeGrid").onclick = (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("[data-n]");
+  if (!b) return;
+  sizeDialog.close();
+  const n = Number(b.dataset.n);
+  startStudy(n, solvedState(n));
+};
+// a tap outside the grid closes the picker
+sizeDialog.addEventListener("click", (e) => {
+  if (e.target === sizeDialog) sizeDialog.close();
+});
 
 /* ---------- wiring ---------- */
 
