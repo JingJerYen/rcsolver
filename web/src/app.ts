@@ -1243,6 +1243,10 @@ getHealth()
   .catch(() => undefined);
 // Start the solver worker and its 3×3 tables while the user is busy taking photos.
 idle(() => warmAsync(3));
+// The offline copy (sw.js): registered once the page has loaded, so its downloads never slow the page down.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => void navigator.serviceWorker.register("./sw.js").catch(() => undefined));
+}
 
 /** Hooks for the end-to-end test: feed a recognised net without the camera. */
 (window as unknown as { rcsolverTest: unknown }).rcsolverTest = {
