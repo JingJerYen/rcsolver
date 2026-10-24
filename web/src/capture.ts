@@ -6,6 +6,8 @@ import { tr } from "./i18n.js";
 export interface Step {
   face: Face;
   turns: Gesture[];
+  /** Quarter turns clockwise that bring this photo to the net's orientation (0 when it already is). */
+  quarter?: 1 | -1;
 }
 
 /** Turn the whole cube so the right face comes to the front (the "y" cube rotation). */
@@ -16,17 +18,19 @@ const DOWN: Gesture = { axis: "x", deg: 90 };
 const UP: Gesture = { axis: "x", deg: -90 };
 
 /**
- * Holding sequence. The "up" face never changes hands, so every side photo has U at its top;
- * the U photo (after tilting down from face 1) has B at its top and the D photo (after tilting up
- * twice) has F at its top. That is exactly the standard net layout, so no image rotation is needed.
+ * Holding sequence. The "up" face never changes hands, so every side photo has U at its top. After
+ * the fourth side the cube tilts straight down from L, one gesture instead of turning back to F
+ * first, so the U photo has R at its top and the D photo (after tilting up twice) has L at its
+ * top. Those two are turned a quarter as they are taken, so every photo is stored the way the net
+ * lays it out.
  */
 export const STEPS: Step[] = [
   { face: "F", turns: [] },
   { face: "R", turns: [LEFT] },
   { face: "B", turns: [LEFT] },
   { face: "L", turns: [LEFT] },
-  { face: "U", turns: [LEFT, DOWN] },
-  { face: "D", turns: [UP, UP] },
+  { face: "U", turns: [DOWN], quarter: 1 },
+  { face: "D", turns: [UP, UP], quarter: -1 },
 ];
 
 /** All turns made before step `index`: the orientation the physical cube is in when that step starts. */
@@ -54,27 +58,35 @@ export function closeCamera(video: HTMLVideoElement) {
   video.srcObject = null;
 }
 
+/** A 512px square canvas with `src` (the square at sx, sy, side) drawn turned `quarter` quarter turns clockwise. */
+function squareCanvas(src: CanvasImageSource, sx: number, sy: number, side: number, quarter = 0): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = OUTPUT_PX;
+  const ctx = canvas.getContext("2d")!;
+  ctx.translate(OUTPUT_PX / 2, OUTPUT_PX / 2);
+  ctx.rotate((quarter * Math.PI) / 2);
+  ctx.drawImage(src, sx, sy, side, side, -OUTPUT_PX / 2, -OUTPUT_PX / 2, OUTPUT_PX, OUTPUT_PX);
+  return canvas;
+}
+
 function toFaceImage(canvas: HTMLCanvasElement): FaceImage {
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
   return { mediaType: "image/jpeg", data: dataUrl.slice(dataUrl.indexOf(",") + 1), dataUrl };
 }
 
 /** Crop the centred square that the on-screen frame covers (object-fit: cover) and scale it to 512px. */
-export function captureFromVideo(video: HTMLVideoElement): FaceImage {
+export function captureFromVideo(video: HTMLVideoElement, quarter = 0): FaceImage {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) throw new Error(tr("相機還沒準備好，再按一次。", "The camera isn't ready yet. Tap again."));
   const side = Math.min(vw, vh) * FRAME_FRACTION;
   const sx = (vw - side) / 2;
   const sy = (vh - side) / 2;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = OUTPUT_PX;
-  canvas.getContext("2d")!.drawImage(video, sx, sy, side, side, 0, 0, OUTPUT_PX, OUTPUT_PX);
-  return toFaceImage(canvas);
+  return toFaceImage(squareCanvas(video, sx, sy, side, quarter));
 }
 
 /** Centre-crop an uploaded photo to a square (full width, not the 70% frame) and scale it to 512px. */
-export async function captureFromFile(file: File): Promise<FaceImage> {
+export async function captureFromFile(file: File, quarter = 0): Promise<FaceImage> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -84,10 +96,7 @@ export async function captureFromFile(file: File): Promise<FaceImage> {
       el.src = url;
     });
     const side = Math.min(img.naturalWidth, img.naturalHeight);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = OUTPUT_PX;
-    canvas.getContext("2d")!.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, OUTPUT_PX, OUTPUT_PX);
-    return toFaceImage(canvas);
+    return toFaceImage(squareCanvas(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, quarter));
   } finally {
     URL.revokeObjectURL(url);
   }

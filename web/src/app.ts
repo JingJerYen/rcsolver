@@ -1002,7 +1002,7 @@ $("shoot").onclick = () => {
     return;
   }
   try {
-    acceptImage(captureFromVideo(video));
+    acceptImage(captureFromVideo(video, STEPS[stepIndex]!.quarter));
   } catch (err) {
     alert(err instanceof Error ? err.message : String(err));
   }
@@ -1021,7 +1021,7 @@ const onFilePicked = async (e: Event) => {
   input.value = "";
   if (!file) return;
   try {
-    acceptImage(await captureFromFile(file));
+    acceptImage(await captureFromFile(file, STEPS[stepIndex]!.quarter));
   } catch (err) {
     alert(err instanceof Error ? err.message : String(err));
   }
