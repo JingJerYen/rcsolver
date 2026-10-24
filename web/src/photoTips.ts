@@ -1,8 +1,10 @@
 /**
  * Pictures for the "how to shoot" card: one face straight on filling the frame (right), the whole
  * cube at an angle and a face too far away (both wrong). Drawn rather than shipped as images, and
- * wordless so the card works in any language.
+ * wordless on screen so the card works in any language; its one instruction is spoken instead.
  */
+import { LANG, tr } from "./i18n.js";
+
 type Vec = [number, number, number];
 
 const COLOURS: Record<string, string> = { W: "#f2f2ec", Y: "#ffd21c", R: "#d42630", O: "#ff7a14", G: "#1c9c4a", B: "#1d5dd6" };
@@ -103,4 +105,28 @@ export function drawPhotoTips(root: HTMLElement) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     PICTURES[canvas.dataset.tip!]?.(ctx, w);
   }
+}
+
+/**
+ * Say the card's one instruction out loud as it opens. Browsers only allow speech started from a
+ * tap, which is how the card opens (the camera button or "?"). When the device lists voices but
+ * none in the page's language, stay quiet rather than read Chinese with an English voice.
+ */
+export function speakPhotoTip() {
+  const synth = globalThis.speechSynthesis;
+  if (!synth) return;
+  const want = LANG === "zh" ? ["zh-tw", "zh"] : ["en"];
+  const voices = synth.getVoices();
+  const voice = want.map((p) => voices.find((v) => v.lang.toLowerCase().replace("_", "-").startsWith(p))).find(Boolean);
+  if (voices.length && !voice) return;
+  synth.cancel();
+  const say = new SpeechSynthesisUtterance(tr("一次只拍一個面，請按照圖示轉動。", "Take one face at a time, and turn the cube as the picture shows."));
+  say.lang = voice?.lang ?? (LANG === "zh" ? "zh-TW" : "en-US");
+  if (voice) say.voice = voice;
+  synth.speak(say);
+}
+
+/** Stop talking when the card closes. */
+export function stopPhotoTip() {
+  globalThis.speechSynthesis?.cancel();
 }
