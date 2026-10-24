@@ -1,8 +1,7 @@
 /**
- * Compact share tokens: `#z=<base64url>` carrying a cube and, when shared from study mode, its
- * moves and the step reached. Every link opens in study mode. Older links shared from a solve
- * carry the starting cube and the step only; the solvers are deterministic, so the receiver
- * re-solves to rebuild the cube at that step.
+ * Compact share tokens: `#z=<base64url>` carrying a cube; every link opens a fresh study of it.
+ * Older tokens also carry a step, and either the moves up to it or none (a solve: the solvers are
+ * deterministic, so the receiver re-solves to rebuild the cube at that step).
  *
  * Bytes: version(1) size(1) flags(1, v2 only: bit 0 = teaching solve) index(2) movesCount(2)
  * stickers(⌈6N²/3⌉, three colours per byte) moves(1 each)

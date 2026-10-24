@@ -76,9 +76,9 @@ function storeSaves(list: Save[]) {
  * A short link that opens this page on the same cube and step. The solvers are deterministic, so
  * the moves ride along only when they differ from what the solver gives for this cube.
  */
-/** A link that opens this cube in study mode, with the moves and step when shared from study mode. */
-function shareLink(size: number, faces: Record<Face, string[]>, moves: string[] = [], index = 0): string {
-  const token = encodeShare({ size, faces, index, ...(moves.length ? { moves } : {}) });
+/** A link that opens a fresh study of this cube. */
+function shareLink(size: number, faces: Record<Face, string[]>): string {
+  const token = encodeShare({ size, faces, index: 0 });
   return `${location.origin}${location.pathname}?openExternalBrowser=1#z=${token}`;
 }
 
@@ -1316,14 +1316,11 @@ $("pace").onclick = () => {
 };
 renderPace();
 $("save").onclick = saveCurrent;
-/* Sharing always lands in study mode: from a solve, the cube as it is at this step (the receiver
-   presses Go to solve it); from study mode, the starting cube with the moves and the step. */
+/* Sharing sends the cube as it is at this step, solving or studying; whoever opens the link starts
+   a fresh study of it and presses Go to solve. */
 $("shareSolve").onclick = () => {
   if (!net) return;
-  const link = studying
-    ? shareLink(net.size, toNet(net.size, startState), moves.map((m) => m.token), moveIndex)
-    : shareLink(net.size, toNet(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex))));
-  void copyText(link, $("shareSolve"));
+  void copyText(shareLink(net.size, toNet(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)))), $("shareSolve"));
 };
 renderSaves();
 $("sequence").onclick = (e) => {
@@ -1346,22 +1343,28 @@ $("play").onclick = () => {
 $("restart").onclick = () => void startCapture();
 $("copySeq").onclick = () => copyText(moves.map((m) => m.token).join(" "), $("copySeq"));
 // A shared link carries the cube (s), its solution (m) and the step reached (i) in the hash.
+/** The cube after the first `index` of `moves`. */
+function cubeAtStep(size: number, faces: Record<Face, string[]>, moves: string[], index: number): Record<Face, string[]> {
+  if (!moves.length || index <= 0) return faces;
+  return toNet(size, applyAlgorithm(fromNet(size, faces), parseAlgorithm(moves.slice(0, index).join(" "), size)));
+}
+
+/** A shared link always opens a fresh study of the cube it carries. */
 async function openSharedLink() {
   const q = new URLSearchParams(location.hash.slice(1));
   const z = q.get("z") ? decodeShare(q.get("z")!) : null;
   if (z) {
     stopPlaying();
-    let faces = z.faces;
-    let index = z.index;
-    if (!z.moves && index > 0) {
-      // an older link shared partway through a solve: rebuild the cube at that step
+    // an older link may carry a step: open the cube as it was there, its moves or the solver's
+    // (deterministic, so the same as the sender's) replayed up to it
+    let moves = z.moves ?? [];
+    if (!z.moves && z.index > 0) {
       setBusy(true);
       const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f), z.teach ? "teach" : "fast");
       setBusy(false);
-      if (r.ok) faces = toNet(z.size, applyAlgorithm(fromNet(z.size, z.faces), parseAlgorithm(r.moves.slice(0, index).join(" "), z.size)));
-      index = 0;
+      moves = r.ok ? r.moves : [];
     }
-    openStudy({ ts: Date.now(), size: z.size, faces, moves: z.moves ?? [], index, study: true });
+    openStudy({ ts: Date.now(), size: z.size, faces: cubeAtStep(z.size, z.faces, moves, z.index), moves: [], index: 0, study: true });
     history.replaceState(null, "", location.pathname);
     return;
   }
@@ -1375,7 +1378,7 @@ async function openSharedLink() {
     ok = false;
   }
   stopPlaying();
-  openStudy({ ts: Date.now(), size: parsed.size, faces: parsed.net, moves: ok ? tokens : [], index: Number(q.get("i") ?? 0) || 0, study: true });
+  openStudy({ ts: Date.now(), size: parsed.size, faces: cubeAtStep(parsed.size, parsed.net, ok ? tokens : [], Number(q.get("i") ?? 0) || 0), moves: [], index: 0, study: true });
   history.replaceState(null, "", location.pathname);
 }
 // LINE's in-app browser has no live camera, but it opens any link carrying this flag in the
