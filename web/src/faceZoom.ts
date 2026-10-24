@@ -2,11 +2,11 @@
  * One face of the net blown up to full width, for fixing colours with a finger instead of a pin.
  * With the photo of that face, each sticker gets a small chip of the colour that was read on top
  * of the photo, so a wrong read stands out against the real sticker under it. Without a photo
- * (a saved or shared cube) the cells are just big swatches. Either way, tapping a cell opens a
- * row of the six colours next to it.
+ * (a saved or shared cube) the cells are just big swatches. A row of the six colours sits under
+ * the face: pick one, then tap as many cells as should have it.
  */
 import { COLORS, type Color, type Face } from "./api.js";
-import { COLOR_HEX, LOW_CONFIDENCE, cellAt, setCell, type NetState } from "./net.js";
+import { COLOR_HEX, COLOR_NAME, LOW_CONFIDENCE, UNKNOWN, cellAt, hexOf, isEdited, setCell, type NetState } from "./net.js";
 import { tr } from "./i18n.js";
 
 /** Tabs in the order the faces were photographed. */
@@ -27,7 +27,11 @@ export interface FaceZoomOptions {
 }
 
 const isLow = (s: NetState, f: Face, r: number, c: number) => Number(s.confidence[f][r]![c]) < LOW_CONFIDENCE;
-const isEdited = (s: NetState, f: Face, r: number, c: number) => cellAt(s.current[f], r, c) !== cellAt(s.original[f], r, c);
+
+/** The colour a tap on a cell paints; kept across faces and re-renders until another is picked. */
+let brush: Color | null = null;
+
+const colorName = (k: Color) => tr(COLOR_NAME[k], ({ W: "white", Y: "yellow", R: "red", O: "orange", G: "green", B: "blue" } as const)[k]);
 
 /** A face still has an unsure sticker nobody has looked at: flagged and not changed. */
 function needsLook(s: NetState, f: Face): boolean {
@@ -37,7 +41,7 @@ function needsLook(s: NetState, f: Face): boolean {
 
 function miniFace(s: NetState, f: Face, current: boolean): string {
   let cells = "";
-  for (let r = 0; r < s.size; r++) for (let c = 0; c < s.size; c++) cells += `<i style="background:${COLOR_HEX[cellAt(s.current[f], r, c)]}"></i>`;
+  for (let r = 0; r < s.size; r++) for (let c = 0; c < s.size; c++) cells += `<i style="background:${hexOf(cellAt(s.current[f], r, c))}"></i>`;
   const dot = needsLook(s, f) ? "<em></em>" : "";
   return `<button type="button" class="zoom-tab${current ? " current" : ""}" data-tab="${f}" aria-label="${f}" style="grid-template-columns:repeat(${s.size},1fr)">${cells}${dot}</button>`;
 }
@@ -50,59 +54,51 @@ export function renderFaceZoom(root: HTMLElement, s: NetState, o: FaceZoomOption
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       const color = cellAt(s.current[f], r, c);
-      const cls = `zcell${isLow(s, f, r, c) ? " low" : ""}${isEdited(s, f, r, c) ? " edited" : ""}`;
-      const chip = `<span style="background:${COLOR_HEX[color]}"></span>`;
-      cells += `<button type="button" class="${cls}" data-row="${r}" data-col="${c}" aria-label="${f} ${r + 1}-${c + 1} ${color}">${chip}</button>`;
+      const blank = color === UNKNOWN;
+      const cls = `zcell${isLow(s, f, r, c) ? " low" : ""}${isEdited(s, f, r, c) ? " edited" : ""}${blank ? " blank" : ""}`;
+      const chip = `<span style="background:${hexOf(color)}">${blank ? "?" : ""}</span>`;
+      cells += `<button type="button" class="${cls}" data-row="${r}" data-col="${c}" aria-label="${f} ${r + 1}-${c + 1} ${blank ? "?" : colorName(color as Color)}">${chip}</button>`;
     }
   }
   const bg = o.photo ? ` style="background-image:url('${o.photo}')"` : "";
+  const swatches = COLORS.map(
+    (k) => `<button type="button" data-brush="${k}" class="${k === brush ? "on" : ""}" aria-pressed="${k === brush}" style="background:${COLOR_HEX[k]}" aria-label="${colorName(k)}"></button>`,
+  ).join("");
   root.innerHTML = `
     <div class="zoom-head"><button type="button" class="icon-btn small-btn" data-back aria-label="${tr("回到展開圖", "Back to the whole net")}">${NET_ICON}</button><div class="zoom-tabs">${tabs}</div></div>
-    <div class="zoom-face${o.photo ? " photo" : ""}"${bg}><div class="zoom-grid" style="grid-template-columns:repeat(${n},1fr);grid-template-rows:repeat(${n},1fr)">${cells}</div></div>`;
-
-  const closePicker = () => {
-    root.querySelector(".picker")?.remove();
-    root.querySelector(".zcell.selected")?.classList.remove("selected");
-  };
-
-  const openPicker = (cell: HTMLElement) => {
-    closePicker();
-    const r = Number(cell.dataset.row);
-    const c = Number(cell.dataset.col);
-    cell.classList.add("selected");
-    const now = cellAt(s.current[f], r, c);
-    const picker = document.createElement("div");
-    picker.className = "picker";
-    picker.innerHTML = COLORS.map(
-      (k) => `<button type="button" data-pick="${k}" class="${k === now ? "current" : ""}" style="background:${COLOR_HEX[k]}" aria-label="${k}">${k}</button>`,
-    ).join("");
-    root.appendChild(picker);
-    // above the cell, or below it when there is no room; kept inside the panel sideways
-    const box = root.getBoundingClientRect();
-    const at = cell.getBoundingClientRect();
-    const left = Math.max(0, Math.min(box.width - picker.offsetWidth, at.left - box.left + at.width / 2 - picker.offsetWidth / 2));
-    let top = at.top - box.top - picker.offsetHeight - 6;
-    if (top < 0) top = at.bottom - box.top + 6;
-    picker.style.left = `${left}px`;
-    picker.style.top = `${top}px`;
-    picker.onclick = (e) => {
-      const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-pick]");
-      if (!pick) return;
-      e.stopPropagation();
-      setCell(s.current[f], r, c, pick.dataset.pick as Color);
-      o.onChange();
-      renderFaceZoom(root, s, o);
-    };
-  };
+    <div class="zoom-face${o.photo ? " photo" : ""}"${bg}><div class="zoom-grid" style="grid-template-columns:repeat(${n},1fr);grid-template-rows:repeat(${n},1fr)">${cells}</div></div>
+    <div class="brush-row">${swatches}</div>
+    <p class="brush-hint">${tr("選一個顏色，再點格子；可以連續點", "Pick a colour, then tap the stickers; keep tapping")}</p>`;
 
   root.onclick = (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest(".picker")) return;
     if (t.closest("[data-back]")) return o.onBack();
     const tab = t.closest<HTMLElement>("[data-tab]");
     if (tab) return o.onFace(tab.dataset.tab as Face);
+    const pick = t.closest<HTMLElement>("[data-brush]");
+    if (pick) {
+      brush = pick.dataset.brush as Color;
+      root.querySelectorAll<HTMLElement>("[data-brush]").forEach((b) => {
+        b.classList.toggle("on", b === pick);
+        b.setAttribute("aria-pressed", String(b === pick));
+      });
+      return;
+    }
     const cell = t.closest<HTMLElement>(".zcell");
-    if (cell && !cell.classList.contains("selected")) return openPicker(cell);
-    closePicker();
+    if (!cell) return;
+    if (!brush) {
+      // no colour picked yet: point at the row of colours
+      const row = root.querySelector<HTMLElement>(".brush-row")!;
+      row.classList.remove("nudge");
+      void row.offsetWidth;
+      row.classList.add("nudge");
+      return;
+    }
+    const r = Number(cell.dataset.row);
+    const c = Number(cell.dataset.col);
+    if (cellAt(s.current[f], r, c) === brush) return;
+    setCell(s.current[f], r, c, brush);
+    o.onChange();
+    renderFaceZoom(root, s, o);
   };
 }

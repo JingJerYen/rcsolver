@@ -2,7 +2,7 @@ import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type 
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
 import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
-import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
+import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
 import { deltaTurn, keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
@@ -18,6 +18,10 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 localizePage(document);
 $("sendErrorText").textContent = tr("格式不正確，請重新拍照。", "Invalid format. Please retake the photos.");
 $("studyTag").textContent = tr("研究", "Study");
+$("aiFailTitle").textContent = tr("AI 暫時無法辨識", "The AI can't read the photos right now");
+$("aiFailText").textContent = tr("選方塊大小，接著照著照片自己填顏色。", "Pick the cube size, then fill in the colours from your photos.");
+$("aiRetry").textContent = tr("再試一次 AI", "Try the AI again");
+$("manualNote").textContent = tr("AI 暫時無法辨識。點一面放大，照著照片填顏色。", "The AI couldn't read the photos. Tap a face and fill in the colours from its photo.");
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
@@ -400,18 +404,22 @@ async function send() {
   try {
     response = await recognize(size, faces);
   } catch (err) {
-    // Any failure shows the same wordless warning and a shake; photos without a cube are also
-    // marked, and tapping one re-shoots that face. The detail goes to the console only.
-    if (err instanceof ApiError && err.code === "NO_CUBE") badFaces = err.faces.length ? err.faces : [...FACES];
-    else console.error("recognize failed", err);
-    $("reviewThumbs").innerHTML = thumbsHtml(null);
     $("sendStatus").textContent = "";
+    $<HTMLButtonElement>("send").disabled = false;
+    if (!(err instanceof ApiError && err.code === "NO_CUBE")) {
+      // The photos are fine but the AI could not be used: pick the size and fill the colours in by hand.
+      console.error("recognize failed", err);
+      openSizePicker("manual");
+      return;
+    }
+    // Photos without a cube are marked with the wordless warning and a shake; tapping one re-shoots that face.
+    badFaces = err.faces.length ? err.faces : [...FACES];
+    $("reviewThumbs").innerHTML = thumbsHtml(null);
     $("sendError").classList.remove("hidden");
     const card = $("review");
     card.classList.remove("shake");
     void card.offsetWidth;
     card.classList.add("shake");
-    $<HTMLButtonElement>("send").disabled = false;
     return;
   }
   $("sendStatus").textContent = "";
@@ -424,7 +432,27 @@ function onNetEdited() {
   $("invalidBadge").classList.add("hidden");
   previewView.setState(net.size, fromNet(net.size, net.current));
   renderLegend($("legend"), net);
-  $<HTMLButtonElement>("resetNet").disabled = accuracy(net).corrected === 0;
+  $<HTMLButtonElement>("resetNet").disabled = accuracy(net).corrected === 0 && unknownCount(net.current) === unknownCount(net.original);
+  renderFill();
+}
+
+/** Colours filled in by hand: the count so far, and no solving or sharing until every sticker has one. */
+let manualFill = false;
+function renderFill() {
+  if (!net) return;
+  const total = 6 * net.size * net.size;
+  const left = unknownCount(net.current);
+  const count = $("fillCount");
+  count.classList.toggle("hidden", !manualFill);
+  count.classList.toggle("filled", left === 0);
+  count.innerHTML = `${left === 0 ? '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}${tr("已填", "Filled")} <b>${total - left} / ${total}</b>`;
+  for (const id of ["solve", "teach", "shareResult"]) $<HTMLButtonElement>(id).disabled = left > 0;
+}
+
+/** The AI could not be used: an empty net of the picked size, filled in by hand from the photos. */
+function startManual(n: number) {
+  response = { ok: true, size: n, sizeMismatch: null, recognition: blankRecognition(n), warnings: [], model: "manual", mock: false, ms: 0, usage: null };
+  showResult();
 }
 
 /** Put every sticker back to what the model read. */
@@ -463,6 +491,8 @@ function showResult() {
   const n = response.size;
   size = n;
   net = makeState(n, response.recognition);
+  manualFill = unknownCount(net.current) > 0;
+  $("manualNote").classList.toggle("hidden", !manualFill);
   showScreen("result");
   $("sizeBadge").textContent = `${size}×${size}`;
   $("invalidBadge").classList.add("hidden");
@@ -474,7 +504,8 @@ function showResult() {
   renderLegend($("legend"), net);
   $<HTMLButtonElement>("resetNet").disabled = true;
   // a colour count that is off means at least one sticker is wrong: open the editor straight away
-  if (response.warnings.length) setEditor(true);
+  if (response.warnings.length || manualFill) setEditor(true);
+  renderFill();
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
   $("teach").classList.toggle("hidden", size !== 3);
   // The 4×4 centre tables take a few seconds to build and the bigger cubes fetch theirs: start now.
@@ -553,6 +584,8 @@ async function computeSolution(size: number, n: Record<Face, string[]>, mode: So
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
 async function trySolve(mode: SolveMode, onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
+  const blank = FACES.flatMap((face) => net!.current[face].flatMap((line, row) => [...line].flatMap((ch, col) => (ch === UNKNOWN ? [{ face, row, col }] : []))));
+  if (blank.length) return fail(blank);
   const r = await solveAsync(net.size, net.current, onProgress, mode);
   return r.ok ? { moves: r.moves, segments: r.segments } : fail(r.badCells);
 }
@@ -961,7 +994,12 @@ $("backToSolve").onclick = () => {
 /* Home: the study button opens a picker of cube sizes, each a small solved cube. */
 const sizeDialog = $<HTMLDialogElement>("sizeDialog");
 let sizeViews: CubeView[] = [];
-$("study").onclick = () => {
+/** What a picked size starts: study mode from the home page, or filling in colours after the AI failed. */
+let sizePurpose: "study" | "manual" = "study";
+function openSizePicker(purpose: "study" | "manual") {
+  sizePurpose = purpose;
+  $("aiFailHead").classList.toggle("hidden", purpose !== "manual");
+  $("aiRetry").classList.toggle("hidden", purpose !== "manual");
   sizeDialog.showModal();
   if (sizeViews.length) return;
   $("sizeGrid").innerHTML = SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("");
@@ -972,13 +1010,19 @@ $("study").onclick = () => {
     v.resetView();
     return v;
   });
-};
+}
+$("study").onclick = () => openSizePicker("study");
 $("sizeGrid").onclick = (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>("[data-n]");
   if (!b) return;
   sizeDialog.close();
   const n = Number(b.dataset.n);
-  startStudy(n, solvedState(n));
+  if (sizePurpose === "manual") startManual(n);
+  else startStudy(n, solvedState(n));
+};
+$("aiRetry").onclick = () => {
+  sizeDialog.close();
+  void send();
 };
 // a tap outside the grid closes the picker
 sizeDialog.addEventListener("click", (e) => {
