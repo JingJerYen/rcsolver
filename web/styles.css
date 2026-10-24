@@ -221,7 +221,6 @@ th{color:#607189;font-weight:600}
 #solveView:not(.study) .study-only{display:none!important}
 #solveView.study .solve-only{display:none!important}
 .study-entry{color:#195ed6;border-color:#195ed6}
-.mode-tag{font-size:13px;font-weight:700;letter-spacing:.06em;color:#8a97a8;margin-left:8px;margin-right:auto}
 .study-input{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed #dde5ef}
 /* the text already lists the moves, so study mode drops the token strip and keeps its two buttons beside the text */
 #solveView.study .sequence-row{display:none}
@@ -267,8 +266,9 @@ th{color:#607189;font-weight:600}
 .tour-skip{border:0;background:none;color:#607189;min-height:44px}
 .tour-next{min-height:44px;border-radius:22px;padding:0 20px;font-weight:700}
 /* study mode's header holds four buttons: keep them and the step count on one line on narrow phones */
-.step-head .badge,.mode-tag{white-space:nowrap;flex:none}
+.step-head .badge{white-space:nowrap;flex:none}
+/* the step count pushes the buttons to the right, whichever of them are showing */
+#solveView .progress-badge{margin-right:auto}
 #solveView.study .step-head .icon-btn{width:44px;height:44px}
 #solveView.study .step-head .icon-btn+.icon-btn{margin-left:6px}
 #solveView.study .progress-badge{font-size:18px;padding:6px 12px}
-#solveView.study .mode-tag{margin-left:6px}
