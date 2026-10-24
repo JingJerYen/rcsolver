@@ -15,6 +15,7 @@ import { CubeView } from "./cubeView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
+$("sendErrorText").textContent = tr("格式不正確，請重新拍照。", "Invalid format. Please retake the photos.");
 
 const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
 
