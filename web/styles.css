@@ -276,3 +276,5 @@ th{color:#607189;font-weight:600}
 .twist-btn.on{color:#fff;background:#195ed6;border-color:#195ed6}
 /* with hand turns on, a drag on the cube must not scroll the page */
 #solveView.study.twisting #cube{touch-action:none}
+/* turning by hand, the keys are not needed: the text box and Go stay */
+#solveView.study.twisting #studyKeys{display:none}
