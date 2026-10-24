@@ -220,6 +220,10 @@ th{color:#607189;font-weight:600}
 .study-entry{color:#195ed6;border-color:#195ed6}
 .mode-tag{font-size:13px;font-weight:700;letter-spacing:.06em;color:#8a97a8;margin-left:8px;margin-right:auto}
 .study-input{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed #dde5ef}
+/* the text already lists the moves, so study mode drops the token strip and keeps its two buttons beside the text */
+#solveView.study .sequence-row{display:none}
+.study-text-row{display:flex;align-items:center;gap:8px}
+.study-text-row .study-text{flex:1;min-width:0}
 .study-text{width:100%;font:600 17px ui-monospace,monospace;border:1px solid #cdd7e5;border-radius:10px;padding:10px 12px;color:#192a40;background:#fff}
 .study-text::placeholder{color:#b4bfcc;font-weight:400}
 .study-text:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
