@@ -12,6 +12,17 @@ export class CubeView {
   private size = 3;
   private stickers: Sticker[] = [];
   private lookup = new Map<string, string>();
+  /** Sticker position key → index in `stickers`; the index is the sticker itself, since turns keep the order. */
+  private indexAt = new Map<string, number>();
+  /**
+   * Study mode's marks: stickers (by index) tapped to carry a dot. Turns move stickers but keep their
+   * order in the list, so a mark stays on its sticker wherever it goes.
+   */
+  private marks = new Set<number>();
+  private marking = false;
+  /** Where each visible sticker was last drawn, front last, for finding the one under a tap. */
+  private hits: { poly: [number, number][]; key: string }[] = [];
+  private press: { x: number; y: number; moved: boolean } | null = null;
   private w = 300;
   private h = 300;
   private yaw = DEFAULT_VIEW.yaw;
@@ -49,10 +60,12 @@ export class CubeView {
     this.ro.observe(canvas);
     canvas.addEventListener("pointerdown", (e) => {
       this.drag = { x: e.clientX, y: e.clientY };
+      this.press = { x: e.clientX, y: e.clientY, moved: false };
       canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener("pointermove", (e) => {
       if (!this.drag) return;
+      if (this.press && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 6) this.press.moved = true;
       // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
       this.yaw -= (e.clientX - this.drag.x) * 0.009;
       this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
@@ -60,8 +73,19 @@ export class CubeView {
       if (!this.anim) this.draw();
     });
     const up = () => (this.drag = null);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("pointerup", (e) => {
+      up();
+      // a tap (not a drag) on a sticker toggles its mark
+      const press = this.press;
+      this.press = null;
+      if (!this.marking || !press || press.moved || this.anim) return;
+      const r = canvas.getBoundingClientRect();
+      this.toggleMarkAt(e.clientX - r.left, e.clientY - r.top);
+    });
+    canvas.addEventListener("pointercancel", () => {
+      up();
+      this.press = null;
+    });
     this.resize();
   }
 
@@ -69,7 +93,43 @@ export class CubeView {
     this.size = size;
     this.stickers = stickers;
     this.lookup = new Map(stickers.map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s.c]));
+    this.indexAt = new Map(stickers.map((s, i) => [`${s.p.join(",")}|${s.n.join(",")}`, i]));
     this.draw();
+  }
+
+  /** Let taps mark stickers (study mode); turning it off also clears the marks. */
+  setMarking(on: boolean) {
+    this.marking = on;
+    if (!on) this.clearMarks();
+  }
+
+  /** Where the marked stickers are now, as "x,y,z|nx,ny,nz" keys. */
+  markedKeys(): string[] {
+    return [...this.marks].map((i) => `${this.stickers[i]!.p.join(",")}|${this.stickers[i]!.n.join(",")}`);
+  }
+
+  clearMarks() {
+    this.marks.clear();
+    if (!this.anim) this.draw();
+  }
+
+  private toggleMarkAt(x: number, y: number) {
+    const inside = (poly: [number, number][]) => {
+      let hit = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i]!, [xj, yj] = poly[j]!;
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+      }
+      return hit;
+    };
+    for (let i = this.hits.length - 1; i >= 0; i--) {
+      if (!inside(this.hits[i]!.poly)) continue;
+      const index = this.indexAt.get(this.hits[i]!.key);
+      if (index === undefined) return;
+      if (!this.marks.delete(index)) this.marks.add(index);
+      this.draw();
+      return;
+    }
   }
 
   getState(): Sticker[] {
@@ -154,7 +214,7 @@ export class CubeView {
     const angle = anim ? anim.move.angle * anim.dir * anim.f : 0;
     const rot = (p: Vec, active: boolean): Vec => (active && anim ? rotateVec(p, anim.move.axis, angle) : p);
 
-    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number };
+    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; key: string; marked: boolean };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
     for (const x of vals) for (const y of vals) for (const z of vals) {
@@ -200,6 +260,8 @@ export class CubeView {
           st: polygon(0.8),
           col: raw ? (muted ? GREY : hexOf(raw)) : undefined,
           active,
+          key,
+          marked: this.marks.size > 0 && this.marks.has(this.indexAt.get(key) ?? -1),
           depth: dot(rot(centre, active), b.view),
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
         });
@@ -224,8 +286,10 @@ export class CubeView {
         ctx.strokeStyle = f.active ? "#fff1a8" : "rgba(255,255,255,.18)";
         ctx.lineWidth = f.active ? 2 : 1;
         ctx.stroke();
+        if (f.marked) this.drawMark(f.st);
       }
     }
+    this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
     else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
   }
@@ -288,6 +352,29 @@ export class CubeView {
       this.drawHead(part[part.length - 1]!, part[part.length - 3]!);
       if (hidden) ctx.setLineDash([9, 7]);
     }
+    ctx.restore();
+  }
+
+  /** A mark: a dark dot with a white ring in the middle of the sticker, and a dark outline round it. */
+  private drawMark(st: [number, number][]) {
+    const { ctx } = this;
+    const cx = st.reduce((a, p) => a + p[0], 0) / st.length;
+    const cy = st.reduce((a, p) => a + p[1], 0) / st.length;
+    const side = Math.min(Math.hypot(st[1]![0] - st[0]![0], st[1]![1] - st[0]![1]), Math.hypot(st[3]![0] - st[0]![0], st[3]![1] - st[0]![1]));
+    ctx.save();
+    ctx.beginPath();
+    st.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
+    ctx.closePath();
+    ctx.strokeStyle = "#172336";
+    ctx.lineWidth = Math.max(2.5, side * 0.11);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(4, side * 0.2), 0, Math.PI * 2);
+    ctx.fillStyle = "#172336";
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.5, side * 0.04);
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
     ctx.restore();
   }
 
