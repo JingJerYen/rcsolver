@@ -260,8 +260,12 @@ function openSaved(sv: Save) {
 
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
-  // the paste-a-state button lives in the header and only matters on the start screen
-  $("import").classList.toggle("hidden", id !== "setup");
+  // one home button in the header serves every screen but the home screen itself
+  const home = $("home");
+  home.classList.toggle("hidden", id === "setup");
+  home.classList.remove("confirm");
+  $("homeIcon").classList.remove("hidden");
+  $("homeX").classList.add("hidden");
   setHero(id === "setup" && loadSaves().length === 0);
 }
 
@@ -279,8 +283,8 @@ function thumbsHtml(current: number | null): string {
 function renderStep() {
   const step = STEPS[stepIndex]!;
   // re-shooting one face: the corner button is a plain cancel back to the photos, not "home"
-  $("cancelHome").classList.toggle("hidden", singleShot);
-  $("cancelX").classList.toggle("hidden", !singleShot);
+  $("homeIcon").classList.toggle("hidden", singleShot);
+  $("homeX").classList.toggle("hidden", !singleShot);
   $("stepCount").textContent = `${stepIndex + 1} / ${STEPS.length}`;
   guide.show(turnsBefore(stepIndex), { gestures: step.turns, target: step.face });
   $("thumbs").innerHTML = thumbsHtml(stepIndex);
@@ -690,7 +694,7 @@ function replaySegment() {
 /** A home tap while solving needs a second tap within 3 s, so a stray touch does not throw the solve away. */
 let homeArmed = 0;
 function homeFromSolve() {
-  const btn = $("closeSolve");
+  const btn = $("home");
   if (Date.now() - homeArmed < 3000) {
     btn.classList.remove("confirm");
     homeArmed = 0;
@@ -901,7 +905,13 @@ sizeDialog.addEventListener("click", (e) => {
 /* ---------- wiring ---------- */
 
 $("start").onclick = () => void startCapture();
-$("cancel").onclick = cancelCapture;
+/** The header's home button: cancel a capture, leave a solve on a second tap, otherwise just go home. */
+$("home").onclick = () => {
+  const current = SCREENS.find((s) => !$(s).classList.contains("hidden"));
+  if (current === "capture") cancelCapture();
+  else if (current === "solveView") homeFromSolve();
+  else showScreen("setup");
+};
 $("tips").onclick = showTips;
 $("shoot").onclick = () => {
   if (nativeCamera) {
@@ -936,8 +946,6 @@ const onFilePicked = async (e: Event) => {
 $<HTMLInputElement>("file").onchange = onFilePicked;
 $<HTMLInputElement>("fileCapture").onchange = onFilePicked;
 $("send").onclick = () => void send();
-$("homeReview").onclick = () => showScreen("setup");
-$("homeResult").onclick = () => showScreen("setup");
 $("reviewThumbs").onclick = (e) => {
   const el = (e.target as HTMLElement).closest(".thumb");
   if (!el) return;
@@ -996,7 +1004,6 @@ $("importDialog").querySelector("form")!.onsubmit = (e) => {
   response = { ok: true, size: parsed.size, sizeMismatch: null, recognition: { faces: parsed.net, confidence, notes: [] }, warnings: [], model: "import", mock: false, ms: 0, usage: null };
   showResult();
 };
-$("closeSolve").onclick = homeFromSolve;
 $("next").onclick = () => {
   stopPlaying();
   void step(1);

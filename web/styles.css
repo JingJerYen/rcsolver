@@ -70,7 +70,7 @@ th{color:#607189;font-weight:600}
 @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
 #health.bad{color:#b02a37}
 .top{display:flex;align-items:center;gap:10px}
-.top #import{margin-left:auto}
+.top #home{margin-left:auto}
 .brand{min-width:0;font-weight:700;font-size:18px;line-height:1.3;color:#39536e}
 .notice.small{font-size:13px}
 .center{text-align:center}
@@ -207,16 +207,18 @@ th{color:#607189;font-weight:600}
 .title-input{font:inherit;font-size:17px;border:1px solid #cdd7e5;border-radius:10px;padding:12px;width:100%}
 .title-input:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
 .nowrap{white-space:nowrap}
-.bottom-bar .study-btn{position:absolute;left:calc(50% + 66px);top:32px;width:60px;height:60px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#195ed6;border:2px solid #195ed6;box-shadow:0 4px 12px rgba(25,94,214,.2)}
-.bottom-bar .study-btn:active{transform:scale(.95)}
+/* paste on the left, study on the right, the camera button stays in the middle */
+.bottom-bar .side-btn{position:absolute;top:32px;width:60px;height:60px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#195ed6;border:2px solid #195ed6;box-shadow:0 4px 12px rgba(25,94,214,.2)}
+.bottom-bar .side-btn:active{transform:scale(.95)}
+.bottom-bar .import-btn{right:calc(50% + 66px)}
+.bottom-bar .study-btn{left:calc(50% + 66px)}
 .size-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .size-grid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:14px;background:#f4f7fb;border-color:#dde5ef;font-weight:700;color:#233b55}
 .size-grid canvas{width:72px;height:72px;pointer-events:none}
 #solveView:not(.study) .study-only{display:none!important}
 #solveView.study .solve-only{display:none!important}
-#solveView.study #closeSolve{margin-left:auto}
 .study-entry{color:#195ed6;border-color:#195ed6}
-.mode-tag{font-size:13px;font-weight:700;letter-spacing:.06em;color:#8a97a8;margin-left:8px}
+.mode-tag{font-size:13px;font-weight:700;letter-spacing:.06em;color:#8a97a8;margin-left:8px;margin-right:auto}
 .study-input{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed #dde5ef}
 .study-text{width:100%;font:600 17px ui-monospace,monospace;border:1px solid #cdd7e5;border-radius:10px;padding:10px 12px;color:#192a40;background:#fff}
 .study-text::placeholder{color:#b4bfcc;font-weight:400}
