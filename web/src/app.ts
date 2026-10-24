@@ -1004,14 +1004,15 @@ $("studyHelp").onclick = () => studyTour();
 /*
  * Hand turns: with the switch on, a drag that starts on a sticker turns its layer (the layer
  * follows the finger and settles on a quarter turn); off, drags turn the view as before. A turn
- * is recorded like a key press, so it merges and shows in the move text. Remembered per device.
+ * is recorded like a key press, so it merges and shows in the move text. On until switched off;
+ * remembered per device.
  */
 const TWIST_KEY = "rcsolver.twist";
-let twistOn = false;
+let twistOn = true;
 try {
-  twistOn = localStorage.getItem(TWIST_KEY) === "1";
+  twistOn = localStorage.getItem(TWIST_KEY) !== "0";
 } catch {
-  /* storage unavailable */
+  /* storage unavailable: on */
 }
 function setTwistOn(on: boolean) {
   twistOn = on;
@@ -1065,8 +1066,8 @@ function studyTour() {
       targets: [$("cube").parentElement!],
       title: tr("3D 方塊", "The cube"),
       body: tr(
-        "拖曳可以轉視角，右下的小方塊轉回正面；打開左下的「手轉」，改成用手指拖動某一層來轉。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
-        "Drag to turn the view; the small cube at the bottom right turns it back to the front. Switch on the hand button at the bottom left to turn a layer by dragging it instead. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
+        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
+        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
       ),
     },
     {
