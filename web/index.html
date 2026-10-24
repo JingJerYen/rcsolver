@@ -71,6 +71,7 @@
       <button class="icon-btn" id="shareResult" aria-label="分享"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="icon-btn" id="fix" aria-label="修正顏色"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18l3 3 6.5-6.5a4 4 0 0 0 5.2-5.2l-2.6 2.6-2.1-2.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     </div>
+    <p class="notice hidden" id="manualNote">AI 暫時無法辨識。點一面放大，照著照片填顏色。</p>
     <div class="cube-wrap">
       <canvas id="preview" class="cube" aria-label="辨識出來的方塊，可拖曳旋轉"></canvas>
       <button class="icon-btn small-btn view-btn" id="previewHome" aria-label="轉回正面"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
@@ -82,6 +83,7 @@
         <div class="legend" id="legend"></div>
         <button class="icon-btn small-btn" id="resetNet" aria-label="全部還原" disabled><svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 7H4V2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 7a8 8 0 1 1-2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       </div>
+      <p class="fill-count hidden" id="fillCount"></p>
     </div>
     <div class="go-row">
       <button class="icon-btn" id="again" aria-label="再拍一組"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
@@ -167,7 +169,14 @@
   </form>
 </dialog>
 <dialog id="sizeDialog" class="dialog" aria-label="選方塊大小">
-  <div class="dialog-body"><div class="size-grid" id="sizeGrid"></div></div>
+  <div class="dialog-body">
+    <div class="ai-fail hidden" id="aiFailHead">
+      <p class="dialog-title"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 3l9 16H3z" fill="#e0a21c"/><rect x="11" y="9" width="2" height="5" rx="1" fill="#fff"/><circle cx="12" cy="16.4" r="1.1" fill="#fff"/></svg><span id="aiFailTitle">AI 暫時無法辨識</span></p>
+      <p class="muted" id="aiFailText">選方塊大小，接著照著照片自己填顏色。</p>
+    </div>
+    <div class="size-grid" id="sizeGrid"></div>
+    <button type="button" class="link-btn hidden" id="aiRetry">再試一次 AI</button>
+  </div>
 </dialog>
 <script type="module" src="./app.js"></script>
 </body>

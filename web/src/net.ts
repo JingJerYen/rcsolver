@@ -4,6 +4,11 @@ import { tr } from "./i18n.js";
 export const COLOR_HEX: Record<Color, string> = { W: "#f9fcff", Y: "#ffda35", R: "#ed4954", O: "#ff9435", G: "#21bb86", B: "#3485ed" };
 export const COLOR_NAME: Record<Color, string> = { W: "白", Y: "黃", R: "紅", O: "橘", G: "綠", B: "藍" };
 
+/** A sticker nobody has given a colour yet: every cell starts this way when the colours are filled in by hand. */
+export const UNKNOWN = "?" as const;
+export const UNKNOWN_HEX = "#d3dae4";
+export const hexOf = (ch: string): string => COLOR_HEX[ch as Color] ?? UNKNOWN_HEX;
+
 /** Where each face sits in the 4×3 net: [column, row]. */
 const NET_POS: Record<Face, [number, number]> = { U: [1, 0], L: [0, 1], F: [1, 1], R: [2, 1], B: [3, 1], D: [1, 2] };
 
@@ -21,8 +26,27 @@ export function makeState(size: number, r: Recognition): NetState {
   return { size, original: copy(r.faces), current: copy(r.faces), confidence: copy(r.confidence) };
 }
 
-export function cellAt(grid: string[], r: number, c: number): Color {
-  return grid[r]![c] as Color;
+/** A net with no colours yet, for filling in by hand when the photos could not be read. */
+export function blankRecognition(size: number): Recognition {
+  const grid = (ch: string) => Object.fromEntries(FACES.map((f) => [f, Array.from({ length: size }, () => ch.repeat(size))])) as Record<Face, string[]>;
+  return { faces: grid(UNKNOWN), confidence: grid("9"), notes: [] };
+}
+
+/** How many stickers still have no colour. */
+export function unknownCount(grid: Record<Face, string[]>): number {
+  let n = 0;
+  for (const f of FACES) for (const row of grid[f]) for (const ch of row) if (ch === UNKNOWN) n++;
+  return n;
+}
+
+/** A sticker the user changed; filling in a blank one is not a correction. */
+export function isEdited(s: NetState, f: Face, r: number, c: number): boolean {
+  const was = cellAt(s.original[f], r, c);
+  return was !== UNKNOWN && was !== cellAt(s.current[f], r, c);
+}
+
+export function cellAt(grid: string[], r: number, c: number): Color | typeof UNKNOWN {
+  return grid[r]![c] as Color | typeof UNKNOWN;
 }
 
 export function setCell(grid: string[], r: number, c: number, color: Color) {
@@ -32,7 +56,7 @@ export function setCell(grid: string[], r: number, c: number, color: Color) {
 
 export function colorCounts(grid: Record<Face, string[]>): Record<Color, number> {
   const counts = Object.fromEntries(COLORS.map((c) => [c, 0])) as Record<Color, number>;
-  for (const f of FACES) for (const row of grid[f]) for (const ch of row) counts[ch as Color]++;
+  for (const f of FACES) for (const row of grid[f]) for (const ch of row) if (ch in counts) counts[ch as Color]++;
   return counts;
 }
 
@@ -87,9 +111,9 @@ export function renderNet(root: HTMLElement, s: NetState, onFace?: (face: Face) 
         const cell = document.createElement("div");
         const color = cellAt(s.current[f], r, c);
         cell.className = "cell";
-        cell.style.background = COLOR_HEX[color];
+        cell.style.background = hexOf(color);
         cell.textContent = s.size <= 5 ? color : "";
-        cell.classList.toggle("edited", color !== cellAt(s.original[f], r, c));
+        cell.classList.toggle("edited", isEdited(s, f, r, c));
         cell.dataset.face = f;
         cell.dataset.row = String(r);
         cell.dataset.col = String(c);
@@ -102,12 +126,13 @@ export function renderNet(root: HTMLElement, s: NetState, onFace?: (face: Face) 
   }
 }
 
-/** Colour chips with counts only (no words): a chip turns red when its count is not N². */
+/** Colour chips with counts only (no words): a chip turns red when its count is not N² (while filling in by hand, only once it is over). */
 export function renderLegend(root: HTMLElement, s: NetState) {
   const counts = colorCounts(s.current);
   const expected = s.size * s.size;
+  const filling = unknownCount(s.current) > 0;
   root.innerHTML = COLORS.map((c) => {
-    const off = counts[c] !== expected ? " off" : "";
+    const off = counts[c] > expected || (!filling && counts[c] !== expected) ? " off" : "";
     return `<span class="${off.trim()}"><i style="background:${COLOR_HEX[c]};border:1px solid #bbb"></i>${counts[c]}</span>`;
   }).join("");
 }

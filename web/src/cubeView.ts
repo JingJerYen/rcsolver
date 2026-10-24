@@ -2,7 +2,7 @@
  * Canvas 2D renderer for an N×N cube with animated layer turns, generalised from the
  * "照片換角解法" lesson page. Orthographic projection, painter's algorithm, drag to orbit.
  */
-import { COLOR_HEX } from "./net.js";
+import { hexOf } from "./net.js";
 import { FACE_AXES, applyMove, layerValues, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
@@ -189,7 +189,7 @@ export class CubeView {
         faces.push({
           poly: polygon(0.975),
           st: polygon(0.8),
-          col: raw ? (muted ? GREY : COLOR_HEX[raw as keyof typeof COLOR_HEX]) : undefined,
+          col: raw ? (muted ? GREY : hexOf(raw)) : undefined,
           active,
           depth: dot(rot(centre, active), b.view),
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
