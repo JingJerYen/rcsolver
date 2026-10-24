@@ -35,6 +35,14 @@ export class CubeView {
     if (!this.anim) this.draw();
   }
 
+  /** A move shown without turning: its layers outlined and its arrow drawn, as at the start of a turn. */
+  private preview: Move | null = null;
+
+  setPreview(move: Move | null) {
+    this.preview = move;
+    if (!this.anim) this.draw();
+  }
+
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
     this.ro = new ResizeObserver(() => this.resize());
@@ -153,7 +161,8 @@ export class CubeView {
       // only cubies on the surface have stickers; skip the hidden interior
       if (Math.abs(x) !== size - 1 && Math.abs(y) !== size - 1 && Math.abs(z) !== size - 1) continue;
       const c: Vec = [x, y, z];
-      const active = !!anim && anim.move.layers.includes(c[anim.move.axis]);
+      const shown = anim?.move ?? this.preview;
+      const active = !!shown && shown.layers.includes(c[shown.axis]);
       const focus = this.focus;
       let pieceMuted = false;
       if (focus && "pieces" in focus) {
@@ -218,6 +227,7 @@ export class CubeView {
       }
     }
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
+    else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
   }
 
   /**
