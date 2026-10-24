@@ -5,7 +5,7 @@ import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, keypadHtml, readMoves, tokenize, withModifier } from "./study.js";
+import { deltaTurn, keypadHtml, readMoves, tokenize } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt, studyGroups } from "./guide.js";
@@ -922,7 +922,6 @@ $("studyKeys").onclick = (e) => {
   }
   let next: string[];
   if (k.dataset.tok) next = [...studyTokens, k.dataset.tok];
-  else if (k.dataset.mod) next = withModifier(studyTokens, k.dataset.mod as "'" | "2");
   else if (k.dataset.del !== undefined) next = studyTokens.slice(0, -1);
   else return;
   $<HTMLInputElement>("studyText").value = next.join(" ");

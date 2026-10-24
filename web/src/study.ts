@@ -42,17 +42,8 @@ export function keyToken(face: string, depth: number, wide: boolean): string {
   return `${depth}${face}`;
 }
 
-/** The 2 key (and, for text, ' too) changes the last move: R → R2 → R, R → R' → R. */
-export function withModifier(tokens: string[], mod: "'" | "2"): string[] {
-  const last = tokens[tokens.length - 1];
-  if (!last) return tokens;
-  const base = last.replace(/['2]$/, "");
-  const now = last.slice(base.length);
-  return [...tokens.slice(0, -1), now === mod ? base : base + mod];
-}
-
 /**
- * When only the last move changed on the same layer (R → R2, R → R', typed or from the 2 key), the
+ * When only the last move changed on the same layer (R → R2, R → R', typed), the
  * extra turn from the old move to the new one, so the cube can turn into place instead of jumping.
  * R → R2 continues a quarter turn; R → R' goes back half a turn.
  */
@@ -68,7 +59,7 @@ export function deltaTurn(before: string, after: string, size: number): { move: 
   return { move: studyMove(`${base}2`, size)!, dir: a.q > 0 ? -1 : 1 };
 }
 
-/** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then 2 x y z and delete. */
+/** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then x y z and delete. A half turn is the same key twice. */
 export function keypadHtml(size: number, depth: number, wide: boolean): string {
   const deepest = Math.floor(size / 2);
   const layers =
@@ -85,5 +76,5 @@ export function keypadHtml(size: number, depth: number, wide: boolean): string {
       return `<button type="button" class="k ${prime ? "ccw" : "face"}" data-tok="${t}">${t.replace("'", "′")}</button>`;
     }).join("");
   return `${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>
-    <div class="krow five"><button type="button" class="k" data-mod="2">2</button><button type="button" class="k" data-tok="x">x</button><button type="button" class="k" data-tok="y">y</button><button type="button" class="k" data-tok="z">z</button><button type="button" class="k del" data-del aria-label="${tr("刪除", "Delete")}">⌫</button></div>`;
+    <div class="krow four"><button type="button" class="k" data-tok="x">x</button><button type="button" class="k" data-tok="y">y</button><button type="button" class="k" data-tok="z">z</button><button type="button" class="k del" data-del aria-label="${tr("刪除", "Delete")}">⌫</button></div>`;
 }

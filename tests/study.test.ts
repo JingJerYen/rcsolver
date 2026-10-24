@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deltaTurn, keyToken, readMoves, studyMove, tokenize, withModifier } from "../web/src/study.js";
+import { deltaTurn, keyToken, readMoves, studyMove, tokenize } from "../web/src/study.js";
 import { applyAlgorithm, fromNet, isSolved } from "../web/src/cubeState.js";
 import { studyGroups } from "../web/src/guide.js";
 import type { Face } from "../web/src/api.js";
@@ -18,17 +18,12 @@ test("study: typed moves are read per token, skipping what is not a move", () =>
   assert.notEqual(studyMove("4R", 4), null, "the fourth layer from R is the L layer");
 });
 
-test("study: keypad tokens and the ' / 2 keys", () => {
+test("study: keypad tokens", () => {
   assert.equal(keyToken("R", 1, false), "R");
   assert.equal(keyToken("R", 1, true), "R", "wide on the outer layer is just the face");
   assert.equal(keyToken("R", 2, false), "2R");
   assert.equal(keyToken("R", 2, true), "Rw");
   assert.equal(keyToken("U", 3, true), "3Uw");
-  assert.deepEqual(withModifier(["R", "U"], "'"), ["R", "U'"]);
-  assert.deepEqual(withModifier(["R", "U'"], "'"), ["R", "U"]);
-  assert.deepEqual(withModifier(["R", "U'"], "2"), ["R", "U2"]);
-  assert.deepEqual(withModifier(["2Rw2"], "2"), ["2Rw"]);
-  assert.deepEqual(withModifier([], "2"), []);
 });
 
 test("study: a sequence and its reverse bring the cube back, on every size", () => {
