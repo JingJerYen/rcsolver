@@ -15,7 +15,7 @@ export interface Gesture {
 }
 
 /** Image axes for each face so that the photo is drawn the way the net expects it. */
-const FACE_AXES: Record<Face, { n: Vec; right: Vec; down: Vec }> = {
+export const FACE_AXES: Record<Face, { n: Vec; right: Vec; down: Vec }> = {
   F: { n: [0, 0, 1], right: [1, 0, 0], down: [0, -1, 0] },
   R: { n: [1, 0, 0], right: [0, 0, -1], down: [0, -1, 0] },
   B: { n: [0, 0, -1], right: [-1, 0, 0], down: [0, -1, 0] },
@@ -39,12 +39,17 @@ function mul(a: Mat, b: Mat): Mat {
   return out as Mat;
 }
 
-function apply(m: Mat, v: Vec): Vec {
+export function apply(m: Mat, v: Vec): Vec {
   return [
     m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
     m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
     m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
   ];
+}
+
+/** The cube's orientation after making `gestures` in order, starting from F in front and U on top. */
+export function orient(gestures: Gesture[]): Mat {
+  return gestures.reduce((m, g) => mul(rot(g.axis, g.deg), m), IDENTITY);
 }
 
 function add(...vs: Vec[]): Vec {
@@ -119,7 +124,7 @@ export class GuideCube {
 
   /** `base` is the orientation the physical cube is in now (product of all earlier gestures). */
   show(base: Gesture[], step: GuideStep) {
-    this.base = base.reduce((m, g) => mul(rot(g.axis, g.deg), m), IDENTITY);
+    this.base = orient(base);
     this.step = step;
     this.t0 = performance.now();
     this.start();
