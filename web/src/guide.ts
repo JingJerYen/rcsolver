@@ -105,6 +105,71 @@ export function studyGroups(size: number): Set<string>[] {
   return groups;
 }
 
+/** Title and explanation for each of studyGroups(size), in the same order, worded like guide mode's. */
+export function studyGroupInfo(size: number): { title: string; body: string }[] {
+  const odd = size % 2 === 1;
+  const out: { title: string; body: string }[] = [];
+  if (size >= 4) {
+    const k = centreSolverFor(size).orbits.length;
+    const how = tr(
+      "解法：先把白色和黃色集中到上下，再把紅色和橘色分到左右（綠色和藍色自然到前後），最後每一面歸位。",
+      "To solve them: gather white and yellow onto the top and bottom, sort red and orange onto the left and right (green and blue end up front and back on their own), then finish each face.",
+    );
+    for (let i = 0; i < k; i++) {
+      out.push({
+        title: k > 1 ? tr(`中心 ${i + 1}/${k}`, `Centres ${i + 1}/${k}`) : tr("中心", "Centres"),
+        body:
+          (k > 1
+            ? tr(`中心格分成 ${k} 組，每一組只會在組內互換位置，彩色的是第 ${i + 1} 組，解的時候一組一組來。`, `The centre pieces fall into ${k} groups that only ever swap among themselves; the coloured ones are group ${i + 1}, and they are solved one group at a time. `)
+            : tr("彩色的中心格只會在這些位置之間互換。", "The coloured centre pieces only ever swap among these positions. ")) + how,
+      });
+    }
+  }
+  if (odd) {
+    out.push({
+      title: size === 3 ? tr("中心", "Centres") : tr("固定中心", "Fixed centres"),
+      body: tr(
+        "每一面正中央那一塊。轉任何一層都不會讓它換到別面（只有 x y z 轉整顆時跟著換方向），所以它決定這一面是什麼顏色。",
+        "The piece in the very middle of each face. No layer turn moves it to another face (only x, y and z turn it along with the whole cube), so it decides what colour its face should be.",
+      ),
+    });
+  }
+  if (size >= 4) {
+    const orbits = wingOrbits(size).length;
+    for (let i = 0; i < orbits; i++) {
+      const ref = odd
+        ? tr("以每條邊中央那一塊為準。", "Each edge is matched to its middle piece.")
+        : i === 0
+          ? tr("先讓每條邊上的翼塊兩兩成對。", "First, the wing pieces on each edge are paired up.")
+          : tr("以最外層那組翼塊為準對齊。", "They are lined up against the outermost wing pieces.");
+      out.push({
+        title: orbits > 1 ? tr(`邊塊 ${i + 1}/${orbits}`, `Edges ${i + 1}/${orbits}`) : tr("邊塊", "Edges"),
+        body: tr(
+          `彩色的翼塊只會在這些位置之間互換。解法先用外層把要配的兩塊擺到位，再接一條只換三塊的公式，其他全部不動。${ref}`,
+          `The coloured wing pieces only ever swap among these positions. To pair them, a few outer turns line up the two pieces, then a formula swaps just three pieces and leaves everything else alone. ${ref}`,
+        ),
+      });
+    }
+  }
+  if (odd) {
+    out.push(
+      size === 3
+        ? { title: tr("邊塊", "Edges"), body: tr("12 個邊塊，每塊兩種顏色，只會和其他邊塊互換位置或翻面。", "The 12 edge pieces, two colours each. They only ever swap places with each other or flip over.") }
+        : {
+            title: tr("中間邊塊", "Middle edges"),
+            body: tr("每條邊正中央那一塊，配邊塊時以它為準；邊配好之後，整條邊就當成 3×3 的一個邊塊來解。", "The piece in the middle of each edge. Edges are paired to match it, and once they are, each whole edge is solved like one edge of a 3×3."),
+          },
+    );
+  }
+  out.push({
+    title: tr("角塊", "Corners"),
+    body:
+      tr("8 個角塊，每塊三種顏色，只會和其他角塊互換位置或原地轉向。", "The 8 corner pieces, three colours each. They only ever swap places with each other or twist in place.") +
+      (size > 3 ? tr("不管幾階都和 3×3 一樣，最後在「當成 3×3」的階段一起解。", " On every size they behave as on a 3×3, and are solved in the \"as a 3×3\" step at the end.") : ""),
+  });
+  return out;
+}
+
 function edgeNormals(p: Vec, m: number): Vec[] {
   const out: Vec[] = [];
   for (let ax = 0; ax < 3; ax++) {

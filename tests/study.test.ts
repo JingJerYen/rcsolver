@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deltaTurn, keyToken, pushMove, readMoves, studyMove, tokenize } from "../web/src/study.js";
 import { applyAlgorithm, fromNet, isSolved, toNet } from "../web/src/cubeState.js";
-import { studyGroups } from "../web/src/guide.js";
+import { studyGroupInfo, studyGroups } from "../web/src/guide.js";
 import type { Face } from "../web/src/api.js";
 
 const COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
@@ -100,4 +100,9 @@ test("study: the ? groups cover every sticker once and stay closed under turns",
     for (const g of groups) for (const k of g) assert.ok(g.has(ids.get(after.get(k)!.c)!), `${n}×${n}: ${k} keeps its group`);
   }
   assert.deepEqual(counts, [1, 3, 3, 6, 7, 11]);
+  for (let n = 2; n <= 7; n++) {
+    const info = studyGroupInfo(n);
+    assert.equal(info.length, studyGroups(n).length, `${n}×${n}: one explanation per group`);
+    assert.ok(info.every((g) => g.title && g.body), `${n}×${n}`);
+  }
 });

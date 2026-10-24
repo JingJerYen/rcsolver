@@ -8,7 +8,7 @@ import { localizePage, tr } from "./i18n.js";
 import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
-import { chipsFor, describe, focusKeys, segmentAt, studyGroups } from "./guide.js";
+import { chipsFor, describe, focusKeys, segmentAt, studyGroupInfo, studyGroups } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -793,6 +793,7 @@ let studyDirty = false;
 /** Study mode's "?": which of studyGroups() is in colour, -1 for all of them. Separate from guide mode's switch. */
 let studyFocus = -1;
 let studyGroupList: Set<string>[] = [];
+let studyGroupTexts: { title: string; body: string }[] = [];
 
 function studyFocusKeys(): { keys: Set<string> } | null {
   const g = studying && studyFocus >= 0 ? studyGroupList[studyFocus] : undefined;
@@ -803,6 +804,11 @@ function setStudyFocus(i: number) {
   studyFocus = i;
   $("studyFocusBtn").classList.toggle("on", i >= 0);
   cubeView.setFocus(studyFocusKeys());
+  // the same kind of explanation guide mode gives, for the group in colour
+  const info = i >= 0 ? studyGroupTexts[i] : undefined;
+  $("studyGroupText").classList.toggle("hidden", !info);
+  $("studyGroupTitle").textContent = info?.title ?? "";
+  $("studyGroupBody").textContent = info?.body ?? "";
 }
 
 /** The solve a study was opened from, to go back to exactly as it was (the study's own moves are dropped). */
@@ -849,6 +855,7 @@ function startStudy(n: number, start: Sticker[]) {
   studyFrom = null;
   $("backToSolve").classList.add("hidden");
   studyGroupList = studyGroups(n);
+  studyGroupTexts = studyGroupInfo(n);
   $<HTMLInputElement>("studyText").value = "";
   $("studyText").classList.remove("bad");
   setStudying(true);
