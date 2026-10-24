@@ -925,9 +925,43 @@ function openStudy(sv: Save) {
   jumpTo(at, Math.max(0, at - 1));
 }
 
-$("studyKeys").onclick = (e) => {
+/*
+ * Holding a move key shows which layers it turns (outlined, with the arrow) without turning; letting
+ * go after a hold does nothing. Only a tap turns.
+ */
+const HOLD_MS = 350;
+let holdTimer = 0;
+let held = false;
+const studyKeys = $("studyKeys");
+function endHold() {
+  clearTimeout(holdTimer);
+  holdTimer = 0;
+  if (held) cubeView.setPreview(null);
+}
+studyKeys.addEventListener("pointerdown", (e) => {
+  const k = (e.target as HTMLElement).closest<HTMLElement>("[data-tok]");
+  endHold();
+  held = false;
+  if (!k || !net) return;
+  const mv = studyMove(k.dataset.tok!, net.size);
+  if (!mv) return;
+  holdTimer = window.setTimeout(() => {
+    held = true;
+    cubeView.setPreview(mv);
+  }, HOLD_MS);
+});
+for (const type of ["pointerup", "pointercancel", "pointerleave"]) studyKeys.addEventListener(type, endHold);
+// a long press would otherwise open the phone's menu or start selecting text
+studyKeys.addEventListener("contextmenu", (e) => e.preventDefault());
+
+studyKeys.onclick = (e) => {
   const k = (e.target as HTMLElement).closest<HTMLElement>("button");
   if (!k || !net) return;
+  if (held) {
+    // the end of a hold, not a tap
+    held = false;
+    return;
+  }
   if (k.dataset.depth) {
     studyDepth = Number(k.dataset.depth);
     if (studyDepth === 1) studyWide = false;
