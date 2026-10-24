@@ -5,7 +5,7 @@ import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize } from "./study.js";
+import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize, twistToken } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt, studyGroupInfo, studyGroups } from "./guide.js";
@@ -824,6 +824,7 @@ function setStudying(on: boolean) {
   // tapping a sticker marks it in study mode; every new study starts without marks
   cubeView.setMarking(on);
   cubeView.clearMarks();
+  setTwistOn(twistOn);
   // the pace and copy buttons sit either side of the move text in study mode, of the token strip otherwise
   const row = on ? $("studyTextRow") : $("sequence").parentElement!;
   row.prepend($("pace"));
@@ -867,8 +868,11 @@ function startStudy(n: number, start: Sticker[]) {
   firstStudyTour();
 }
 
-/** New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now. */
-function setStudyTokens(tokens: string[], pressed?: string) {
+/**
+ * New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now.
+ * `turned`: the cube already shows them (a hand turn), so only the step moves to the end.
+ */
+function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
   if (!net) return;
   stopPlaying();
   const before = moves.length;
@@ -878,6 +882,11 @@ function setStudyTokens(tokens: string[], pressed?: string) {
   const read = readMoves(tokens, net.size);
   $("studyText").classList.toggle("bad", read.bad);
   moves = read.moves;
+  if (turned) {
+    studyDirty = false;
+    jumpTo(moves.length, Math.max(0, moves.length - 1));
+    return;
+  }
   if (cubeView.animating) {
     studyDirty = true;
     return;
@@ -991,6 +1000,51 @@ $("studyText").onkeydown = (e) => {
 const tourDialog = $<HTMLDialogElement>("tourDialog");
 tourDialog.querySelector(".tour-skip")!.textContent = tr("略過", "Skip");
 $("studyHelp").onclick = () => studyTour();
+
+/*
+ * Hand turns: with the switch on, a drag that starts on a sticker turns its layer (the layer
+ * follows the finger and settles on a quarter turn); off, drags turn the view as before. A turn
+ * is recorded like a key press, so it merges and shows in the move text. Remembered per device.
+ */
+const TWIST_KEY = "rcsolver.twist";
+let twistOn = false;
+try {
+  twistOn = localStorage.getItem(TWIST_KEY) === "1";
+} catch {
+  /* storage unavailable */
+}
+function setTwistOn(on: boolean) {
+  twistOn = on;
+  const btn = $("twistBtn");
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", String(on));
+  $("solveView").classList.toggle("twisting", on);
+  cubeView.setTwisting(studying && on);
+}
+$("twistBtn").onclick = () => {
+  setTwistOn(!twistOn);
+  try {
+    localStorage.setItem(TWIST_KEY, twistOn ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
+};
+// a hand turn adds to the end of the moves: from an earlier step, go to the end first
+cubeView.canTwist = () => {
+  if (!studying || !net) return false;
+  if (moveIndex === moves.length) return true;
+  stopPlaying();
+  jumpTo(moves.length, Math.max(0, moves.length - 1));
+  return false;
+};
+cubeView.onTwist = (axis, layer, quarters) => {
+  if (!net) return;
+  const token = twistToken(net.size, axis, layer, quarters);
+  if (!token) return;
+  const next = pushMove(studyTokens, token);
+  $<HTMLInputElement>("studyText").value = next.join(" ");
+  setStudyTokens(next, undefined, true);
+};
 const TOUR_KEY = "rcsolver.studyTour";
 /** The tour runs by itself the first time study mode opens on this device. */
 function firstStudyTour() {
@@ -1011,8 +1065,8 @@ function studyTour() {
       targets: [$("cube").parentElement!],
       title: tr("3D 方塊", "The cube"),
       body: tr(
-        "拖曳可以轉視角，右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
-        "Drag to turn the view; the small cube at the bottom right turns it back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
+        "拖曳可以轉視角，右下的小方塊轉回正面；打開左下的「手轉」，改成用手指拖動某一層來轉。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
+        "Drag to turn the view; the small cube at the bottom right turns it back to the front. Switch on the hand button at the bottom left to turn a layer by dragging it instead. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
       ),
     },
     {
@@ -1413,6 +1467,10 @@ if ("serviceWorker" in navigator) {
   },
   get marks() {
     return cubeView.markedKeys();
+  },
+  /** Where a sticker ("x,y,z|nx,ny,nz") is drawn on the cube canvas. */
+  stickerPoint(key: string) {
+    return cubeView.pointOf(key);
   },
   /** The cube on screen as a net, to compare states across pages. */
   get cubeNet() {

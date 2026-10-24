@@ -60,6 +60,30 @@ export function pushMove(tokens: string[], token: string): string[] {
 }
 
 /**
+ * The move for a layer turned by hand: the layer at `layer` on `axis` (0 x, 1 y, 2 z, coordinates
+ * as layerValues), turned `quarters` quarter turns by the right-hand rule about that axis. Named
+ * from the nearer face (the positive one for the middle layer): R, 2R, L′, U2 and so on.
+ */
+export function twistToken(size: number, axis: 0 | 1 | 2, layer: number, quarters: number): string | null {
+  const q = (((quarters % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+  if (!q) return null;
+  const [pos, neg] = (["RL", "UD", "FB"] as const)[axis];
+  const fromPos = (size - 1 - layer) / 2 + 1;
+  const fromNeg = (layer + size - 1) / 2 + 1;
+  const bases = layer >= 0 ? [[pos, fromPos], [neg, fromNeg]] : [[neg, fromNeg], [pos, fromPos]];
+  const target = (q * Math.PI) / 2;
+  const same = (a: number) => Math.abs(Math.atan2(Math.sin(a - target), Math.cos(a - target))) < 1e-6;
+  for (const [face, depth] of bases as [string, number][]) {
+    const base = depth === 1 ? face : `${depth}${face}`;
+    for (const suffix of ["", "'", "2"]) {
+      const mv = studyMove(base + suffix, size);
+      if (mv && mv.axis === axis && mv.layers.length === 1 && mv.layers[0] === layer && same(mv.angle)) return base + suffix;
+    }
+  }
+  return null;
+}
+
+/**
  * When only the last move changed on the same layer (R → R2, R → R', typed), the
  * extra turn from the old move to the new one, so the cube can turn into place instead of jumping.
  * R → R2 continues a quarter turn; R → R' goes back half a turn.

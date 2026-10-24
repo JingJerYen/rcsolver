@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deltaTurn, keyToken, pushMove, readMoves, studyMove, tokenize } from "../web/src/study.js";
-import { applyAlgorithm, fromNet, isSolved, toNet } from "../web/src/cubeState.js";
+import { deltaTurn, keyToken, pushMove, readMoves, studyMove, tokenize, twistToken } from "../web/src/study.js";
+import { applyAlgorithm, applyMove, fromNet, isSolved, layerValues, toNet, type Move } from "../web/src/cubeState.js";
 import { studyGroupInfo, studyGroups } from "../web/src/guide.js";
 import type { Face } from "../web/src/api.js";
 
@@ -46,6 +46,27 @@ test("study: pressing the same layer again merges into the last move", () => {
     const separate = applyAlgorithm(solved(n), readMoves(keys, n).moves);
     const merged = applyAlgorithm(solved(n), readMoves(press(...keys).split(" ").filter(Boolean), n).moves);
     assert.deepEqual(toNet(n, merged), toNet(n, separate), keys.join(" "));
+  }
+});
+
+test("study: a layer turned by hand gets the move that turns it the same way", () => {
+  assert.equal(twistToken(3, 0, 2, -1), "R");
+  assert.equal(twistToken(3, 0, -2, 1), "L");
+  assert.equal(twistToken(3, 1, 2, 2), "U2");
+  assert.equal(twistToken(3, 0, 2, 4), null, "a full turn is no move");
+  for (let n = 2; n <= 7; n++) {
+    const start = applyAlgorithm(solved(n), readMoves(["R", "U", "F'"], n).moves);
+    for (const axis of [0, 1, 2] as const) {
+      for (const layer of layerValues(n)) {
+        for (const q of [1, -1, 2]) {
+          const token = twistToken(n, axis, layer, q);
+          assert.ok(token, `${n}×${n} axis ${axis} layer ${layer} q ${q}`);
+          const byHand = applyMove(start, { axis, layers: [layer], angle: (q * Math.PI) / 2 } as Move);
+          const byToken = applyAlgorithm(start, [studyMove(token!, n)!]);
+          assert.deepEqual(toNet(n, byToken), toNet(n, byHand), `${n}×${n} ${token}`);
+        }
+      }
+    }
   }
 });
 
