@@ -5,7 +5,7 @@ import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, keypadHtml, readMoves, tokenize } from "./study.js";
+import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt, studyGroups } from "./guide.js";
@@ -860,7 +860,8 @@ function startStudy(n: number, start: Sticker[]) {
 }
 
 /** New tokens from the keypad or the text field; a key that adds a move animates it in. */
-function setStudyTokens(tokens: string[], animateNew: boolean) {
+/** New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now. */
+function setStudyTokens(tokens: string[], pressed?: string) {
   if (!net) return;
   stopPlaying();
   const before = moves.length;
@@ -874,9 +875,21 @@ function setStudyTokens(tokens: string[], animateNew: boolean) {
     studyDirty = true;
     return;
   }
-  if (animateNew && moves.length === before + 1) {
+  if (pressed && moves.length === before + 1) {
     jumpTo(before, before);
     void step(1);
+    return;
+  }
+  const turn = pressed ? studyMove(pressed, net.size) : null;
+  const kept = Math.min(moves.length, before - 1);
+  if (turn && moveIndex === before && moves.length >= before - 1 && moves.length <= before && moves.slice(0, kept).every((m, i) => m.token === prevTokens[i])) {
+    // the key merged into the last move (L L → L2) or cancelled it (L L′): turn by the key pressed
+    shownIndex = Math.max(0, moves.length - 1);
+    renderSolve();
+    void cubeView.animate(turn, 1, turnMs).then(() => {
+      studyDirty = false;
+      jumpTo(moves.length, Math.max(0, moves.length - 1));
+    });
     return;
   }
   const delta = moves.length === before && moveIndex === before && before > 0 ? deltaTurn(prevLast!, moves[before - 1]!.token, net.size) : null;
@@ -921,13 +934,13 @@ $("studyKeys").onclick = (e) => {
     return;
   }
   let next: string[];
-  if (k.dataset.tok) next = [...studyTokens, k.dataset.tok];
+  if (k.dataset.tok) next = pushMove(studyTokens, k.dataset.tok);
   else if (k.dataset.del !== undefined) next = studyTokens.slice(0, -1);
   else return;
   $<HTMLInputElement>("studyText").value = next.join(" ");
-  setStudyTokens(next, k.dataset.tok !== undefined);
+  setStudyTokens(next, k.dataset.tok);
 };
-$("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value), false);
+$("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value));
 $("studyText").onkeydown = (e) => {
   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
 };
