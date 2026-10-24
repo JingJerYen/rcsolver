@@ -135,8 +135,6 @@ th{color:#607189;font-weight:600}
 .save .mini{width:100%;aspect-ratio:1/1;display:block;touch-action:auto;pointer-events:none}
 .save .badge{font-size:12px;padding:3px 8px}
 .save .del{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;padding:0;font-size:12px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}
-.save .share{width:36px;height:36px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}
-.save .share.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
 .progress-badge{font-size:22px;padding:8px 16px}
 .slider{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0 0 6px;display:block;touch-action:pan-y}
 .slider::-webkit-slider-runnable-track{height:8px;border-radius:8px;background:linear-gradient(to right,#195ed6 var(--p,0%),#e7edf5 var(--p,0%))}
@@ -233,6 +231,10 @@ th{color:#607189;font-weight:600}
 .k{min-width:0;height:46px;padding:0;border-radius:10px;font:700 18px ui-monospace,monospace;line-height:1;color:#192a40;display:flex;align-items:center;justify-content:center}
 .k:active{transform:scale(.95)}
 .k.face{background:#195ed6;color:#fff;border-color:#195ed6;font-size:17px}
+.k.ccw{background:#e3ecfb;color:#195ed6;border-color:#9dbcf0;font-size:17px}
+.krow.five{grid-template-columns:repeat(5,1fr)}
+.back-solve{color:#195ed6;border-color:#195ed6;background:#e9f0ff}
+.save .save-kind{position:absolute;left:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center}
 .k.small{height:36px;font:600 14px system-ui,"Noto Sans TC",sans-serif}
 .k.on{background:#e9f0ff;border-color:#195ed6;color:#195ed6}
 .k.del{color:#c92a2a}
