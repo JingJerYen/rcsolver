@@ -865,8 +865,11 @@ function startStudy(n: number, start: Sticker[]) {
   renderKeys();
   setStudyFocus(-1);
   cubeView.setState(n, start);
-  // a dot on the front face's centre to start with, so it is easy to see where the front went
-  if (n % 2) cubeView.mark(`0,0,${n - 1}|0,0,1`);
+  // every study, a save included, opens at the starting angle rather than wherever the view was left
+  cubeView.resetView();
+  // a dot on the front face's centre to start with, so it is easy to see where the front went;
+  // an even cube has no single centre, so the top-left of the middle four
+  cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
   showScreen("solveView");
   renderSolve();
 }
