@@ -1,7 +1,7 @@
 import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
-import { drawPhotoTips } from "./photoTips.js";
+import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { accuracy, makeState, markBadCells, renderLegend, renderNet, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
@@ -330,9 +330,11 @@ function tipsSeen(): boolean {
 function showTips() {
   tipsDialog.showModal();
   drawPhotoTips(tipsDialog);
+  speakPhotoTip();
 }
 
 tipsDialog.addEventListener("close", () => {
+  stopPhotoTip();
   try {
     localStorage.setItem(TIPS_KEY, "1");
   } catch {
