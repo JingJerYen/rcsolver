@@ -340,19 +340,21 @@ th{color:#607189;font-weight:600}
 .seg button[aria-selected="true"]{background:#fff;color:#195ed6;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .lesson-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .lesson{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:10px 14px;border-radius:16px;border-color:#dde5ef;text-align:left;color:#192a40}
-.lesson.current{border:2px solid #195ed6;box-shadow:0 0 0 4px rgba(25,94,214,.12)}
-.lesson.locked{background:#e9eef4;color:#7a8799}
-.lesson.locked:disabled{opacity:1}
+.lesson.is-current{border:2px solid #195ed6;box-shadow:0 0 0 4px rgba(25,94,214,.12)}
+.lesson.is-locked{background:#e9eef4;color:#7a8799}
+.lesson.is-locked:disabled{opacity:1}
 .lesson-icon{position:relative;flex:none;width:54px;height:54px;border-radius:14px;background:#f4f7fb;display:flex;align-items:center;justify-content:center}
 .lesson-grid{width:36px;height:36px;box-sizing:border-box;display:grid;grid-auto-rows:1fr;gap:2px;padding:2px;background:#1d2733;border-radius:5px}
 .lesson-grid i{border-radius:1.5px}
 .lesson-letters{font:800 16px ui-monospace,monospace;color:#195ed6}
-.lesson.locked .lesson-letters{color:#8593a5}
+.lesson.is-locked .lesson-letters{color:#8593a5}
 .lesson-lock{position:absolute;right:-4px;bottom:-4px;width:22px;height:22px;border-radius:50%;background:#8593a5;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #e9eef4}
-.lesson-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.lesson-name{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.lesson-name b{flex-basis:100%}
 .lesson-name b{font-size:16px}
 .lesson-stars{display:flex;gap:2px}
 .lesson-start{align-self:flex-start;height:26px;padding:0 12px;border-radius:13px;background:#195ed6;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center}
+.lesson-start.again{background:#fff;color:#195ed6;border:1px solid #9dbcf0}
 .lesson-no{flex:none;font-size:13px;font-weight:700;color:#8593a5}
 /* a lesson */
 .learn-top{display:flex;align-items:center;gap:10px}
