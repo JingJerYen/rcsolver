@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LESSONS, demoStart, hintPlan, invert, puzzle, solvedFor, starsFor, type LearnSize } from "../web/src/learn.js";
-import { applyAlgorithm, parseAlgorithm } from "../web/src/cubeState.js";
+import { applyAlgorithm, parseAlgorithm, toNet } from "../web/src/cubeState.js";
 
 function rng(seed: number) {
   let s = seed;
@@ -18,23 +18,20 @@ test("learn: the solved cube passes every lesson's goal and keeps every earlier 
     });
 });
 
-test("learn: practice puzzles need the stage, keep the earlier ones, and undoing the setup finishes it", () => {
-  const rand = rng(11);
+test("learn: three fixed puzzles per lesson: each needs the stage, keeps the earlier ones, and undoing it finishes it", () => {
   for (const size of SIZES)
     LESSONS[size].forEach((l, i) => {
       if (l.copy) return;
-      for (let k = 0; k < 3; k++)
-        for (let n = 0; n < 15; n++) {
-          const alg = l.setup(rand, k);
-          const start = applyAlgorithm(solvedFor(size, l.whiteDown), parseAlgorithm(alg, size));
-          if (l.goal(start, size)) continue; // puzzle() draws again
-          if (l.keep) assert.ok(l.keep(start, size), `${size} #${i} setup ${alg} broke an earlier stage`);
-          assert.ok(l.goal(applyAlgorithm(start, parseAlgorithm(invert(alg), size)), size), `${size} #${i} ${alg}`);
-        }
+      assert.equal(l.practice.length, 3, `${size} #${i}`);
       for (let k = 0; k < 3; k++) {
-        const p = puzzle(size, i, k, rand);
-        assert.ok(!l.goal(p.start, size) && (!l.keep || l.keep(p.start, size)) && p.par >= 8, `${size} #${i} puzzle ${k}`);
+        const p = puzzle(size, i, k);
+        assert.ok(!l.goal(p.start, size), `${size} #${i} puzzle ${k} is already done`);
+        assert.ok(!l.keep || l.keep(p.start, size), `${size} #${i} puzzle ${k} broke an earlier stage`);
+        assert.ok(l.goal(applyAlgorithm(p.start, parseAlgorithm(invert(p.setup), size)), size), `${size} #${i} puzzle ${k}`);
       }
+      // the first puzzle is the first watch card's cube, now to do yourself
+      const first = l.demos[0]!;
+      assert.deepEqual(toNet(size, puzzle(size, i, 0).start), toNet(size, demoStart(size, i, first.seq)), `${size} #${i}`);
     });
 });
 
@@ -71,7 +68,7 @@ test("learn: following the hint one turn at a time reaches the goal, even after 
     LESSONS[size].forEach((l, i) => {
       if (l.copy) return;
       for (let k = 0; k < 3; k++) {
-        const p = puzzle(size, i, k, rand);
+        const p = puzzle(size, i, k);
         const done = Array.from({ length: Math.floor(rand() * 3) }, () => stray[Math.floor(rand() * stray.length)]!);
         let cube = applyAlgorithm(p.start, parseAlgorithm(done.join(" "), size));
         let steps = 0;

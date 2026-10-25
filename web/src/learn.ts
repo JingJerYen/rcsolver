@@ -36,8 +36,12 @@ export interface Lesson {
   goal: (s: Sticker[], size: number) => boolean;
   /** The earlier stages, which a practice puzzle keeps done. */
   keep?: (s: Sticker[], size: number) => boolean;
-  /** Practice puzzle `i` (0–2): moves from solved that undo this stage and keep the earlier ones. */
-  setup: (rand: () => number, i: number) => string;
+  /**
+   * The three practice puzzles, fixed: the moves from solved that set each one up. The first is
+   * the watch card's own cube; the others ask for the formula twice, or for one turn first to
+   * line it up, or for the other side.
+   */
+  practice: string[];
   /** The notation lesson: per puzzle, the moves to copy. */
   copy?: string[][];
 }
@@ -115,12 +119,6 @@ export function cornersPlaced(s: Sticker[]): boolean {
 
 /* ---------- puzzles ---------- */
 
-const pick = <T>(rand: () => number, list: T[]): T => list[Math.floor(rand() * list.length)]!;
-const Y = ["", "y", "y2", "y'"];
-const YINV = ["", "y'", "y2", "y"];
-const U4 = ["", "U", "U2", "U'"];
-const D4 = ["", "D", "D2", "D'"];
-
 /** The moves that undo `alg`. */
 export function invert(alg: string): string {
   return alg
@@ -131,35 +129,14 @@ export function invert(alg: string): string {
     .join(" ");
 }
 
-/** `alg` done at one of the four sides: turn the cube, do it, turn back. */
-const aroundY = (rand: () => number, alg: string) => {
-  const k = Math.floor(rand() * 4);
-  return `${Y[k]} ${alg} ${YINV[k]}`;
-};
-
-/** A few random turns, none about the axis of the one before. */
-function randomTurns(rand: () => number, count: number, faces = ["U", "D", "R", "L", "F", "B"]): string {
-  const axis = (f: string) => "UDRLFB".indexOf(f) >> 1;
-  const out: string[] = [];
-  let last = -1;
-  while (out.length < count) {
-    const f = pick(rand, faces);
-    if (axis(f) === last) continue;
-    last = axis(f);
-    out.push(f + pick(rand, ["", "'", "2"]));
-  }
-  return out.join(" ");
-}
-
-/** `n` rounds of `parts`, each round one of them chosen at random. */
-const rounds = (rand: () => number, n: number, parts: (() => string)[]) => Array.from({ length: n }, () => pick(rand, parts)()).join(" ");
+/** The same moves twice in a row: a puzzle that needs the formula twice. */
+const twice = (alg: string) => `${alg} ${alg}`;
 
 const INSERT_CORNER = "R' D' R D";
 const RIGHT = "U R U' R' U' F' U F";
 const LEFT = "U' L' U L U F U' F'";
 const CROSS = "F R U R' U' F'";
 const SUNE = "R U R' U R U2 R'";
-const ANTISUNE = "R' U' R U' R' U2 R";
 // a corner 3-cycle that leaves every piece facing the same way, so the yellow face stays
 const CORNERS3 = "R' F R' B2 R F' R' B2 R2";
 const EDGES3 = "R U' R U R U R U' R' U' R2";
@@ -180,7 +157,7 @@ const notation = (size: number): Lesson => ({
   demos: ["R", "R'", "U", "U'", "F", "F'"].map((m) => ({ name: m.replace("'", "′"), seq: m })),
   pieces: () => true,
   goal: (s) => isSolved(s),
-  setup: () => "",
+  practice: [],
   copy:
     size === 2
       ? [
@@ -207,7 +184,7 @@ const LESSONS_3: Lesson[] = [
     demos: [{ name: tr("翻上來", "Bring up"), seq: "F2" }],
     pieces: sig(2, "W"),
     goal: (s) => crossDone(s),
-    setup: (rand, i) => randomTurns(rand, [3, 5, 7][i]!),
+    practice: ["F2", "R2", "F2 L2"],
   },
   {
     title: tr("底層", "First layer"),
@@ -220,7 +197,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "W"),
     goal: (s) => layerDone(s, 3, "U"),
     keep: (s) => crossDone(s),
-    setup: (rand, i) => rounds(rand, 2 + i, [() => aroundY(rand, `${pick(rand, D4)} ${invert(INSERT_CORNER)}`)]),
+    practice: [invert(INSERT_CORNER), twice(invert(INSERT_CORNER)), `${invert(INSERT_CORNER)} D`],
   },
   {
     title: tr("中層", "Middle layer"),
@@ -239,7 +216,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, undefined, ["W", "Y"]),
     goal: (s) => f2l(s),
     keep: (s) => layerDone(s, 3, "D"),
-    setup: (rand, i) => rounds(rand, 2 + i, [() => aroundY(rand, `${pick(rand, U4)} ${invert(pick(rand, [RIGHT, LEFT]))}`)]),
+    practice: [invert(RIGHT), invert(LEFT), `${invert(RIGHT)} U`],
   },
   {
     title: tr("黃色十字", "Yellow cross"),
@@ -252,7 +229,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, "Y"),
     goal: (s) => yellowCross(s),
     keep: (s) => f2l(s),
-    setup: (rand, i) => rounds(rand, 1 + i, [() => `${pick(rand, U4)} ${invert(CROSS)}`, () => `${pick(rand, U4)} ${SUNE}`]),
+    practice: [invert(CROSS), `${invert(CROSS)} U`, twice(invert(CROSS))],
   },
   {
     title: tr("黃色面", "Yellow face"),
@@ -265,7 +242,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s) => topFace(s, 3),
     keep: (s) => yellowCross(s),
-    setup: (rand, i) => rounds(rand, 1 + i, [() => `${pick(rand, U4)} ${SUNE}`, () => `${pick(rand, U4)} ${ANTISUNE}`]),
+    practice: [invert(SUNE), `${invert(SUNE)} U`, twice(invert(SUNE))],
   },
   {
     title: tr("頂層角", "Top corners"),
@@ -278,7 +255,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s) => cornersPlaced(s),
     keep: (s) => topFace(s, 3),
-    setup: (rand, i) => rounds(rand, 1 + Math.min(i, 1), [() => aroundY(rand, pick(rand, [CORNERS3, invert(CORNERS3)]))]),
+    practice: [invert(CORNERS3), twice(invert(CORNERS3)), `y ${invert(CORNERS3)} y'`],
   },
   {
     title: tr("頂層邊・完成", "Top edges, done"),
@@ -291,7 +268,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, "Y"),
     goal: (s) => isSolved(s),
     keep: (s) => cornersPlaced(s),
-    setup: (rand) => aroundY(rand, pick(rand, [EDGES3, invert(EDGES3)])),
+    practice: [invert(EDGES3), twice(invert(EDGES3)), `y ${invert(EDGES3)} y'`],
   },
 ];
 
@@ -307,7 +284,7 @@ const LESSONS_2: Lesson[] = [
     demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     pieces: sig(3, "W"),
     goal: (s, size) => layerDone(s, size, "U"),
-    setup: (rand, i) => randomTurns(rand, [3, 4, 6][i]!, ["U", "R", "F", "D"]),
+    practice: [invert(INSERT_CORNER), twice(invert(INSERT_CORNER)), `${invert(INSERT_CORNER)} D`],
   },
   {
     title: tr("黃色面", "Yellow face"),
@@ -320,7 +297,7 @@ const LESSONS_2: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s, size) => topFace(s, size),
     keep: (s, size) => layerDone(s, size, "D"),
-    setup: (rand, i) => rounds(rand, 1 + i, [() => `${pick(rand, U4)} ${SUNE}`, () => `${pick(rand, U4)} ${ANTISUNE}`]),
+    practice: [invert(SUNE), `${invert(SUNE)} U`, twice(invert(SUNE))],
   },
   {
     title: tr("頂層角・完成", "Top corners, done"),
@@ -333,24 +310,18 @@ const LESSONS_2: Lesson[] = [
     pieces: () => true,
     goal: (s) => isSolved(s),
     keep: (s, size) => topFace(s, size),
-    setup: (rand) => `${aroundY(rand, TPERM)} ${pick(rand, U4)}`,
+    practice: [TPERM, `${TPERM} U`, `y ${TPERM} y'`],
   },
 ];
 
 export const LESSONS: Record<LearnSize, Lesson[]> = { 2: LESSONS_2, 3: LESSONS_3 };
 
-/** A practice puzzle: the cube to start from, and roughly how many moves a good solve takes. */
-export function puzzle(size: LearnSize, index: number, i: number, rand: () => number = Math.random): { start: Sticker[]; par: number; setup: string } {
+/** Practice puzzle `i`: the cube to start from, how it was set up, and a move target with some room. */
+export function puzzle(size: LearnSize, index: number, i: number): { start: Sticker[]; par: number; setup: string } {
   const lesson = LESSONS[size][index]!;
-  const solved = solvedFor(size, lesson.whiteDown);
-  for (let tries = 0; tries < 50; tries++) {
-    const alg = lesson.setup(rand, i).trim();
-    const start = alg ? applyAlgorithm(solved, parseAlgorithm(alg, size)) : solved;
-    if (alg && (lesson.goal(start, size) || (lesson.keep && !lesson.keep(start, size)))) continue;
-    const moves = alg.split(/\s+/).filter((t) => t && !/^[xyz]/.test(t)).length;
-    return { start, par: Math.max(8, Math.round(moves * 2)), setup: alg };
-  }
-  throw new Error(`no puzzle for lesson ${size}×${size} #${index}`);
+  const setup = lesson.practice[i]!;
+  const turns = setup.split(/\s+/).filter((t) => t && !/^[xyz]/.test(t)).length;
+  return { start: applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(setup, size)), par: turns + 4, setup };
 }
 
 /**
