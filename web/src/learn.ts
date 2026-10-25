@@ -27,6 +27,14 @@ export interface Formula {
   look?: "moves" | "swap" | "pattern";
 }
 
+/** A watch card: a formula played once, from a cube it may not finish in one go. */
+export interface Demo extends Formula {
+  /** Which case of the formula this card shows, under its name: "L shape", "No fish". */
+  case?: string;
+  /** What finishes the stage after this card's press: the cube starts from these undone too. */
+  rest?: string;
+}
+
 export interface Lesson {
   title: string;
   /** The map icon: size×size colour letters of the face this stage finishes, "." for grey; null shows "R U". */
@@ -38,8 +46,8 @@ export interface Lesson {
   /** The practice instruction, one line. */
   task: string;
   formulas: Formula[];
-  /** Watch cards: each starts from the cube the formula fixes and plays it. */
-  demos: Formula[];
+  /** Watch cards: each starts from a cube the formula is used on and plays it once. */
+  demos: Demo[];
   /** The pieces this stage works on, by their sorted colour letters. */
   pieces: (signature: string) => boolean;
   /** The stage is done. */
@@ -174,12 +182,32 @@ const F_CROSS: Formula = {
   when: tr("黃色一條線要橫放；L 形放在左後方；只有中心一點就直接按。", "Hold a yellow line left to right, an L at the back left; with just the centre, press it straight away."),
   look: "pattern",
 };
+// one card per shape on top; each press turns a shape into the next: dot, L, line, cross
+const CROSS_CARDS: Demo[] = [
+  { ...F_CROSS, case: tr("一條線", "Line"), when: tr("黃色一條線：轉成橫放再按，就變成十字。", "A yellow line: hold it left to right and press; it becomes the cross.") },
+  { ...F_CROSS, case: tr("L 形", "L shape"), rest: CROSS, when: tr("L 形：轉到左後方再按，會變成橫的一條線。", "An L: turn it to the back left and press; it becomes a line across.") },
+  { ...F_CROSS, case: tr("一點", "Dot"), rest: `U2 ${CROSS} ${CROSS}`, when: tr("只有中心一點：直接按，會變成 L 形。", "Just the centre: press it as it is; it becomes an L.") },
+];
 const F_FISH: Formula = {
   name: tr("小魚", "Fish"),
   seq: SUNE,
   when: tr("只有一個角黃色朝上（小魚的頭）時，把它放在左前方。", "With one corner yellow side up (the fish's head), put it at the front left."),
   look: "pattern",
 };
+// Fish alone does every top: without a fish, one press held the right way makes one
+const FISH_CARDS: Demo[] = [
+  {
+    ...F_FISH,
+    case: tr("有小魚", "A fish"),
+    when: tr("只有一個角黃色朝上（小魚的頭）：把它放在左前方再按。按完又是一條小魚的話，再擺一次、再按。", "One corner yellow side up (the fish's head): put it at the front left and press. If another fish appears, do the same again."),
+  },
+  {
+    ...F_FISH,
+    case: tr("沒有小魚", "No fish"),
+    rest: SUNE,
+    when: tr("沒有角朝上：讓左前角的黃色朝左邊再按。兩個角朝上：讓左前角的黃色朝前面再按。按完就會變成小魚。", "No corner yellow side up: turn the top until the front-left corner's yellow faces left, then press. Two up: its yellow facing front. Either way a fish appears."),
+  },
+];
 const F_CORNERS: Formula = {
   name: tr("換角", "Swap"),
   seq: CORNERS3,
@@ -276,11 +304,12 @@ const LESSONS_3: Lesson[] = [
     intro: tr("上面看到黃色的點、L 形或一條線：放好方向再按「十字」，一次一次變成十字。", "On top you see a dot, an L or a line of yellow: hold it the right way and press Cross until it becomes a cross."),
     task: tr("做出黃色十字", "Make the yellow cross"),
     formulas: [F_CROSS],
-    demos: [F_CROSS],
+    demos: CROSS_CARDS,
     pieces: sig(2, "Y"),
     goal: (s) => yellowCross(s),
     keep: (s) => f2l(s),
-    practice: [[0], ["U'", 0], [0, 0]],
+    // a line, an L to turn into place first, a dot
+    practice: [[0], ["U'", 0, 0], [0, "U2", 0, 0]],
   },
   {
     title: tr("黃色面", "Yellow face"),
@@ -289,7 +318,7 @@ const LESSONS_3: Lesson[] = [
     intro: tr("用「小魚」把黃色的角翻上來，一次一次直到整面黃。", "Use Fish to turn the yellow corners up, again and again until the whole face is yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
     formulas: [F_FISH],
-    demos: [F_FISH],
+    demos: FISH_CARDS,
     pieces: sig(3, "Y"),
     goal: (s) => topFace(s, 3),
     keep: (s) => yellowCross(s),
@@ -344,7 +373,7 @@ const LESSONS_2: Lesson[] = [
     intro: tr("翻過來，白色朝下。用「小魚」把黃色的角翻上來，直到上面全黃。", "Turn it over, white down. Use Fish to turn the yellow corners up until the top is all yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
     formulas: [F_FISH],
-    demos: [F_FISH],
+    demos: FISH_CARDS,
     pieces: sig(3, "Y"),
     goal: (s, size) => topFace(s, size),
     keep: (s, size) => layerDone(s, size, "D"),
@@ -402,8 +431,15 @@ export function hintFor(size: LearnSize, index: number, i: number, cube: Sticker
   return { undo: true };
 }
 
-/** What the cube shows about using `formula` on `cube`: arrows by cubie position, rings by sticker key. */
-export function guidesFor(size: LearnSize, index: number, formula: Formula, cube: Sticker[]): { arrows: [Vec, Vec][]; rings: Set<string> } | null {
+/** Arrows by cubie position, rings by sticker key, and the side to look from to see them. */
+export interface Guides {
+  arrows: [Vec, Vec][];
+  rings: Set<string>;
+  side: "right" | "left";
+}
+
+/** What the cube shows about using `formula` on `cube`. */
+export function guidesFor(size: LearnSize, index: number, formula: Formula, cube: Sticker[]): Guides | null {
   const lesson = LESSONS[size][index]!;
   if (!formula.look) return null;
   const h = size - 1;
@@ -432,13 +468,15 @@ export function guidesFor(size: LearnSize, index: number, formula: Formula, cube
     const centre = cube.find((st) => st.n[1] === 1 && st.p[0] === 0 && st.p[2] === 0);
     if (centre) rings.add(key(centre));
   }
-  return { arrows, rings };
+  // a pattern held by the front-left corner's yellow facing left (Fish without a fish) is seen from the left
+  const side = formula.look === "pattern" && rings.has(`${-h},${h},${h}|-1,0,0`) ? "left" : "right";
+  return { arrows, rings, side };
 }
 
-/** Where a watch card starts: the solved cube with the formula undone, so playing it puts things right. */
-export function demoStart(size: LearnSize, index: number, seq: string): Sticker[] {
+/** Where a watch card starts: the solved cube with the card's press and what follows it undone. */
+export function demoStart(size: LearnSize, index: number, demo: Demo): Sticker[] {
   const lesson = LESSONS[size][index]!;
-  return applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(invert(seq), size));
+  return applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(invert(`${demo.seq} ${demo.rest ?? ""}`), size));
 }
 
 /** Stars for a finished lesson: 1 for finishing, 1 more with no hints, 1 more within the move target. */

@@ -315,8 +315,9 @@ export class CubeView {
     return this.anim !== null || this.twist !== null;
   }
 
-  resetView() {
-    this.yaw = DEFAULT_VIEW.yaw;
+  /** The usual camera: from the front right, or from the front left to see the left face. */
+  resetView(side: "right" | "left" = "right") {
+    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
     this.pitch = DEFAULT_VIEW.pitch;
     this.draw();
   }
