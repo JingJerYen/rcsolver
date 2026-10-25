@@ -370,11 +370,14 @@ th{color:#607189;font-weight:600}
 .copy-move.next{background:#195ed6;color:#fff}
 #learnView .cube{touch-action:none}
 .learn-tools{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:40px}
-.learn-moves{flex:1;text-align:center;font-size:13px;font-weight:700;color:#5d6b7d}
+.learn-moves{flex:1;min-width:0;text-align:center;font-size:13px;font-weight:700;color:#5d6b7d;white-space:nowrap}
 .tool-btn{flex:none;height:40px;padding:0 14px;border-radius:20px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
 .hint-btn{margin-left:auto;border-color:#e0a21c;background:#fff7df;color:#6b4b00}
 .reset-btn{border-color:#cdd7e5;background:#fff;color:#233b55}
 .reset-btn.pulse{border:2px solid #195ed6;color:#195ed6;animation:keyPulse 1s ease-in-out infinite}
+/* a narrow screen, or a phone zoomed in for larger text: the row under the cube still fits on one line */
+@media (max-width:320px){.learn-tools{gap:4px}.tool-btn{padding:0 10px;gap:4px;font-size:13px}.learn-moves{font-size:12px}}
+@media (max-width:290px){.tool-btn svg{display:none}}
 .learn-ok{position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:rgba(27,107,67,.92);color:#fff;display:flex;align-items:center;justify-content:center;animation:pop .3s ease-out;pointer-events:none}
 @keyframes pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
 .lesson-tip{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:#e9f0ff;color:#1a4fae;font-size:14px;line-height:1.6}
