@@ -457,6 +457,10 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
       }
       return;
     }
+    // the hint's marks go as soon as a key starts turning, not after the whole formula
+    view.setPreview(null);
+    view.setGuides(null);
+    lightKey(null);
     busy = true;
     const turns = await play(b.dataset.seq!, KEY_MS);
     if (turns === null) return; // "start again" took over
