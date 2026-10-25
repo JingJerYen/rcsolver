@@ -5,11 +5,13 @@
  * stages before it stay done.
  */
 import type { Face } from "./api.js";
-import { FACE_AXES, FACE_ORDER, applyAlgorithm, fromNet, isSolved, parseAlgorithm, type Sticker, type Vec } from "./cubeState.js";
+import { FACE_AXES, FACE_ORDER, applyAlgorithm, fromNet, isSolved, parseAlgorithm, toNet, type Sticker, type Vec } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { pushMove } from "./study.js";
 
 export type LearnSize = 2 | 3;
+
+/** A step of a practice puzzle's solution: a lesson formula, by index, or a single turn. */
+export type PracticeStep = number | string;
 
 /** A formula the lesson teaches: a key in practice and a card to watch. */
 export interface Formula {
@@ -37,11 +39,12 @@ export interface Lesson {
   /** The earlier stages, which a practice puzzle keeps done. */
   keep?: (s: Sticker[], size: number) => boolean;
   /**
-   * The three practice puzzles, fixed: the moves from solved that set each one up. The first is
+   * The three practice puzzles, each written as its solution: formulas (by index) and the turns
+   * that line them up. The puzzle is that solution undone, and the hint walks it. The first is
    * the watch card's own cube; the others ask for the formula twice, or for one turn first to
    * line it up, or for the other side.
    */
-  practice: string[];
+  practice: PracticeStep[][];
   /** The notation lesson: per puzzle, the moves to copy. */
   copy?: string[][];
 }
@@ -129,9 +132,6 @@ export function invert(alg: string): string {
     .join(" ");
 }
 
-/** The same moves twice in a row: a puzzle that needs the formula twice. */
-const twice = (alg: string) => `${alg} ${alg}`;
-
 const INSERT_CORNER = "R' D' R D";
 const RIGHT = "U R U' R' U' F' U F";
 const LEFT = "U' L' U L U F U' F'";
@@ -184,7 +184,7 @@ const LESSONS_3: Lesson[] = [
     demos: [{ name: tr("翻上來", "Bring up"), seq: "F2" }],
     pieces: sig(2, "W"),
     goal: (s) => crossDone(s),
-    practice: ["F2", "R2", "F2 L2"],
+    practice: [["F2"], ["R2"], ["L2", "F2"]],
   },
   {
     title: tr("底層", "First layer"),
@@ -197,7 +197,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "W"),
     goal: (s) => layerDone(s, 3, "U"),
     keep: (s) => crossDone(s),
-    practice: [invert(INSERT_CORNER), twice(invert(INSERT_CORNER)), `${invert(INSERT_CORNER)} D`],
+    practice: [[0], [0, 0], ["D'", 0]],
   },
   {
     title: tr("中層", "Middle layer"),
@@ -216,7 +216,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, undefined, ["W", "Y"]),
     goal: (s) => f2l(s),
     keep: (s) => layerDone(s, 3, "D"),
-    practice: [invert(RIGHT), invert(LEFT), `${invert(RIGHT)} U`],
+    practice: [[0], [1], ["U'", 0]],
   },
   {
     title: tr("黃色十字", "Yellow cross"),
@@ -229,7 +229,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, "Y"),
     goal: (s) => yellowCross(s),
     keep: (s) => f2l(s),
-    practice: [invert(CROSS), `${invert(CROSS)} U`, twice(invert(CROSS))],
+    practice: [[0], ["U'", 0], [0, 0]],
   },
   {
     title: tr("黃色面", "Yellow face"),
@@ -242,7 +242,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s) => topFace(s, 3),
     keep: (s) => yellowCross(s),
-    practice: [invert(SUNE), `${invert(SUNE)} U`, twice(invert(SUNE))],
+    practice: [[0], ["U'", 0], [0, 0]],
   },
   {
     title: tr("頂層角", "Top corners"),
@@ -255,7 +255,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s) => cornersPlaced(s),
     keep: (s) => topFace(s, 3),
-    practice: [invert(CORNERS3), twice(invert(CORNERS3)), `y ${invert(CORNERS3)} y'`],
+    practice: [[0], [0, 0], ["y", 0, "y'"]],
   },
   {
     title: tr("頂層邊・完成", "Top edges, done"),
@@ -268,7 +268,7 @@ const LESSONS_3: Lesson[] = [
     pieces: sig(2, "Y"),
     goal: (s) => isSolved(s),
     keep: (s) => cornersPlaced(s),
-    practice: [invert(EDGES3), twice(invert(EDGES3)), `y ${invert(EDGES3)} y'`],
+    practice: [[0], [0, 0], ["y", 0, "y'"]],
   },
 ];
 
@@ -284,7 +284,7 @@ const LESSONS_2: Lesson[] = [
     demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     pieces: sig(3, "W"),
     goal: (s, size) => layerDone(s, size, "U"),
-    practice: [invert(INSERT_CORNER), twice(invert(INSERT_CORNER)), `${invert(INSERT_CORNER)} D`],
+    practice: [[0], [0, 0], ["D'", 0]],
   },
   {
     title: tr("黃色面", "Yellow face"),
@@ -297,7 +297,7 @@ const LESSONS_2: Lesson[] = [
     pieces: sig(3, "Y"),
     goal: (s, size) => topFace(s, size),
     keep: (s, size) => layerDone(s, size, "D"),
-    practice: [invert(SUNE), `${invert(SUNE)} U`, twice(invert(SUNE))],
+    practice: [[0], ["U'", 0], [0, 0]],
   },
   {
     title: tr("頂層角・完成", "Top corners, done"),
@@ -310,58 +310,45 @@ const LESSONS_2: Lesson[] = [
     pieces: () => true,
     goal: (s) => isSolved(s),
     keep: (s, size) => topFace(s, size),
-    practice: [TPERM, `${TPERM} U`, `y ${TPERM} y'`],
+    practice: [[0], ["U'", 0], ["y", 0, "y'"]],
   },
 ];
 
 export const LESSONS: Record<LearnSize, Lesson[]> = { 2: LESSONS_2, 3: LESSONS_3 };
 
-/** Practice puzzle `i`: the cube to start from, how it was set up, and a move target with some room. */
-export function puzzle(size: LearnSize, index: number, i: number): { start: Sticker[]; par: number; setup: string } {
+/** The moves of a step of a practice solution. */
+const stepMoves = (lesson: Lesson, step: PracticeStep) => (typeof step === "number" ? lesson.formulas[step]!.seq : step);
+
+/** Practice puzzle `i`: the cube to start from (its solution undone) and a move target with some room. */
+export function puzzle(size: LearnSize, index: number, i: number): { start: Sticker[]; par: number } {
   const lesson = LESSONS[size][index]!;
-  const setup = lesson.practice[i]!;
-  const turns = setup.split(/\s+/).filter((t) => t && !/^[xyz]/.test(t)).length;
-  return { start: applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(setup, size)), par: turns + 4, setup };
+  const solution = lesson.practice[i]!.map((st) => stepMoves(lesson, st)).join(" ");
+  const turns = solution.split(/\s+/).filter((t) => t && !/^[xyz]/.test(t)).length;
+  return { start: applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(invert(solution), size)), par: turns + 4 };
 }
 
-/** One step a hint can point at: a lesson formula (its index), or a single turn to line things up. */
-export type HintStep = { formula: number } | { turn: string };
+/** What the hint points at: a formula key, a single turn, or ⌫ when the cube has left the way. */
+export type Hint = { formula: number } | { turn: string } | { undo: true };
 
 /**
- * The hint, thinking in the lesson's own terms: the shortest way to the goal using only this
- * lesson's formulas and the turns that line them up (the top or bottom layer, or the whole cube
- * with y), at most a few steps deep. Its first step, or null when the cube has wandered further
- * than that (the caller then walks back with hintPlan).
+ * The hint for practice puzzle `i`: find the cube on the puzzle's written solution and give the
+ * next step. Between steps that is the next formula or lining-up turn; part way through a formula
+ * turned by hand, its next turn. A cube that is on neither has wandered off: take a move back.
  */
-export function hintStep(size: LearnSize, index: number, cube: Sticker[]): HintStep | null {
+export function hintFor(size: LearnSize, index: number, i: number, cube: Sticker[]): Hint {
   const lesson = LESSONS[size][index]!;
-  if (lesson.goal(cube, size)) return null;
-  const faces = ["U", "D", "R", "L", "F", "B"].flatMap((f) => [f, `${f}'`, `${f}2`]);
-  const aligns = lesson.formulas.length ? (lesson.whiteDown ? ["U", "U'", "U2"] : ["D", "D'", "D2"]).concat(["y", "y'"]) : faces;
-  const steps: { step: HintStep; moves: ReturnType<typeof parseAlgorithm> }[] = [
-    ...lesson.formulas.map((f, i) => ({ step: { formula: i } as HintStep, moves: parseAlgorithm(f.seq, size) })),
-    ...aligns.map((t) => ({ step: { turn: t } as HintStep, moves: parseAlgorithm(t, size) })),
-  ];
-  const deepest = lesson.formulas.length ? 4 : 3;
-  const sameLayer = (a: HintStep, b: HintStep) => "turn" in a && "turn" in b && a.turn[0] === b.turn[0];
-  const search = (s: Sticker[], depth: number, last: HintStep | null): boolean => {
-    if (lesson.goal(s, size)) return true;
-    if (depth === 0) return false;
-    // two turns of one layer in a row are one turn, tried already at a shallower depth
-    return steps.some((st) => !(last && sameLayer(last, st.step)) && search(applyAlgorithm(s, st.moves), depth - 1, st.step));
-  };
-  for (let depth = 1; depth <= deepest; depth++)
-    for (const st of steps) if (search(applyAlgorithm(cube, st.moves), depth - 1, st.step)) return st.step;
-  return null;
-}
-
-/**
- * The hint's way to the goal: back through what was done on this puzzle, then back through the
- * puzzle's setup, with turns of one layer in a row merged (and cancelled when they add up to none).
- * It always gets there; when the turns so far were on the way, it is just the rest of the way.
- */
-export function hintPlan(done: string[], setup: string): string[] {
-  return [...invert(done.join(" ")).split(" "), ...invert(setup).split(" ")].filter(Boolean).reduce(pushMove, [] as string[]);
+  const key = (s: Sticker[]) => JSON.stringify(toNet(size, s));
+  const now = key(cube);
+  let s = puzzle(size, index, i).start;
+  for (const step of lesson.practice[i]!) {
+    if (key(s) === now) return typeof step === "number" ? { formula: step } : { turn: step };
+    const moves = stepMoves(lesson, step).split(" ");
+    for (let j = 0; j < moves.length; j++) {
+      s = applyAlgorithm(s, parseAlgorithm(moves[j]!, size));
+      if (j < moves.length - 1 && key(s) === now) return { turn: moves[j + 1]! };
+    }
+  }
+  return { undo: true };
 }
 
 /** Where a watch card starts: the solved cube with the formula undone, so playing it puts things right. */
