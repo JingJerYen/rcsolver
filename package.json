@@ -1,7 +1,7 @@
 {
   "name": "rcsolver",
   "version": "0.1.0",
-  "description": "Rubik's cube solver: guided photo capture, Claude colour recognition, in-browser solving, 3D guidance",
+  "description": "Cube solver: guided photo capture, Claude colour recognition, in-browser solving, 3D guidance",
   "type": "module",
   "private": true,
   "license": "MIT",
