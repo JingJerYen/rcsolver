@@ -1182,7 +1182,7 @@ function resetAi() {
   $<HTMLInputElement>("macroAiText").value = "";
 }
 $("macroAiLabel").textContent = tr("問 AI", "Ask AI");
-$<HTMLInputElement>("macroAiText").placeholder = tr("例如：交換兩個黑點", "e.g. swap the two marked pieces");
+$<HTMLInputElement>("macroAiText").placeholder = tr("例如：交換三個黑點的方塊", "e.g. swap the three marked pieces");
 $("macroAiText").setAttribute("aria-label", tr("想要什麼公式", "What sequence do you want"));
 $("macroAiSend").setAttribute("aria-label", tr("送出", "Send"));
 $("macroAiToggle").onclick = () => setAiOpen(!$("macroAi").classList.contains("open"));
