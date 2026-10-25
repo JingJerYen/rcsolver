@@ -49,7 +49,7 @@ export function loadConfig(env: EnvMap): Config {
     mockMode: forcedMock || !apiKey,
     mockReason: forcedMock ? "MOCK_MODE=1" : apiKey ? null : "RCSOLVER_ANTHROPIC_KEY not set",
     trustProxy: env.TRUST_PROXY === "1",
-    model: env.RECOGNIZE_MODEL?.trim() || "claude-opus-5-5",
+    model: env.RECOGNIZE_MODEL?.trim() || "claude-sonnet-5-5",
     effort: effortEnv(env, "RECOGNIZE_EFFORT", "medium"),
     maxTokens: intEnv(env, "RECOGNIZE_MAX_TOKENS", 16000, 1000, 64000),
     rateLimitPerMin: intEnv(env, "RATE_LIMIT_PER_MIN", 6, 1, 1000),
