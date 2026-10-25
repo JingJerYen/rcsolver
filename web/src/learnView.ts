@@ -6,7 +6,7 @@
 import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, hintPlan, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
+import { LESSONS, demoStart, hintPlan, hintStep, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
 import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
@@ -17,7 +17,9 @@ const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const pretty = (seq: string) => seq.replace(/'/g, "′");
 const PUZZLES = 3;
 const DEMO_MS = 450;
-const KEY_MS = 200;
+/** A formula key turns at a pace you can follow; a whole-cube turn slower still, so it reads as the cube turning. */
+const KEY_MS = 380;
+const ROTATE_MS = 600;
 
 /* ---------- progress ---------- */
 
@@ -216,17 +218,16 @@ async function play(seq: string, ms: number): Promise<number | null> {
   let turns = 0;
   for (const t of seq.split(/\s+/).filter(Boolean)) {
     if (gen !== playGen) return null;
-    await view.animate(parseMove(t, r.size), 1, ms);
+    await view.animate(parseMove(t, r.size), 1, /^[xyz]/.test(t) ? Math.max(ms, ROTATE_MS) : ms);
     if (!/^[xyz]/.test(t)) turns++;
   }
   return gen === playGen ? turns : null;
 }
 
-/** The hint's turn is a whole-cube one: light the key that does it, since a drag turns layers only. */
-function lightKey(token: string | null) {
-  for (const k of $("lessonKeys").querySelectorAll("[data-seq]")) k.classList.remove("hint-key");
-  if (!token || !/^y/.test(token)) return;
-  $("lessonKeys").querySelector(`[data-seq="${token === "y'" ? "y'" : "y"}"]`)?.classList.add("hint-key");
+/** Light the key the hint points at: a formula, or y / y′ for a whole-cube turn (a drag turns layers only). */
+function lightKey(seq: string | null) {
+  const want = seq && /^y/.test(seq) ? (seq === "y'" ? "y'" : "y") : seq;
+  for (const k of $("lessonKeys").querySelectorAll<HTMLElement>("[data-seq]")) k.classList.toggle("hint-key", k.dataset.seq === want);
 }
 
 function renderCopy() {
@@ -447,9 +448,19 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   $("learnHint").onclick = () => {
     const r = run;
     if (!r || r.phase !== "practice") return;
-    // no words: the next turn drawn on the cube, its layers outlined and an arrow, until a move is made
-    const next = r.lesson.copy ? r.lesson.copy[r.puzzleNo]![r.copied] : hintPlan(r.steps.flat(), r.setup)[0];
-    if (!next || busy || view.animating) return;
+    if (busy || view.animating) return;
+    // no words. In the lesson's own terms when it can: the formula key to press, or the turn that
+    // lines it up (outlined on the cube with its arrow). Wandered too far for that: the way back,
+    // one turn at a time.
+    const step = r.lesson.copy ? null : hintStep(r.size, r.index, view.getState());
+    if (step && "formula" in step) {
+      r.hints++;
+      view.setPreview(null);
+      lightKey(r.lesson.formulas[step.formula]!.seq);
+      return;
+    }
+    const next = r.lesson.copy ? r.lesson.copy[r.puzzleNo]![r.copied] : step ? step.turn : hintPlan(r.steps.flat(), r.setup)[0];
+    if (!next) return;
     r.hints++;
     view.setPreview(parseMove(next, r.size));
     lightKey(next);
@@ -478,7 +489,12 @@ export const learnTest = {
   },
   point: (key: string) => view.pointOf(key),
   /** The turn the hint would show now. */
-  hint: () => (run && !run.lesson.copy ? hintPlan(run.steps.flat(), run.setup)[0] : null),
+  /** What the hint would point at now: a formula's name or a turn. */
+  hint: () => {
+    if (!run || run.lesson.copy) return null;
+    const step = hintStep(run.size, run.index, view.getState());
+    return step ? ("formula" in step ? run.lesson.formulas[step.formula]!.name : step.turn) : hintPlan(run.steps.flat(), run.setup)[0];
+  },
   get state() {
     return run && { size: run.size, index: run.index, phase: run.phase, puzzleNo: run.puzzleNo, copied: run.copied, moves: run.moves, hints: run.hints };
   },
