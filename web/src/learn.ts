@@ -17,6 +17,14 @@ export type PracticeStep = number | string;
 export interface Formula {
   name: string;
   seq: string;
+  /** When to use it: how the cube should look, in a sentence. */
+  when?: string;
+  /**
+   * What the cube shows about that: "moves" draws an arrow from each piece of the stage to where
+   * the formula sends it; "swap" also rings the stage's top pieces that stay (where to hold them);
+   * "pattern" rings the top colour on the top layer, the shape to look for.
+   */
+  look?: "moves" | "swap" | "pattern";
 }
 
 export interface Lesson {
@@ -142,6 +150,55 @@ const CORNERS3 = "R' F R' B2 R F' R' B2 R2";
 const EDGES3 = "R U' R U R U R U' R' U' R2";
 const TPERM = "R U R' U' R' F R2 U' R' U' R U R' F'";
 
+const F_INSERT: Formula = {
+  name: tr("插角", "Insert"),
+  seq: INSERT_CORNER,
+  when: tr("白角在它的位置正下方（右前下）就按，白色朝上為止可能要按好幾次。", "With the white corner right below its place (front right, bottom). It may take a few presses until white is on top."),
+  look: "moves",
+};
+const F_RIGHT: Formula = {
+  name: tr("往右", "Right"),
+  seq: RIGHT,
+  when: tr("頂層的邊前面顏色對到前面中心，上面顏色是右邊中心的顏色。", "The top edge's front colour matches the front centre, and its top colour is the right centre's."),
+  look: "moves",
+};
+const F_LEFT: Formula = {
+  name: tr("往左", "Left"),
+  seq: LEFT,
+  when: tr("頂層的邊前面顏色對到前面中心，上面顏色是左邊中心的顏色。", "The top edge's front colour matches the front centre, and its top colour is the left centre's."),
+  look: "moves",
+};
+const F_CROSS: Formula = {
+  name: tr("十字", "Cross"),
+  seq: CROSS,
+  when: tr("黃色一條線要橫放；L 形放在左後方；只有中心一點就直接按。", "Hold a yellow line left to right, an L at the back left; with just the centre, press it straight away."),
+  look: "pattern",
+};
+const F_FISH: Formula = {
+  name: tr("小魚", "Fish"),
+  seq: SUNE,
+  when: tr("只有一個角黃色朝上（小魚的頭）時，把它放在左前方。", "With one corner yellow side up (the fish's head), put it at the front left."),
+  look: "pattern",
+};
+const F_CORNERS: Formula = {
+  name: tr("換角", "Swap"),
+  seq: CORNERS3,
+  when: tr("已經在對的位置的那個角放在左前方，其他三個會照箭頭輪換。", "Keep the corner that is already in place at the front left; the other three go round as the arrows show."),
+  look: "swap",
+};
+const F_EDGES: Formula = {
+  name: tr("換邊", "Edges"),
+  seq: EDGES3,
+  when: tr("已經整排對的那一面放在後面，其他三個邊會照箭頭輪換。", "Keep the side whose top row is all right at the back; the other three edges go round as the arrows show."),
+  look: "swap",
+};
+const F_TPERM: Formula = {
+  name: tr("換角", "Swap"),
+  seq: TPERM,
+  when: tr("上排兩格同色的那一面（像一對車燈）放在左邊，右邊兩個角會互換。", "Hold the side whose two top stickers match (headlights) on the left; the two right corners swap."),
+  look: "swap",
+};
+
 const sig = (len: number, has?: string, hasnt: string[] = []) => (s: string) => s.length === len && (!has || s.includes(has)) && hasnt.every((c) => !s.includes(c));
 
 const notation = (size: number): Lesson => ({
@@ -181,7 +238,7 @@ const LESSONS_3: Lesson[] = [
     intro: tr("白色中心朝上。把四個白色邊塊轉到上面，而且每塊側面的顏色要和旁邊的中心一樣。", "White centre on top. Bring the four white edges up, each with its side colour matching the centre beside it."),
     task: tr("做出白色十字", "Make the white cross"),
     formulas: [],
-    demos: [{ name: tr("翻上來", "Bring up"), seq: "F2" }],
+    demos: [{ name: tr("翻上來", "Bring up"), seq: "F2", when: tr("白色邊塊在底層：轉到它側面顏色的中心下方，再把那一面轉兩下。", "A white edge in the bottom layer: turn it under the centre of its side colour, then turn that face twice."), look: "moves" }],
     pieces: sig(2, "W"),
     goal: (s) => crossDone(s),
     practice: [["F2"], ["R2"], ["L2", "F2"]],
@@ -192,8 +249,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: false,
     intro: tr("把白色角塊轉到它要去的位置正下方，重複「插角」直到它歸位、白色朝上。", "Turn a white corner to just below where it belongs, then repeat Insert until it is in, white side up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
-    formulas: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
-    demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
+    formulas: [F_INSERT],
+    demos: [F_INSERT],
     pieces: sig(3, "W"),
     goal: (s) => layerDone(s, 3, "U"),
     keep: (s) => crossDone(s),
@@ -205,14 +262,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("翻過來，白色朝下。頂層的邊轉到和側面中心同色的位置，看它要往右還是往左，用對應的公式放進中層。", "Turn it over, white down. Line a top edge up with its side centre, see whether it goes right or left, and use that formula."),
     task: tr("把中層四個邊放好", "Fill the middle layer"),
-    formulas: [
-      { name: tr("往右", "Right"), seq: RIGHT },
-      { name: tr("往左", "Left"), seq: LEFT },
-    ],
-    demos: [
-      { name: tr("往右", "Right"), seq: RIGHT },
-      { name: tr("往左", "Left"), seq: LEFT },
-    ],
+    formulas: [F_RIGHT, F_LEFT],
+    demos: [F_RIGHT, F_LEFT],
     pieces: sig(2, undefined, ["W", "Y"]),
     goal: (s) => f2l(s),
     keep: (s) => layerDone(s, 3, "D"),
@@ -224,8 +275,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("上面看到黃色的點、L 形或一條線：放好方向再按「十字」，一次一次變成十字。", "On top you see a dot, an L or a line of yellow: hold it the right way and press Cross until it becomes a cross."),
     task: tr("做出黃色十字", "Make the yellow cross"),
-    formulas: [{ name: tr("十字", "Cross"), seq: CROSS }],
-    demos: [{ name: tr("十字", "Cross"), seq: CROSS }],
+    formulas: [F_CROSS],
+    demos: [F_CROSS],
     pieces: sig(2, "Y"),
     goal: (s) => yellowCross(s),
     keep: (s) => f2l(s),
@@ -237,8 +288,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("用「小魚」把黃色的角翻上來，一次一次直到整面黃。", "Use Fish to turn the yellow corners up, again and again until the whole face is yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
-    formulas: [{ name: tr("小魚", "Fish"), seq: SUNE }],
-    demos: [{ name: tr("小魚", "Fish"), seq: SUNE }],
+    formulas: [F_FISH],
+    demos: [F_FISH],
     pieces: sig(3, "Y"),
     goal: (s) => topFace(s, 3),
     keep: (s) => yellowCross(s),
@@ -250,8 +301,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("把四個頂層角換到正確的位置（顏色和旁邊兩個中心一樣），先不管邊。", "Move the four top corners to their places (their colours match the two centres beside them); the edges come next."),
     task: tr("把頂層四個角放對位置", "Put the top corners in place"),
-    formulas: [{ name: tr("換角", "Swap"), seq: CORNERS3 }],
-    demos: [{ name: tr("換角", "Swap"), seq: CORNERS3 }],
+    formulas: [F_CORNERS],
+    demos: [F_CORNERS],
     pieces: sig(3, "Y"),
     goal: (s) => cornersPlaced(s),
     keep: (s) => topFace(s, 3),
@@ -263,8 +314,8 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("最後把頂層的邊換到對的位置，整顆就完成了。", "Last, move the top edges to their places and the cube is solved."),
     task: tr("把方塊完成", "Solve the cube"),
-    formulas: [{ name: tr("換邊", "Edges"), seq: EDGES3 }],
-    demos: [{ name: tr("換邊", "Edges"), seq: EDGES3 }],
+    formulas: [F_EDGES],
+    demos: [F_EDGES],
     pieces: sig(2, "Y"),
     goal: (s) => isSolved(s),
     keep: (s) => cornersPlaced(s),
@@ -280,8 +331,8 @@ const LESSONS_2: Lesson[] = [
     whiteDown: false,
     intro: tr("把四個白色角塊轉到上面，而且每一側上排的兩格要同色。角塊在右前下方時用「插角」把它送上去。", "Bring the four white corners to the top, with the two stickers of each side's top row matching. With a corner at front right, bottom, Insert sends it up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
-    formulas: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
-    demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
+    formulas: [F_INSERT],
+    demos: [F_INSERT],
     pieces: sig(3, "W"),
     goal: (s, size) => layerDone(s, size, "U"),
     practice: [[0], [0, 0], ["D'", 0]],
@@ -292,8 +343,8 @@ const LESSONS_2: Lesson[] = [
     whiteDown: true,
     intro: tr("翻過來，白色朝下。用「小魚」把黃色的角翻上來，直到上面全黃。", "Turn it over, white down. Use Fish to turn the yellow corners up until the top is all yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
-    formulas: [{ name: tr("小魚", "Fish"), seq: SUNE }],
-    demos: [{ name: tr("小魚", "Fish"), seq: SUNE }],
+    formulas: [F_FISH],
+    demos: [F_FISH],
     pieces: sig(3, "Y"),
     goal: (s, size) => topFace(s, size),
     keep: (s, size) => layerDone(s, size, "D"),
@@ -305,8 +356,8 @@ const LESSONS_2: Lesson[] = [
     whiteDown: true,
     intro: tr("最後把頂層的角換到對的位置，整顆就完成了。", "Last, move the top corners to their places and the cube is solved."),
     task: tr("把方塊完成", "Solve the cube"),
-    formulas: [{ name: tr("換角", "Swap"), seq: TPERM }],
-    demos: [{ name: tr("換角", "Swap"), seq: TPERM }],
+    formulas: [F_TPERM],
+    demos: [F_TPERM],
     pieces: () => true,
     goal: (s) => isSolved(s),
     keep: (s, size) => topFace(s, size),
@@ -349,6 +400,39 @@ export function hintFor(size: LearnSize, index: number, i: number, cube: Sticker
     }
   }
   return { undo: true };
+}
+
+/** What the cube shows about using `formula` on `cube`: arrows by cubie position, rings by sticker key. */
+export function guidesFor(size: LearnSize, index: number, formula: Formula, cube: Sticker[]): { arrows: [Vec, Vec][]; rings: Set<string> } | null {
+  const lesson = LESSONS[size][index]!;
+  if (!formula.look) return null;
+  const h = size - 1;
+  const after = applyAlgorithm(cube, parseAlgorithm(formula.seq, size));
+  // the stickers of each piece, by index (turns keep the order), and the piece's colour letters
+  const pieces = new Map<string, number[]>();
+  cube.forEach((st, i) => pieces.set(st.p.join(","), [...(pieces.get(st.p.join(",")) ?? []), i]));
+  const arrows: [Vec, Vec][] = [];
+  const rings = new Set<string>();
+  const key = (st: Sticker) => `${st.p.join(",")}|${st.n.join(",")}`;
+  const top = solvedFor(size, lesson.whiteDown).find((st) => st.n[1] === 1)!.c;
+  for (const idx of pieces.values()) {
+    const at = cube[idx[0]!]!.p;
+    if (!lesson.pieces(idx.map((i) => cube[i]!.c).sort().join(""))) continue;
+    const to = after[idx[0]!]!.p;
+    const moves = to.some((v, k) => v !== at[k]);
+    if (formula.look === "pattern") {
+      // the top colour on the top layer: on top for edges (the cross's shape), on any side for
+      // corners (which way the fish's corners face)
+      if (at[1] === h) for (const i of idx) if (cube[i]!.c === top && (idx.length === 3 || cube[i]!.n[1] === 1)) rings.add(key(cube[i]!));
+    } else if (moves) arrows.push([at, to]);
+    else if (formula.look === "swap" && at[1] === h) for (const i of idx) rings.add(key(cube[i]!));
+  }
+  // a pattern reads from the middle: ring the top centre too (odd cubes have one)
+  if (formula.look === "pattern" && size % 2 === 1) {
+    const centre = cube.find((st) => st.n[1] === 1 && st.p[0] === 0 && st.p[2] === 0);
+    if (centre) rings.add(key(centre));
+  }
+  return { arrows, rings };
 }
 
 /** Where a watch card starts: the solved cube with the formula undone, so playing it puts things right. */

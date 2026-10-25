@@ -70,6 +70,18 @@ export class CubeView {
     if (!this.anim) this.draw();
   }
 
+  /**
+   * Teaching marks over the cube (the learning mode's "when to use it"): arrows from where pieces
+   * are to where a formula sends them, by cubie position, and rings on stickers, by key. Not drawn
+   * while a layer turns, when they would point at the wrong places.
+   */
+  private guides: { arrows: [Vec, Vec][]; rings: Set<string> } | null = null;
+
+  setGuides(guides: { arrows: [Vec, Vec][]; rings: Set<string> } | null) {
+    this.guides = guides;
+    if (!this.anim) this.draw();
+  }
+
   /** A move shown without turning: its layers outlined and its arrow drawn, as at the start of a turn. */
   private preview: Move | null = null;
 
@@ -456,6 +468,7 @@ export class CubeView {
       }
     }
     this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
+    if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
     else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
   }
@@ -522,6 +535,82 @@ export class CubeView {
   }
 
   /** A mark: a dark dot with a thin white ring in the middle of the sticker. */
+  /** Rings round the guide stickers in view, then each arrow from the face of its piece that faces you most. */
+  private drawGuides(faces: { st: [number, number][]; key: string }[], project: (p: Vec) => [number, number], view: Vec) {
+    const { ctx, size } = this;
+    const g = this.guides!;
+    const INK = "#e8318a";
+    ctx.save();
+    for (const f of faces) {
+      if (!g.rings.has(f.key)) continue;
+      const cx = f.st.reduce((a, p) => a + p[0], 0) / 4;
+      const cy = f.st.reduce((a, p) => a + p[1], 0) / 4;
+      const r = Math.max(8, Math.hypot(f.st[2]![0] - f.st[0]![0], f.st[2]![1] - f.st[0]![1]) * 0.42);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "rgba(255,255,255,.9)";
+      ctx.stroke();
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+    }
+    const h = size - 1;
+    const anchor = (p: Vec): [number, number] => {
+      let best: Vec = [0, 1, 0];
+      let most = -Infinity;
+      for (let ax = 0; ax < 3; ax++) {
+        if (Math.abs(p[ax]!) !== h) continue;
+        const n: Vec = [0, 0, 0];
+        n[ax] = Math.sign(p[ax]!);
+        const d = n[0] * view[0] + n[1] * view[1] + n[2] * view[2];
+        if (d > most) [most, best] = [d, n];
+      }
+      return project([p[0] + best[0] * 1.05, p[1] + best[1] * 1.05, p[2] + best[2] * 1.05]);
+    };
+    const mid = project([0, 0, 0]);
+    for (const [from, to] of g.arrows) {
+      const a = anchor(from);
+      const z = anchor(to);
+      // bow the path away from the middle of the cube, so it reads as moving round it
+      const m: [number, number] = [(a[0] + z[0]) / 2, (a[1] + z[1]) / 2];
+      const len = Math.hypot(z[0] - a[0], z[1] - a[1]);
+      let ox = m[0] - mid[0];
+      let oy = m[1] - mid[1];
+      const ol = Math.hypot(ox, oy) || 1;
+      [ox, oy] = [(ox / ol) * len * 0.35, (oy / ol) * len * 0.35];
+      const c: [number, number] = [m[0] + ox, m[1] + oy];
+      // stop short of the target so the head sits on it
+      const t = 0.92;
+      const end: [number, number] = [(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t * t * z[0], (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t * t * z[1]];
+      for (const [width, colour] of [[8, "rgba(255,255,255,.9)"], [4.5, INK]] as const) {
+        ctx.beginPath();
+        ctx.moveTo(...a);
+        ctx.quadraticCurveTo(c[0], c[1], end[0], end[1]);
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = colour;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(a[0], a[1], 5, 0, Math.PI * 2);
+      ctx.fillStyle = INK;
+      ctx.fill();
+      const ang = Math.atan2(end[1] - c[1], end[0] - c[0]);
+      ctx.beginPath();
+      ctx.moveTo(end[0] + Math.cos(ang) * 12, end[1] + Math.sin(ang) * 12);
+      ctx.lineTo(end[0] + Math.cos(ang + 2.4) * 13, end[1] + Math.sin(ang + 2.4) * 13);
+      ctx.lineTo(end[0] + Math.cos(ang - 2.4) * 13, end[1] + Math.sin(ang - 2.4) * 13);
+      ctx.closePath();
+      ctx.fillStyle = INK;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,.9)";
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawMark(st: [number, number][]) {
     const { ctx } = this;
     const cx = st.reduce((a, p) => a + p[0], 0) / st.length;
