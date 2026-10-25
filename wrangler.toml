@@ -28,7 +28,8 @@ directory = "./public"
 run_worker_first = ["/api/*"]
 
 [vars]
-RECOGNIZE_MODEL = "claude-opus-5-5"
+# Sonnet 5.5 costs half of Opus 5.5 per token; set back to "claude-opus-5-5" if photos read worse
+RECOGNIZE_MODEL = "claude-sonnet-5-5"
 RECOGNIZE_EFFORT = "medium"
 # custom sequences written from plain words (the study mode "Ask AI"); share DAILY_LIMIT with photos
 MACRO_MODEL = "claude-sonnet-5-5"
