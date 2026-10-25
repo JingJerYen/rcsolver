@@ -66,7 +66,6 @@ export const MacroBodySchema = z.object({
 export type MacroBody = z.infer<typeof MacroBodySchema>;
 
 export const MacroOutputSchema = z.object({
-  name: z.string().describe("Button label, at most 2 characters"),
   moves: z.string().describe("The sequence in the app's notation, moves separated by spaces; empty when impossible"),
   error: z.string().nullable().describe("Why no sequence is given, one short sentence in the user's language; null when moves is set"),
 });

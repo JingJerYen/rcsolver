@@ -1156,9 +1156,9 @@ $("macroSave").onclick = () => {
 $("macroClose").onclick = () => macroDialog.close();
 
 /*
- * "Ask AI" under the rows: one line of plain words (plus the marked pieces, if any) goes to the
- * model, and its answer fills the next empty row, outlined, to keep with Save. Asking again
- * rewrites that same row. Nothing checks what the moves do; unreadable ones turn red like typed ones.
+ * "Ask AI" under the rows: one line of plain words goes to the model, with the marked pieces if
+ * any (always: the model ignores them when the words do not mention them). Its answer fills the
+ * next empty row, named "AI" and outlined, to keep with Save. Asking again rewrites that same row. Nothing checks what the moves do; unreadable ones turn red like typed ones.
  */
 let aiRow = -1;
 function setAiOpen(open: boolean) {
@@ -1175,22 +1175,12 @@ function resetAi() {
   setAiOpen(false);
   aiError("");
   $<HTMLInputElement>("macroAiText").value = "";
-  const n = studying ? cubeView.markedKeys().length : 0;
-  const dots = $("macroAiDots");
-  dots.classList.toggle("hidden", n === 0);
-  dots.setAttribute("aria-pressed", "true");
-  dots.setAttribute("aria-label", tr(`附上 ${n} 個黑點`, `Include the ${n} marked piece${n === 1 ? "" : "s"}`));
-  $("macroAiDotCount").textContent = String(n);
 }
 $("macroAiLabel").textContent = tr("問 AI", "Ask AI");
 $<HTMLInputElement>("macroAiText").placeholder = tr("例如：交換兩個黑點", "e.g. swap the two marked pieces");
 $("macroAiText").setAttribute("aria-label", tr("想要什麼公式", "What sequence do you want"));
 $("macroAiSend").setAttribute("aria-label", tr("送出", "Send"));
 $("macroAiToggle").onclick = () => setAiOpen(!$("macroAi").classList.contains("open"));
-$("macroAiDots").onclick = () => {
-  const b = $("macroAiDots");
-  b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
-};
 async function askAi() {
   const ask = $<HTMLInputElement>("macroAiText").value.trim();
   const send = $<HTMLButtonElement>("macroAiSend");
@@ -1199,8 +1189,7 @@ async function askAi() {
   const empty = (l: HTMLElement) => [...l.querySelectorAll("input")].every((i) => !(i as HTMLInputElement).value.trim());
   const target = aiRow >= 0 ? aiRow : lines.findIndex(empty);
   if (target < 0) return aiError(tr(`${MACRO_MAX} 組都滿了，先刪掉一組`, `All ${MACRO_MAX} are taken: delete one first`));
-  const withDots = !$("macroAiDots").classList.contains("hidden") && $("macroAiDots").getAttribute("aria-pressed") === "true";
-  const marks = withDots ? cubeView.markedKeys().map((k) => describeMark(k, net!.size)) : [];
+  const marks = studying ? cubeView.markedKeys().map((k) => describeMark(k, net!.size)) : [];
   aiError("");
   send.disabled = true;
   send.classList.add("waiting");
@@ -1208,7 +1197,7 @@ async function askAi() {
     const a = await askMacro(net.size, ask, marks);
     if (!a.moves.trim()) return aiError(a.error || tr("AI 沒有給轉法，換個說法試試", "No sequence came back: try other words"));
     const line = lines[target]!;
-    line.querySelector<HTMLInputElement>(".macro-name")!.value = [...a.name.trim()].slice(0, MACRO_NAME_MAX).join("") || "AI";
+    line.querySelector<HTMLInputElement>(".macro-name")!.value = "AI";
     line.querySelector<HTMLInputElement>(".macro-seq")!.value = tokenize(a.moves).join(" ");
     lines.forEach((l, i) => l.classList.toggle("ai-new", i === target));
     aiRow = target;

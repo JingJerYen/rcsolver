@@ -73,7 +73,6 @@ export async function recognize(size: number | null, faces: Record<Face, FaceIma
 
 export interface MacroResponse {
   ok: true;
-  name: string;
   moves: string;
   /** Why there are no moves, in the user's language; null when there are. */
   error: string | null;
