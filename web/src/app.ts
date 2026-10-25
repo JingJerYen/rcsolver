@@ -14,6 +14,7 @@ import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
+import { initLearn, learnTest, renderLearnCard } from "./learnView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
@@ -26,7 +27,7 @@ $("leaveCancel").textContent = tr("取消", "Cancel");
 $("leaveGo").textContent = tr("回首頁", "Go home");
 $("manualNote").textContent = tr("AI 暫時無法辨識。點一面放大，照著照片填顏色。", "The AI couldn't read the photos. Tap a face and fill in the colours from its photo.");
 
-const SCREENS = ["setup", "capture", "review", "result", "solveView"] as const;
+const SCREENS = ["setup", "capture", "review", "result", "solveView", "learnMap", "learnView", "learnDone"] as const;
 
 /* ---------- saved solves (this browser only, newest first, three at most) ---------- */
 
@@ -293,6 +294,7 @@ function showScreen(id: (typeof SCREENS)[number]) {
   $("homeIcon").classList.remove("hidden");
   $("homeX").classList.add("hidden");
   setHero(id === "setup" && loadSaves().length === 0);
+  if (id === "setup") renderLearnCard();
 }
 
 /* ---------- capture flow ---------- */
@@ -1739,7 +1741,10 @@ if ("serviceWorker" in navigator) {
 }
 
 /** Hooks for the end-to-end test: feed a recognised net without the camera. */
+initLearn(showScreen);
+
 (window as unknown as { rcsolverTest: unknown }).rcsolverTest = {
+  learn: learnTest,
   showNet(s: number, r: RecognizeResponse["recognition"]) {
     response = { ok: true, size: s, sizeMismatch: null, recognition: r, warnings: [], model: "test", mock: true, ms: 0, usage: null };
     showResult();

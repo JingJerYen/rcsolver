@@ -24,6 +24,7 @@
       <canvas id="heroCube" class="hero-cube" aria-hidden="true"></canvas>
       <p class="tagline">Solve any cube</p>
     </div>
+    <button type="button" class="learn-card" id="learnCard"><span class="learn-card-icon"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M6 11.2V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.8M22 9v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="learn-card-text"><b id="learnCardTitle">學會自己解</b><span id="learnCardSub"></span><span class="learn-bar"><span id="learnCardBar"></span></span></span><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" class="learn-card-go"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="saves hidden" id="saves"></div>
     <div class="bottom-bar">
       <button class="side-btn import-btn" id="import" aria-label="貼上方塊狀態"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="5" y="4" width="14" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -87,6 +88,41 @@
     <div class="go-row">
       <button class="icon-btn" id="again" aria-label="再拍一組"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
       <button class="primary go" id="solve">Go</button>
+    </div>
+  </section>
+
+  <section class="hidden" id="learnMap">
+    <div class="learn-head"><b id="learnMapTitle">學習</b><div class="seg" role="tablist" id="learnSizes"><button type="button" role="tab" data-size="2">2×2</button><button type="button" role="tab" data-size="3">3×3</button></div></div>
+    <ol class="lesson-list" id="lessonList"></ol>
+  </section>
+
+  <section class="card hidden" id="learnView">
+    <div class="learn-top">
+      <button class="icon-btn small-btn" id="learnBack" aria-label="回到關卡地圖"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <div class="learn-top-text"><b id="lessonTitle"></b><span id="lessonCount"></span><div class="learn-steps"><i id="learnStepWatch"></i><i id="learnStepPractice"></i></div></div>
+    </div>
+    <p class="lesson-text" id="lessonText"></p>
+    <div class="cube-wrap">
+      <canvas id="learnCube" class="cube" aria-label="教學用的方塊"></canvas>
+      <span class="learn-moves hidden" id="learnMoves"></span>
+      <button class="hint-btn hidden" id="learnHint"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span id="learnHintLabel">提示</span></button>
+      <div class="learn-ok hidden" id="learnOk" aria-hidden="true"><svg viewBox="0 0 24 24" width="64" height="64"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+    <p class="lesson-tip hidden" id="lessonTip" role="status"></p>
+    <div class="lesson-demos" id="lessonDemos"></div>
+    <div class="lesson-keys hidden" id="lessonKeys"></div>
+    <button class="primary go" id="lessonGo"></button>
+    <button class="lesson-restart hidden" id="lessonRestart"></button>
+  </section>
+
+  <section class="hidden" id="learnDone">
+    <div class="done-stars" id="doneStars" role="img"></div>
+    <b class="done-title" id="doneTitle"></b>
+    <div class="done-stats" id="doneStats"></div>
+    <div class="done-next hidden" id="doneNext"></div>
+    <div class="done-buttons">
+      <button class="primary go" id="doneNextBtn"></button>
+      <div class="done-row"><button id="doneAgain"></button><button id="doneMap"></button></div>
     </div>
   </section>
 
