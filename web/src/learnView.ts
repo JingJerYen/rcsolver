@@ -206,9 +206,9 @@ function openLesson(size: LearnSize, index: number) {
   renderDemos();
   // the notation lesson starts from the solved cube; a formula's card from the cube it fixes
   const first = lesson.demos[0];
-  view.setState(size, first && !lesson.copy ? demoStart(size, index, first.seq) : solvedFor(size, lesson.whiteDown));
-  renderDemos();
+  view.setState(size, first && !lesson.copy ? demoStart(size, index, first) : solvedFor(size, lesson.whiteDown));
   view.resetView();
+  renderDemos();
   focusLesson(true);
   show("learnView");
 }
@@ -226,16 +226,20 @@ function renderDemos() {
       const active = !r.lesson.copy && i === demoCard;
       const done = active && demoStep >= moves.length;
       const seq = moves.map((m, k) => `<span class="${active && k < demoStep ? "is-done" : active && k === demoStep ? "is-next" : ""}">${esc(pretty(m))}</span>`).join(" ");
-      const label = done ? tr(`${d.name}：轉完了`, `${d.name}: all turned`) : tr(`${d.name}：下一步`, `${d.name}: next turn`);
+      const title = d.case ? `${d.name}・${d.case}` : d.name;
+      const label = done ? tr(`${title}：轉完了`, `${title}: all turned`) : tr(`${title}：下一步`, `${title}: next turn`);
       const when = active && d.when ? `<p class="lesson-demo-when">${esc(d.when)}</p>` : "";
-      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}</span><code>${seq}</code>${when}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
+      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}${d.case ? `<small>${esc(d.case)}</small>` : ""}</span><code>${seq}</code>${when}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
     })
     .join("");
   const finished = !r.lesson.copy && demoStep >= (r.lesson.demos[demoCard]?.seq.split(" ").length ?? Infinity);
   $("learnReset").classList.toggle("pulse", finished);
   // at the card's start, show when to use it: arrows to where pieces go, rings on what to look for
   const demo = r.lesson.demos[demoCard];
-  view.setGuides(!r.lesson.copy && demo && demoStep === 0 ? guidesFor(r.size, r.index, demo, view.getState()) : null);
+  const guides = !r.lesson.copy && demo && demoStep === 0 ? guidesFor(r.size, r.index, demo, view.getState()) : null;
+  view.setGuides(guides);
+  // at a card's start, look from where its marks show
+  if (guides) view.resetView(guides.side);
 }
 
 /** Turn through a sequence on the lesson cube. */
@@ -428,7 +432,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
       // another card: set its starting cube out, ready for the first tap
       demoCard = i;
       demoStep = 0;
-      view.setState(r.size, demoStart(r.size, r.index, demo.seq));
+      view.setState(r.size, demoStart(r.size, r.index, demo));
       renderDemos();
       return;
     }
@@ -476,7 +480,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     if (r.phase === "watch") {
       if (busy || view.animating) return;
       const demo = r.lesson.demos[demoCard];
-      view.setState(r.size, r.lesson.copy || !demo ? solvedFor(r.size, r.lesson.whiteDown) : demoStart(r.size, r.index, demo.seq));
+      view.setState(r.size, r.lesson.copy || !demo ? solvedFor(r.size, r.lesson.whiteDown) : demoStart(r.size, r.index, demo));
       demoStep = 0;
       renderDemos();
       return;
@@ -507,7 +511,10 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     const hint = r.lesson.copy ? { turn: r.lesson.copy[r.puzzleNo]![r.copied]! } : hintFor(r.size, r.index, r.puzzleNo, view.getState());
     r.hints++;
     view.setPreview("turn" in hint ? parseMove(hint.turn, r.size) : null);
-    view.setGuides("formula" in hint ? guidesFor(r.size, r.index, r.lesson.formulas[hint.formula]!, view.getState()) : null);
+    const guides = "formula" in hint ? guidesFor(r.size, r.index, r.lesson.formulas[hint.formula]!, view.getState()) : null;
+    view.setGuides(guides);
+    // marks on the left face (Fish without a fish): turn the camera round to show them
+    if (guides?.side === "left") view.resetView("left");
     lightKey("formula" in hint ? r.lesson.formulas[hint.formula]!.seq : "turn" in hint ? hint.turn : "undo");
   };
   $("doneNextBtn").onclick = () => {
@@ -533,7 +540,6 @@ export const learnTest = {
     if (run) view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
   },
   point: (key: string) => view.pointOf(key),
-  /** The turn the hint would show now. */
   /** What the hint would point at now: a formula's name, a turn, or "undo". */
   hint: () => {
     if (!run || run.lesson.copy) return null;
