@@ -1586,14 +1586,14 @@ $("resetNet").onclick = resetNet;
 const SCRAMBLE_HOLD_MS = 600;
 let scrambleTimer = 0;
 let scrambledByHold = false;
+/**
+ * A long press scrambles: a fresh study of a solved cube turned at random, with no moves written
+ * down, so the scramble is a puzzle to solve rather than a sequence to read back.
+ */
 function scrambleStudy() {
-  if (!net || !studying || !cutAtCursor()) return;
-  studyTokens = [...studyTokens, ...scrambleTokens(net.size)];
-  $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
-  const read = readMoves(studyTokens, net.size);
-  $("studyText").classList.toggle("bad", read.bad);
-  moves = read.moves;
-  jumpTo(moves.length, moves.length - 1);
+  if (!net || !studying || cubeView.animating) return;
+  const n = net.size;
+  startStudy(n, applyAlgorithm(solvedState(n), parseAlgorithm(scrambleTokens(n).join(" "), n)));
   navigator.vibrate?.(30);
 }
 function endScrambleHold() {
