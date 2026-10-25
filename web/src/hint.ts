@@ -220,9 +220,8 @@ export function studyHint(size: number, cube: Sticker[]): StudyHint | null {
   if (size <= 3) {
     const s = smallStep(size as 2 | 3, cube, scheme, false);
     if ("solved" in s) return SOLVED;
-    const title = LESSONS[size as 2 | 3][s.lesson]!.title;
     return {
-      title: tr(`第 ${s.lesson} 步・${title}`, `Step ${s.lesson} · ${title}`),
+      title: LESSONS[size as 2 | 3][s.lesson]!.title,
       body: s.body,
       rings: new Set(s.rings.map((i) => keyOf(cube[i]!))),
       lesson: { size: size as 2 | 3, index: s.lesson },
@@ -236,7 +235,7 @@ export function studyHint(size: number, cube: Sticker[]): StudyHint | null {
   if (wrongCentres.length) {
     const faces = new Set(wrongCentres.map(({ st }) => faceOf(st.n))).size;
     return {
-      title: tr("第 1 步・中心", "Step 1 · Centres"),
+      title: tr("中心", "Centres"),
       body: tr(`還差 ${faces} 面的中心，圈起來的是放錯面的中心格。`, `${faces} face${faces === 1 ? "" : "s"} of centres to go: the centre pieces on the wrong face are ringed.`),
       rings: new Set(wrongCentres.map(({ st }) => keyOf(st))),
       lesson: null,
@@ -257,7 +256,7 @@ export function studyHint(size: number, cube: Sticker[]): StudyHint | null {
   });
   if (unpaired.length)
     return {
-      title: tr("第 2 步・邊塊配對", "Step 2 · Pairing edges"),
+      title: tr("邊塊配對", "Pairing edges"),
       body: tr(`還有 ${unpaired.length} 條邊沒配好，圈起來的就是。`, `${unpaired.length} edge${unpaired.length === 1 ? "" : "s"} still to pair: they are ringed.`),
       rings: new Set(unpaired.flat().map((i) => keyOf(cube[i]!))),
       lesson: null,
@@ -288,7 +287,7 @@ export function studyHint(size: number, cube: Sticker[]): StudyHint | null {
   if ("solved" in s) return SOLVED;
   const title = LESSONS[3][s.lesson]!.title;
   return {
-    title: tr(`第 3 步・當成 3×3：${title}`, `Step 3 · As a 3×3: ${title}`),
+    title: tr(`當成 3×3：${title}`, `As a 3×3: ${title}`),
     body: s.body,
     rings: new Set(s.rings.flatMap((i) => back[i]!).map((i) => keyOf(cube[i]!))),
     lesson: null,
