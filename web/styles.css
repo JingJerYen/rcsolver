@@ -275,13 +275,13 @@ th{color:#607189;font-weight:600}
 #solveView.study.twisting #studyKeys{display:none}
 /* study mode's own move sequences: one row of up to five, kept while turning by hand */
 .macro-row{display:flex;gap:6px;margin-top:6px}
-.k.macro{flex:1 1 0;background:#fff7df;border-color:#e0a21c;color:#6b4b00;font:700 min(15px,3.6vw) system-ui,"Noto Sans TC",sans-serif;letter-spacing:-.02em;white-space:nowrap;overflow:hidden}
+.k.macro{flex:1 1 0;background:#fff7df;border-color:#e0a21c;color:#6b4b00;font:700 min(19px,4.8vw) system-ui,"Noto Sans TC",sans-serif;white-space:nowrap;overflow:hidden}
 .k.macro-edit{flex:none;width:46px;background:#fff;border:1px dashed #c9a447;color:#8a6d1e}
 .k.macro-add{flex:1;background:#fff;border:1px dashed #c9a447;color:#8a6d1e;font:700 15px system-ui,"Noto Sans TC",sans-serif;gap:6px}
 .macro-head{display:flex;align-items:center;gap:8px}
 .macro-head .dialog-title{flex:1}
 .macro-rows{display:flex;flex-direction:column;gap:6px}
-.macro-line{display:grid;grid-template-columns:62px minmax(0,1fr) 36px;gap:6px;align-items:center}
+.macro-line{display:grid;grid-template-columns:52px minmax(0,1fr) 36px;gap:6px;align-items:center}
 .macro-line input{font:inherit;min-width:0;height:42px;box-sizing:border-box;border:1px solid #cdd7e5;border-radius:10px;padding:0 8px}
 .macro-line .macro-name{font-weight:700;color:#6b4b00;background:#fff7df}
 .macro-line .macro-seq{font:600 14px ui-monospace,monospace}
@@ -290,3 +290,9 @@ th{color:#607189;font-weight:600}
 .macro-error{margin:0;font-size:13px;color:#c22d2d}
 .macro-save{min-height:48px;border-radius:24px;font-weight:700}
 .macro-line input.bad:focus{outline:2px solid #e03131;outline-offset:0}
+/* study mode can fold away the slider and play buttons so the keys sit higher */
+.move-row{position:relative}
+.play-toggle{position:absolute;right:0;top:50%;transform:translateY(-50%);width:40px;height:40px;color:#607189}
+.play-toggle svg{transition:transform .2s}
+#solveView.study.compact .play-toggle svg{transform:rotate(180deg)}
+#solveView.study.compact #slider,#solveView.study.compact .play-row{display:none}
