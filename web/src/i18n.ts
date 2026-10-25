@@ -56,6 +56,9 @@ const LABELS_EN: Record<string, string> = {
   說明: "Help",
   請稍候: "Please wait",
   手轉: "Turn layers by hand",
+  自訂公式: "Your own sequences",
+  設定自訂公式: "Edit your own sequences",
+  刪除這一組: "Delete this one",
 };
 
 /** On an English device, switch the page language and the Chinese labels written in index.html. */

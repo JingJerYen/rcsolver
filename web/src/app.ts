@@ -738,14 +738,16 @@ function replaySegment() {
   void step(1);
 }
 
-async function step(delta: 1 | -1) {
+/** One move forward or back; `fast` turns at twice the speed (a whole sequence from a key). */
+async function step(delta: 1 | -1, fast = false) {
   if (cubeView.animating) return;
   const target = moveIndex + delta;
   if (target < 0 || target > moves.length) return;
   shownIndex = delta === 1 ? moveIndex : moveIndex - 1;
   const mv = moves[shownIndex]!;
   renderSolve();
-  await cubeView.animate(mv, delta, Math.abs(mv.q) === 2 ? turnMs * 1.4 : turnMs);
+  const ms = (Math.abs(mv.q) === 2 ? turnMs * 1.4 : turnMs) * (fast ? 0.5 : 1);
+  await cubeView.animate(mv, delta, ms);
   if (studyDirty) {
     // the moves were edited during this turn: land on the new end instead
     studyDirty = false;
@@ -816,6 +818,7 @@ function setStudying(on: boolean) {
 
 function renderKeys() {
   if (net) $("studyKeys").innerHTML = keypadHtml(net.size, studyDepth, studyWide);
+  renderMacros();
 }
 
 /** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
@@ -983,6 +986,142 @@ tourDialog.querySelector(".tour-skip")!.textContent = tr("略過", "Skip");
 $("studyHelp").onclick = () => studyTour();
 
 /*
+ * Your own sequences: up to five named ones (names of at most three characters), kept on this
+ * device. A key adds the whole sequence to the moves, written out, so saves, copies and shared
+ * links read the same anywhere; it does not merge with the move before it. A sequence with moves
+ * this cube size does not have is greyed out.
+ */
+interface Macro {
+  name: string;
+  seq: string;
+}
+const MACRO_KEY = "rcsolver.macros";
+const MACRO_MAX = 5;
+const MACRO_NAME_MAX = 3;
+const MACRO_EXAMPLES: Macro[] = [
+  { name: "Sx", seq: "R U R' U'" },
+  { name: "Sun", seq: "R U R' U R U2 R'" },
+];
+function loadMacros(): Macro[] {
+  try {
+    const raw = localStorage.getItem(MACRO_KEY);
+    if (raw === null) return MACRO_EXAMPLES;
+    const list = JSON.parse(raw) as Macro[];
+    return Array.isArray(list) ? list.filter((m) => m && typeof m.name === "string" && typeof m.seq === "string").slice(0, MACRO_MAX) : MACRO_EXAMPLES;
+  } catch {
+    return MACRO_EXAMPLES;
+  }
+}
+let macros = loadMacros();
+function storeMacros(list: Macro[]) {
+  macros = list;
+  try {
+    localStorage.setItem(MACRO_KEY, JSON.stringify(list));
+  } catch {
+    /* storage unavailable: kept for this visit */
+  }
+}
+const EDIT_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 7l3 3" stroke="currentColor" stroke-width="2"/></svg>';
+function renderMacros() {
+  const row = $("studyMacros");
+  if (!macros.length) {
+    row.innerHTML = `<button type="button" class="k macro-add" data-macro-edit>${tr("＋ 自訂公式", "+ Your own sequence")}</button>`;
+    return;
+  }
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  row.innerHTML =
+    macros
+      .map((m, i) => {
+        const read = readMoves(tokenize(m.seq), net?.size ?? 3);
+        const off = read.bad || !read.moves.length;
+        return `<button type="button" class="k macro" data-macro="${i}" aria-label="${esc(`${m.name}: ${m.seq}`)}"${off ? " disabled" : ""}>${esc(m.name)}</button>`;
+      })
+      .join("") + `<button type="button" class="k macro-edit" data-macro-edit aria-label="${tr("設定自訂公式", "Edit your own sequences")}">${EDIT_ICON}</button>`;
+}
+/** Add a sequence at the end and turn through it quickly. */
+async function runMacro(i: number) {
+  const m = macros[i];
+  if (!m || !net || !studying || cubeView.animating) return;
+  const add = readMoves(tokenize(m.seq), net.size);
+  if (add.bad || !add.moves.length) return;
+  stopPlaying();
+  if (moveIndex !== moves.length) jumpTo(moves.length, Math.max(0, moves.length - 1));
+  studyTokens = [...studyTokens, ...add.moves.map((mv) => mv.token)];
+  $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
+  const read = readMoves(studyTokens, net.size);
+  $("studyText").classList.toggle("bad", read.bad);
+  moves = read.moves;
+  while (moveIndex < moves.length) {
+    const at = moveIndex;
+    await step(1, true);
+    if (moveIndex === at) break; // interrupted (an edit jumped to the end)
+  }
+}
+$("studyMacros").onclick = (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("button");
+  if (!b) return;
+  if (b.dataset.macroEdit !== undefined) openMacroEditor();
+  else if (b.dataset.macro) void runMacro(Number(b.dataset.macro));
+};
+
+const macroDialog = $<HTMLDialogElement>("macroDialog");
+$("macroTitle").textContent = tr("自訂公式", "Your own sequences");
+$("macroNote").textContent = tr(
+  `名字最多 ${MACRO_NAME_MAX} 個字；按下去會把整串轉法加進去，分享和存檔也看得懂。最多 ${MACRO_MAX} 組。`,
+  `Names of up to ${MACRO_NAME_MAX} characters. A key adds its whole sequence to the moves, so saves and shared links read the same anywhere. Up to ${MACRO_MAX}.`,
+);
+$("macroSave").textContent = tr("儲存", "Save");
+function openMacroEditor() {
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  $("macroRows").innerHTML = Array.from({ length: MACRO_MAX }, (_, i) => {
+    const m = macros[i] ?? { name: "", seq: "" };
+    return `<div class="macro-line"><input class="macro-name" maxlength="${MACRO_NAME_MAX}" value="${esc(m.name)}" placeholder="${tr("名字", "Name")}" aria-label="${tr("名字", "Name")} ${i + 1}" autocomplete="off"><input class="macro-seq" value="${esc(m.seq)}" placeholder="R U R' U'" aria-label="${tr("轉法", "Moves")} ${i + 1}" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="macro-del" data-del aria-label="${tr("刪除這一組", "Delete this one")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>`;
+  }).join("");
+  checkMacros();
+  macroDialog.showModal();
+}
+/** Mark what is missing or unreadable; returns the rows to keep, or null while any is wrong. */
+function checkMacros(): Macro[] | null {
+  const out: Macro[] = [];
+  const problems: string[] = [];
+  $("macroRows").querySelectorAll<HTMLElement>(".macro-line").forEach((line, i) => {
+    const nameEl = line.querySelector<HTMLInputElement>(".macro-name")!;
+    const seqEl = line.querySelector<HTMLInputElement>(".macro-seq")!;
+    const name = nameEl.value.trim();
+    const tokens = tokenize(seqEl.value);
+    // any move some cube size has counts: 3R is fine to save for a 5×5
+    const unknown = tokens.filter((t) => readMoves([t], 7).bad);
+    const badName = !name && tokens.length > 0;
+    const badSeq = (name !== "" && !tokens.length) || unknown.length > 0;
+    nameEl.classList.toggle("bad", badName);
+    seqEl.classList.toggle("bad", badSeq);
+    if (unknown.length) problems.push(tr(`第 ${i + 1} 組有看不懂的記號：${unknown.join(" ")}`, `Row ${i + 1} has moves that are not moves: ${unknown.join(" ")}`));
+    else if (badName) problems.push(tr(`第 ${i + 1} 組還沒取名字`, `Row ${i + 1} needs a name`));
+    else if (badSeq) problems.push(tr(`第 ${i + 1} 組還沒有轉法`, `Row ${i + 1} needs moves`));
+    if (name && tokens.length && !unknown.length) out.push({ name, seq: tokens.join(" ") });
+  });
+  $("macroError").textContent = problems.join("；");
+  $("macroError").classList.toggle("hidden", !problems.length);
+  $<HTMLButtonElement>("macroSave").disabled = problems.length > 0;
+  return problems.length ? null : out;
+}
+$("macroRows").oninput = () => void checkMacros();
+$("macroRows").onclick = (e) => {
+  const del = (e.target as HTMLElement).closest<HTMLElement>("[data-del]");
+  if (!del) return;
+  del.parentElement!.querySelectorAll("input").forEach((input) => ((input as HTMLInputElement).value = ""));
+  checkMacros();
+};
+$("macroSave").onclick = () => {
+  const list = checkMacros();
+  if (!list) return;
+  storeMacros(list);
+  renderMacros();
+  macroDialog.close();
+};
+$("macroClose").onclick = () => macroDialog.close();
+
+/*
  * Hand turns: with the switch on, a drag that starts on a sticker turns its layer (the layer
  * follows the finger and settles on a quarter turn); off, drags turn the view as before. A turn
  * is recorded like a key press, so it merges and shows in the move text. On until switched off;
@@ -1059,6 +1198,14 @@ function studyTour() {
           "點一下就轉一層；藍色是順時針，淺藍是逆時針。按住不放，方塊上會先標出要轉哪幾層。連按同一顆會自動合併：L L → L2，L L′ 會抵消。",
           "Tap to turn a layer: dark blue clockwise, light blue anticlockwise. Hold a key to see which layers it turns first. Pressing the same key again merges: L L → L2, and L L′ cancel out.",
         ) + (big ? tr("最上面一排先選第幾層，或「多層」一次轉好幾層。", " The top row picks the layer, or Wide to turn several at once.") : ""),
+    },
+    {
+      targets: [$("studyMacros")],
+      title: tr("自訂公式", "Your own sequences"),
+      body: tr(
+        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 3 個字。",
+        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 3 characters.",
+      ),
     },
     {
       targets: [$("studyTextRow")],
