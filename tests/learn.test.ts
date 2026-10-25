@@ -1,12 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LESSONS, demoStart, hintPlan, hintStep, invert, puzzle, solvedFor, starsFor, type LearnSize } from "../web/src/learn.js";
+import { LESSONS, demoStart, hintFor, puzzle, solvedFor, starsFor, type LearnSize } from "../web/src/learn.js";
 import { applyAlgorithm, parseAlgorithm, toNet } from "../web/src/cubeState.js";
 
-function rng(seed: number) {
-  let s = seed;
-  return () => (s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32;
-}
 const SIZES: LearnSize[] = [2, 3];
 
 test("learn: the solved cube passes every lesson's goal and keeps every earlier stage", () => {
@@ -18,7 +14,7 @@ test("learn: the solved cube passes every lesson's goal and keeps every earlier 
     });
 });
 
-test("learn: three fixed puzzles per lesson: each needs the stage, keeps the earlier ones, and undoing it finishes it", () => {
+test("learn: three fixed puzzles per lesson: each needs the stage, keeps the earlier ones, and its written solution finishes it", () => {
   for (const size of SIZES)
     LESSONS[size].forEach((l, i) => {
       if (l.copy) return;
@@ -27,7 +23,8 @@ test("learn: three fixed puzzles per lesson: each needs the stage, keeps the ear
         const p = puzzle(size, i, k);
         assert.ok(!l.goal(p.start, size), `${size} #${i} puzzle ${k} is already done`);
         assert.ok(!l.keep || l.keep(p.start, size), `${size} #${i} puzzle ${k} broke an earlier stage`);
-        assert.ok(l.goal(applyAlgorithm(p.start, parseAlgorithm(invert(p.setup), size)), size), `${size} #${i} puzzle ${k}`);
+        const solution = l.practice[k]!.map((st) => (typeof st === "number" ? l.formulas[st]!.seq : st)).join(" ");
+        assert.ok(l.goal(applyAlgorithm(p.start, parseAlgorithm(solution, size)), size), `${size} #${i} puzzle ${k}: the written solution`);
       }
       // the first puzzle is the first watch card's cube, now to do yourself
       const first = l.demos[0]!;
@@ -58,53 +55,31 @@ test("learn: the notation lesson's moves are all readable, and stars add up", ()
   assert.equal(starsFor(2, 30, 12), 1);
 });
 
-test("learn: following the hint one turn at a time reaches the goal, even after stray turns", () => {
-  const rand = rng(5);
-  const stray = ["R", "U'", "F2", "L", "D'", "y"];
-  assert.deepEqual(hintPlan([], "R U"), ["U'", "R'"]);
-  assert.deepEqual(hintPlan(["U'"], "R U"), ["R'"], "a turn on the way shortens the plan");
-  assert.deepEqual(hintPlan(["U"], "R U"), ["U2", "R'"], "a stray turn is taken back first, merged with the next");
+
+test("learn: the hint walks each puzzle's written solution, turn by turn inside a formula, and asks for ⌫ off it", () => {
   for (const size of SIZES)
     LESSONS[size].forEach((l, i) => {
       if (l.copy) return;
       for (let k = 0; k < 3; k++) {
-        const p = puzzle(size, i, k);
-        const done = Array.from({ length: Math.floor(rand() * 3) }, () => stray[Math.floor(rand() * stray.length)]!);
-        let cube = applyAlgorithm(p.start, parseAlgorithm(done.join(" "), size));
+        const start = puzzle(size, i, k).start;
+        // follow the hints: formulas as keys, turns one at a time
+        let cube = start;
         let steps = 0;
         while (!l.goal(cube, size)) {
-          const next = hintPlan(done, p.setup)[0];
-          assert.ok(next && steps++ < 200, `${size} #${i}: the hint ran out (${p.setup} / ${done.join(" ")})`);
-          cube = applyAlgorithm(cube, parseAlgorithm(next, size));
-          done.push(next);
+          const h = hintFor(size, i, k, cube);
+          assert.ok(!("undo" in h) && steps++ < 30, `${size} #${i} puzzle ${k}`);
+          cube = applyAlgorithm(cube, parseAlgorithm("formula" in h ? l.formulas[h.formula]!.seq : h.turn, size));
         }
+        // the first hint of the first puzzle is the lesson's first formula (or the cross lesson's turn)
+        if (k === 0) assert.deepEqual(hintFor(size, i, 0, start), l.formulas.length ? { formula: 0 } : { turn: l.practice[0]![0] });
+        // part way through a formula turned by hand: the formula's next turn
+        const first = l.practice[k]![0]!;
+        if (typeof first === "number") {
+          const moves = l.formulas[first]!.seq.split(" ");
+          assert.deepEqual(hintFor(size, i, k, applyAlgorithm(start, parseAlgorithm(moves[0]!, size))), { turn: moves[1] }, `${size} #${i} puzzle ${k}`);
+        }
+        // a turn off the way: take it back
+        assert.deepEqual(hintFor(size, i, k, applyAlgorithm(start, parseAlgorithm("B'", size))), { undo: true }, `${size} #${i} puzzle ${k}`);
       }
     });
-});
-
-test("learn: the hint speaks in the lesson's formulas and lines-up turns, and following it finishes every puzzle", () => {
-  let slowest = 0;
-  for (const size of SIZES)
-    LESSONS[size].forEach((l, i) => {
-      if (l.copy) return;
-      for (let k = 0; k < 3; k++) {
-        let cube = puzzle(size, i, k).start;
-        const said: string[] = [];
-        while (!l.goal(cube, size)) {
-          const t0 = performance.now();
-          const step = hintStep(size, i, cube);
-          slowest = Math.max(slowest, performance.now() - t0);
-          assert.ok(step && said.length < 4, `${size} #${i} puzzle ${k}: no hint after ${said.join(", ")}`);
-          const seq = "formula" in step ? l.formulas[step.formula]!.seq : step.turn;
-          said.push("formula" in step ? l.formulas[step.formula]!.name : step.turn);
-          cube = applyAlgorithm(cube, parseAlgorithm(seq, size));
-        }
-        // the first puzzle is the demo: its first hint is the lesson's first formula
-        if (k === 0 && l.formulas.length) assert.equal(said[0], l.formulas[0]!.name, `${size} #${i}`);
-      }
-    });
-  // the middle layer's second puzzle is the Left demo
-  const left = hintStep(3, 3, puzzle(3, 3, 1).start);
-  assert.deepEqual(left, { formula: 1 });
-  console.log(`slowest hint ${slowest.toFixed(0)} ms`);
 });

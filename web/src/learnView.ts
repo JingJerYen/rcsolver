@@ -6,7 +6,7 @@
 import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, hintPlan, hintStep, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
+import { LESSONS, demoStart, hintFor, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
 import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
@@ -95,11 +95,8 @@ interface Run {
   puzzleNo: number;
   start: Sticker[];
   par: number;
-  /** The moves that made this puzzle from the solved cube, which the hint undoes. */
-  setup: string;
-  /** Cube after each action, for ⌫, and the turns of each action, for the hint. */
+  /** Cube after each action, for ⌫. */
   history: Sticker[][];
-  steps: string[][];
   /** Notation lesson: how many of the moves to copy are done. */
   copied: number;
   moves: number;
@@ -187,7 +184,7 @@ function focusLesson(on: boolean) {
 
 function openLesson(size: LearnSize, index: number) {
   const lesson = LESSONS[size][index]!;
-  run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, setup: "", history: [], steps: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
+  run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, history: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
   $("lessonTitle").textContent = lessonName(index, lesson);
   $("lessonCount").textContent = "";
   $("lessonText").textContent = lesson.intro;
@@ -224,10 +221,10 @@ async function play(seq: string, ms: number): Promise<number | null> {
   return gen === playGen ? turns : null;
 }
 
-/** Light the key the hint points at: a formula, or y / y′ for a whole-cube turn (a drag turns layers only). */
-function lightKey(seq: string | null) {
+/** Light the key the hint points at: a formula, y / y′ for a whole-cube turn (a drag turns layers only), or ⌫. */
+function lightKey(seq: string | "undo" | null) {
   const want = seq && /^y/.test(seq) ? (seq === "y'" ? "y'" : "y") : seq;
-  for (const k of $("lessonKeys").querySelectorAll<HTMLElement>("[data-seq]")) k.classList.toggle("hint-key", k.dataset.seq === want);
+  for (const k of $("lessonKeys").querySelectorAll<HTMLElement>("button")) k.classList.toggle("hint-key", (k.dataset.undo !== undefined ? "undo" : k.dataset.seq) === want);
 }
 
 function renderCopy() {
@@ -261,15 +258,12 @@ function startPuzzle(k: number) {
   if (r.lesson.copy) {
     r.start = solvedFor(r.size, false);
     r.par = r.lesson.copy[k]!.length;
-    r.setup = "";
   } else {
     const p = puzzle(r.size, r.index, k);
     r.start = p.start;
     r.par = p.par;
-    r.setup = p.setup;
   }
   r.history = [r.start];
-  r.steps = [];
   r.copied = 0;
   r.moves = 0;
   setPhase("practice");
@@ -288,8 +282,8 @@ function startPuzzle(k: number) {
 
 const same = (size: number, a: Sticker[], b: Sticker[]) => JSON.stringify(toNet(size, a)) === JSON.stringify(toNet(size, b));
 
-/** After each turn, key or hand: count it, keep it for ⌫ and the hint, and see whether the puzzle is done. */
-function afterMove(turns: number, tokens: string[]) {
+/** After each turn, key or hand: count it, keep it for ⌫, and see whether the puzzle is done. */
+function afterMove(turns: number) {
   const r = run!;
   r.moves += turns;
   renderMoves();
@@ -313,13 +307,11 @@ function afterMove(turns: number, tokens: string[]) {
     }
     r.copied++;
     r.history.push(now);
-    r.steps.push(tokens);
     renderCopy();
     if (r.copied === moves.length) void solved();
     return;
   }
   r.history.push(now);
-  r.steps.push(tokens);
   if (r.lesson.goal(now, r.size)) void solved();
 }
 
@@ -369,7 +361,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   view.onTwist = (axis, layer, quarters) => {
     if (!run || run.phase !== "practice") return;
     const token = twistToken(run.size, axis, layer, quarters);
-    if (token) afterMove(1, [token]);
+    if (token) afterMove(1);
   };
 
   $("learnCard").onclick = openLearnMap;
@@ -406,7 +398,6 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     if (b.dataset.undo !== undefined) {
       if (r.history.length < 2) return;
       r.history.pop();
-      r.steps.pop();
       view.setPreview(null);
       lightKey(null);
       view.setState(r.size, r.history[r.history.length - 1]!);
@@ -420,7 +411,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     const turns = await play(b.dataset.seq!, KEY_MS);
     if (turns === null) return; // "start again" took over
     busy = false;
-    afterMove(turns, b.dataset.seq!.split(" "));
+    afterMove(turns);
   };
   // start this puzzle again whatever is going on: stop a sequence part way, then put back the
   // cube, the view and the counter (the turns already made still count toward the stars)
@@ -434,7 +425,6 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     r.totalMoves += r.moves;
     r.moves = 0;
     r.history = [r.start];
-    r.steps = [];
     r.copied = 0;
     view.setPreview(null);
     lightKey(null);
@@ -447,23 +437,13 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   };
   $("learnHint").onclick = () => {
     const r = run;
-    if (!r || r.phase !== "practice") return;
-    if (busy || view.animating) return;
-    // no words. In the lesson's own terms when it can: the formula key to press, or the turn that
-    // lines it up (outlined on the cube with its arrow). Wandered too far for that: the way back,
-    // one turn at a time.
-    const step = r.lesson.copy ? null : hintStep(r.size, r.index, view.getState());
-    if (step && "formula" in step) {
-      r.hints++;
-      view.setPreview(null);
-      lightKey(r.lesson.formulas[step.formula]!.seq);
-      return;
-    }
-    const next = r.lesson.copy ? r.lesson.copy[r.puzzleNo]![r.copied] : step ? step.turn : hintPlan(r.steps.flat(), r.setup)[0];
-    if (!next) return;
+    if (!r || r.phase !== "practice" || busy || view.animating) return;
+    // no words: the next step of this puzzle's written solution. A formula lights its key; a
+    // turn is outlined on the cube with its arrow (y / y′ light up too); off the way, ⌫ lights up.
+    const hint = r.lesson.copy ? { turn: r.lesson.copy[r.puzzleNo]![r.copied]! } : hintFor(r.size, r.index, r.puzzleNo, view.getState());
     r.hints++;
-    view.setPreview(parseMove(next, r.size));
-    lightKey(next);
+    view.setPreview("turn" in hint ? parseMove(hint.turn, r.size) : null);
+    lightKey("formula" in hint ? r.lesson.formulas[hint.formula]!.seq : "turn" in hint ? hint.turn : "undo");
   };
   $("doneNextBtn").onclick = () => {
     const r = run;
@@ -482,18 +462,18 @@ export const learnTest = {
     busy = true;
     const turns = await play(token, 60);
     busy = false;
-    if (turns !== null) afterMove(turns, token.split(" "));
+    if (turns !== null) afterMove(turns);
   },
   solve() {
     if (run) view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
   },
   point: (key: string) => view.pointOf(key),
   /** The turn the hint would show now. */
-  /** What the hint would point at now: a formula's name or a turn. */
+  /** What the hint would point at now: a formula's name, a turn, or "undo". */
   hint: () => {
     if (!run || run.lesson.copy) return null;
-    const step = hintStep(run.size, run.index, view.getState());
-    return step ? ("formula" in step ? run.lesson.formulas[step.formula]!.name : step.turn) : hintPlan(run.steps.flat(), run.setup)[0];
+    const h = hintFor(run.size, run.index, run.puzzleNo, view.getState());
+    return "formula" in h ? run.lesson.formulas[h.formula]!.name : "turn" in h ? h.turn : "undo";
   },
   get state() {
     return run && { size: run.size, index: run.index, phase: run.phase, puzzleNo: run.puzzleNo, copied: run.copied, moves: run.moves, hints: run.hints };
