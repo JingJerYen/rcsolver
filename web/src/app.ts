@@ -1203,7 +1203,7 @@ async function askAi() {
   const marks = withDots ? cubeView.markedKeys().map((k) => describeMark(k, net!.size)) : [];
   aiError("");
   send.disabled = true;
-  send.classList.add("busy");
+  send.classList.add("waiting");
   try {
     const a = await askMacro(net.size, ask, marks);
     if (!a.moves.trim()) return aiError(a.error || tr("AI 沒有給轉法，換個說法試試", "No sequence came back: try other words"));
@@ -1226,7 +1226,7 @@ async function askAi() {
     );
   } finally {
     send.disabled = false;
-    send.classList.remove("busy");
+    send.classList.remove("waiting");
   }
 }
 $("macroAiSend").onclick = () => void askAi();

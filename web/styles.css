@@ -315,8 +315,10 @@ th{color:#607189;font-weight:600}
 .macro-ai-send{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 .macro-ai-send:disabled{background:#b9c9e6}
 .macro-ai-send .spinner{display:none;width:18px;height:18px;border-width:3px;margin:0;flex:none;border-color:rgba(255,255,255,.4);border-top-color:#fff}
-.macro-ai-send.busy svg{display:none}
-.macro-ai-send.busy .spinner{display:block}
+.macro-ai-send.waiting svg{display:none}
+.macro-ai-send.waiting .spinner{display:block}
+/* waiting for the answer: stays blue with a white spinner, not faded like a disabled button */
+.macro-ai-send.waiting:disabled{background:#195ed6;opacity:1}
 /* the row the model just filled */
 .macro-line.ai-new{border-radius:12px;box-shadow:0 0 0 3px #fff,0 0 0 5px #195ed6}
 /* a long press on the view button scrambles in study mode: it sinks while held */
