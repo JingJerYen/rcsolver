@@ -1,5 +1,5 @@
 // Checks a move sequence against an expected effect, using the app's own cube model.
-import { applyAlgorithm, fromNet, isSolved, parseMove, unrotate, type Sticker, type Vec } from "../../web/src/cubeState.js";
+import { applyAlgorithm, fromNet, isSolved, parseMove, toNet, unrotate, type Sticker, type Vec } from "../../web/src/cubeState.js";
 import { tokenize } from "../../web/src/study.js";
 
 export function solved(size: number): Sticker[] {
@@ -79,4 +79,58 @@ export function effect(moves: [string, string][]) {
     if (stray) problems.push(`另外動到 ${stray} 張貼紙`);
     return problems.length ? [...new Set(problems)].join("；") : null;
   };
+}
+
+/** Which pieces moved, as from → to cubie positions (rotations removed first). */
+function movedPieces(text: string, size: number) {
+  const mv = movesOf(text, size);
+  if (!mv) return null;
+  const before = solved(size);
+  const after = applyAlgorithm(before, mv);
+  const moved = new Map<string, Vec>();
+  before.forEach((s, i) => {
+    if (!eq(after[i]!.p, s.p) || !eq(after[i]!.n, s.n)) moved.set(s.p.join(","), after[i]!.p);
+  });
+  return [...moved].map(([k, to]) => ({ from: k.split(",").map(Number) as Vec, to }));
+}
+
+/**
+ * Exactly three pieces of one kind move, each to another's place (a 3-cycle), and nothing else
+ * moves. `where` says which pieces count: corners, or edges of the middle layer.
+ */
+export function threeCycle(kind: "corner" | "middle-edge") {
+  return (text: string, size: number): string | null => {
+    const moved = movedPieces(text, size);
+    if (!moved) return "看不懂的記號";
+    const h = size - 1;
+    const ok = (p: Vec) =>
+      kind === "corner" ? p.every((v) => Math.abs(v) === h) : p[1] === 0 && Math.abs(p[0]) === h && Math.abs(p[2]) === h;
+    const wrongKind = moved.filter((m) => !ok(m.from)).length;
+    if (wrongKind) return `另外動到 ${wrongKind} 個其他的塊`;
+    if (moved.length !== 3) return `動到 ${moved.length} 個${kind === "corner" ? "角" : "中層邊"}，不是 3 個`;
+    const stays = moved.filter((m) => eq(m.from, m.to)).length;
+    if (stays) return "有塊只是原地翻轉，沒有輪換";
+    return null;
+  };
+}
+
+/** After the moves, starting from `start` (a scramble), the D face is all yellow. */
+export function downAllYellow(start: string) {
+  return (text: string, size: number): string | null => {
+    const mv = movesOf(text, size);
+    if (!mv) return "看不懂的記號";
+    const scrambled = applyAlgorithm(solved(size), movesOf(start, size)!);
+    const after = applyAlgorithm(scrambled, mv);
+    const down = after.filter((s) => s.n[1] === -1);
+    const yellow = down.filter((s) => s.c === "Y").length;
+    return yellow === down.length ? null : `底面只有 ${yellow}/${down.length} 格是黃色`;
+  };
+}
+
+/** The six faces after `start`, as rows of colour letters, for the prompt. */
+export function netAfter(start: string, size: number): string {
+  const net = toNet(size, applyAlgorithm(solved(size), movesOf(start, size)!));
+  return Object.entries(net)
+    .map(([f, rows]) => `${f}: ${rows.join(" / ")}`)
+    .join("\n");
 }
