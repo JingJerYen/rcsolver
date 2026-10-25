@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LESSONS, demoStart, hintFor, puzzle, solvedFor, starsFor, type LearnSize } from "../web/src/learn.js";
+import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, type LearnSize } from "../web/src/learn.js";
 import { applyAlgorithm, parseAlgorithm, toNet } from "../web/src/cubeState.js";
 
 const SIZES: LearnSize[] = [2, 3];
@@ -82,4 +82,33 @@ test("learn: the hint walks each puzzle's written solution, turn by turn inside 
         assert.deepEqual(hintFor(size, i, k, applyAlgorithm(start, parseAlgorithm("B'", size))), { undo: true }, `${size} #${i} puzzle ${k}`);
       }
     });
+});
+
+test("learn: the watch cards show when to use them: arrows to where pieces go, rings on what to look for", () => {
+  const g = (size: LearnSize, i: number, card = 0) => {
+    const d = LESSONS[size][i]!.demos[card]!;
+    return guidesFor(size, i, d, demoStart(size, i, d.seq))!;
+  };
+  const name = (p: number[]) => p.join(",");
+  // insert: the white corner below its place goes up to it
+  assert.deepEqual(g(3, 2).arrows.map(([a, b]) => `${name(a)}>${name(b)}`), ["2,-2,2>2,2,2"]);
+  // middle layer: the top front edge goes into the front right slot, or the front left
+  assert.deepEqual(g(3, 3, 0).arrows.map(([a, b]) => `${name(a)}>${name(b)}`), ["0,2,2>2,0,2"]);
+  assert.deepEqual(g(3, 3, 1).arrows.map(([a, b]) => `${name(a)}>${name(b)}`), ["0,2,2>-2,0,2"]);
+  // swap corners: three go round, the front-left one stays and is ringed
+  const corners = g(3, 6);
+  assert.equal(corners.arrows.length, 3);
+  assert.ok([...corners.rings].every((k) => k.startsWith("-2,2,2|")) && corners.rings.size === 3);
+  // edges: three go round, the back one stays
+  const edges = g(3, 7);
+  assert.equal(edges.arrows.length, 3);
+  assert.ok([...edges.rings].every((k) => k.startsWith("0,2,-2|")));
+  // the yellow cross: rings on the top face only, no arrows; the fish: its head on top at the front left
+  const cross = g(3, 4);
+  assert.ok(cross.arrows.length === 0 && cross.rings.size > 0 && [...cross.rings].every((k) => k.endsWith("|0,1,0")));
+  assert.ok([...g(3, 5).rings].includes("-2,2,2|0,1,0"));
+  // 2×2 swap: the two right corners trade places, the left pair (headlights) stays
+  const t = g(2, 3);
+  assert.equal(t.arrows.length, 2);
+  assert.ok([...t.rings].every((k) => k.startsWith("-1,1,")));
 });

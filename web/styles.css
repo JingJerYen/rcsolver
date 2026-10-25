@@ -386,6 +386,8 @@ th{color:#607189;font-weight:600}
 .lesson-demo code span.is-next{background:#195ed6;color:#fff;border-radius:5px;padding:0 4px}
 .lesson-demo:not(.active){background:#fff;border-color:#dde5ef}
 .lesson-play.finished{background:#e3f4ea;color:#1b6b43;opacity:1}
+.lesson-demo{flex-wrap:wrap}
+.lesson-demo-when{order:3;flex-basis:100%;margin:2px 0 4px;font-size:13px;line-height:1.55;color:#6b4b00}
 .lesson-play{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 #learnView .go{margin-top:14px;width:100%}
 .lesson-keys{display:flex;gap:6px;margin-top:12px}
