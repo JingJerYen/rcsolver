@@ -35,6 +35,21 @@ export function readMoves(tokens: string[], size: number): { moves: Move[]; bad:
   return { moves, bad };
 }
 
+/**
+ * The tokens up to and including the n-th move, for an edit made with the slider partway: the
+ * moves after that point are dropped. A token that is not a move stays only if it comes earlier.
+ */
+export function tokensThrough(tokens: string[], size: number, n: number): string[] {
+  const out: string[] = [];
+  let count = 0;
+  for (const t of tokens) {
+    if (count === n) break;
+    out.push(t);
+    if (studyMove(t, size)) count++;
+  }
+  return out;
+}
+
 /** What a face key types: R, 2R (that inner layer alone) or 3Rw (that many layers together). */
 export function keyToken(face: string, depth: number, wide: boolean): string {
   if (depth <= 1) return face;

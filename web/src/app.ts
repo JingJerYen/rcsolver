@@ -5,7 +5,7 @@ import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, studyMove, tokenize, twistToken } from "./study.js";
+import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, studyMove, tokenize, tokensThrough, twistToken } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -855,6 +855,25 @@ function startStudy(n: number, start: Sticker[]) {
  * New study moves; `pressed` is the keypad token that made them, turned on the cube as it is now.
  * `turned`: the cube already shows them (a hand turn), so only the step moves to the end.
  */
+/**
+ * With the slider partway, a new move starts from there: the moves after it are dropped first.
+ * False while a turn is still animating, when the edit waits for the next tap.
+ */
+function cutAtCursor(): boolean {
+  if (!net) return false;
+  if (moveIndex >= moves.length) return true;
+  stopPlaying();
+  if (cubeView.animating) return false;
+  studyTokens = tokensThrough(studyTokens, net.size, moveIndex);
+  $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
+  const read = readMoves(studyTokens, net.size);
+  $("studyText").classList.toggle("bad", read.bad);
+  moves = read.moves;
+  shownIndex = Math.max(0, moves.length - 1);
+  renderSolve();
+  return true;
+}
+
 function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
   if (!net) return;
   stopPlaying();
@@ -965,7 +984,7 @@ function keyTap(e: MouseEvent) {
     renderKeys();
     return;
   }
-  if (!k.dataset.tok) return;
+  if (!k.dataset.tok || !cutAtCursor()) return;
   const next = pushMove(studyTokens, k.dataset.tok);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, k.dataset.tok);
@@ -977,9 +996,10 @@ for (const pad of keyPads) {
   pad.addEventListener("contextmenu", (e) => e.preventDefault());
   pad.addEventListener("click", keyTap);
 }
-// ⌫ beside the text drops the last move; it stays while turning by hand, to take back a turn
+// ⌫ beside the text drops the last move (with the slider partway: the moves after it, then that
+// one); it stays while turning by hand, to take back a turn
 $("studyDel").onclick = () => {
-  if (!net || !studyTokens.length) return;
+  if (!net || !cutAtCursor() || !studyTokens.length) return;
   const next = studyTokens.slice(0, -1);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next);
@@ -1082,8 +1102,7 @@ async function runMacro(i: number) {
   if (!m || !net || !studying || cubeView.animating) return;
   const add = readMoves(tokenize(m.seq), net.size);
   if (add.bad || !add.moves.length) return;
-  stopPlaying();
-  if (moveIndex !== moves.length) jumpTo(moves.length, Math.max(0, moves.length - 1));
+  if (!cutAtCursor()) return;
   studyTokens = [...studyTokens, ...add.moves.map((mv) => mv.token)];
   $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
   const read = readMoves(studyTokens, net.size);
@@ -1273,14 +1292,8 @@ $("twistBtn").onclick = () => {
     /* storage unavailable */
   }
 };
-// a hand turn adds to the end of the moves: from an earlier step, go to the end first
-cubeView.canTwist = () => {
-  if (!studying || !net) return false;
-  if (moveIndex === moves.length) return true;
-  stopPlaying();
-  jumpTo(moves.length, Math.max(0, moves.length - 1));
-  return false;
-};
+// a hand turn adds a move where the slider is, dropping any after it
+cubeView.canTwist = () => studying && cutAtCursor();
 cubeView.onTwist = (axis, layer, quarters) => {
   if (!net) return;
   const token = twistToken(net.size, axis, layer, quarters);
@@ -1306,12 +1319,24 @@ function studyTour() {
   const big = (net?.size ?? 3) >= 4;
   runTour(tourDialog, [
     {
-      targets: [$("cube").parentElement!],
+      targets: [$("cube")],
       title: tr("3D 方塊", "The cube"),
-      body: tr(
-        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面，長按它會隨機打亂方塊。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消；右上的眼睛只讓有圓點的塊保留顏色，方便看它們怎麼移動。",
-        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front; hold it to scramble the cube. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The eye at the top right keeps only the dotted pieces in colour, so you can follow where they go.",
-      ),
+      body: tr("點任何一格會加上圓點，轉到哪都跟著，再點一次取消。", "Tap a sticker to put a dot on it that follows it wherever it goes; tap again to remove it."),
+    },
+    {
+      targets: [$("studyFocusBtn")],
+      title: tr("只看圓點", "Dots only"),
+      body: tr("只讓有圓點的塊保留顏色，其他變灰，方便看它們怎麼移動。", "Keeps only the dotted pieces in colour, so you can follow where they go."),
+    },
+    {
+      targets: [$("twistBtn")],
+      title: tr("手轉", "Turn by hand"),
+      body: tr("打開時用手指拖某一層就轉那一層；關掉時拖曳轉視角，並出現轉動鍵盤。", "On, drag a layer to turn it. Off, dragging turns the view and the move keys appear."),
+    },
+    {
+      targets: [$("viewHome")],
+      title: tr("轉回正面", "Front view"),
+      body: tr("點一下轉回正面；長按會隨機打亂方塊。", "Tap to turn the view back to the front; hold to scramble the cube."),
     },
     {
       targets: [$("studyKeys")],
@@ -1341,7 +1366,7 @@ function studyTour() {
     {
       targets: [$("sliderRow"), $("prev").parentElement!],
       title: tr("播放", "Playback"),
-      body: tr("上一步、下一步一次走一步，中間的播放鍵自動播完；拖曳滑桿可以跳到任何一步，滑桿左邊調整播放時每步停留的時間。", "Previous and next go one move at a time, play runs to the end, and the slider jumps to any move; the button left of it sets how long each move stays during playback."),
+      body: tr("上一步、下一步一次走一步，播放鍵自動播完；拉桿可以跳到任何一步，從那裡再輸入新動作，後面的步驟會被換掉。拉桿左邊調整每步停留的時間。", "Previous and next go one move at a time and play runs to the end. The slider jumps to any move; a new move from there replaces the ones after it. The button left of it sets how long each move stays during playback."),
     },
     {
       targets: [$("studyGo")],
@@ -1555,8 +1580,7 @@ const SCRAMBLE_HOLD_MS = 600;
 let scrambleTimer = 0;
 let scrambledByHold = false;
 function scrambleStudy() {
-  if (!net || !studying || cubeView.animating) return;
-  stopPlaying();
+  if (!net || !studying || !cutAtCursor()) return;
   studyTokens = [...studyTokens, ...scrambleTokens(net.size)];
   $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
   const read = readMoves(studyTokens, net.size);
