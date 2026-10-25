@@ -1114,7 +1114,7 @@ function openMacroEditor() {
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   $("macroRows").innerHTML = Array.from({ length: MACRO_MAX }, (_, i) => {
     const m = macros[i] ?? { name: "", seq: "" };
-    return `<div class="macro-line"><input class="macro-name" maxlength="${MACRO_NAME_MAX}" value="${esc(m.name)}" placeholder="${tr("名字", "Name")}" aria-label="${tr("名字", "Name")} ${i + 1}" autocomplete="off"><input class="macro-seq" value="${esc(m.seq)}" placeholder="R U R' U'" aria-label="${tr("轉法", "Moves")} ${i + 1}" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="macro-del" data-del aria-label="${tr("刪除這一組", "Delete this one")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>`;
+    return `<div class="macro-line"><input class="macro-name" maxlength="${MACRO_NAME_MAX}" value="${esc(m.name)}" placeholder="${tr("名字", "Ab")}" aria-label="${tr("名字", "Name")} ${i + 1}" autocomplete="off"><input class="macro-seq" value="${esc(m.seq)}" placeholder="R U R' U'" aria-label="${tr("轉法", "Moves")} ${i + 1}" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="macro-del" data-del aria-label="${tr("刪除這一組", "Delete this one")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>`;
   }).join("");
   checkMacros();
   macroDialog.showModal();
@@ -1134,12 +1134,12 @@ function checkMacros(): Macro[] | null {
     const badSeq = (name !== "" && !tokens.length) || unknown.length > 0;
     nameEl.classList.toggle("bad", badName);
     seqEl.classList.toggle("bad", badSeq);
-    if (unknown.length) problems.push(tr(`第 ${i + 1} 組有看不懂的記號：${unknown.join(" ")}`, `Row ${i + 1} has moves that are not moves: ${unknown.join(" ")}`));
+    if (unknown.length) problems.push(tr(`第 ${i + 1} 組有看不懂的記號：${unknown.join(" ")}`, `Row ${i + 1} has something that is not a move: ${unknown.join(" ")}`));
     else if (badName) problems.push(tr(`第 ${i + 1} 組還沒取名字`, `Row ${i + 1} needs a name`));
     else if (badSeq) problems.push(tr(`第 ${i + 1} 組還沒有轉法`, `Row ${i + 1} needs moves`));
     if (name && tokens.length && !unknown.length) out.push({ name, seq: tokens.join(" ") });
   });
-  $("macroError").textContent = problems.join("；");
+  $("macroError").textContent = problems.join(tr("；", "; "));
   $("macroError").classList.toggle("hidden", !problems.length);
   $<HTMLButtonElement>("macroSave").disabled = problems.length > 0;
   return problems.length ? null : out;
