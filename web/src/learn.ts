@@ -7,6 +7,7 @@
 import type { Face } from "./api.js";
 import { FACE_AXES, FACE_ORDER, applyAlgorithm, fromNet, isSolved, parseAlgorithm, type Sticker, type Vec } from "./cubeState.js";
 import { tr } from "./i18n.js";
+import { pushMove } from "./study.js";
 
 export type LearnSize = 2 | 3;
 
@@ -26,8 +27,6 @@ export interface Lesson {
   intro: string;
   /** The practice instruction, one line. */
   task: string;
-  /** What the hint says, beside lighting up the pieces that matter. */
-  tip: string;
   formulas: Formula[];
   /** Watch cards: each starts from the cube the formula fixes and plays it. */
   demos: Formula[];
@@ -177,7 +176,6 @@ const notation = (size: number): Lesson => ({
     "Each face has a letter: R right, L left, U up, D down, F front, B back. R turns the right face clockwise as you look at it, R′ anticlockwise, R2 twice.",
   ),
   task: tr("照著轉：", "Turn: "),
-  tip: tr("用手指拖那一面，順時針就是從那一面看過去的時鐘方向。", "Drag that face; clockwise is as a clock seen from that side."),
   formulas: [],
   demos: ["R", "R'", "U", "U'", "F", "F'"].map((m) => ({ name: m.replace("'", "′"), seq: m })),
   pieces: () => true,
@@ -205,7 +203,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: false,
     intro: tr("白色中心朝上。把四個白色邊塊轉到上面，而且每塊側面的顏色要和旁邊的中心一樣。", "White centre on top. Bring the four white edges up, each with its side colour matching the centre beside it."),
     task: tr("做出白色十字", "Make the white cross"),
-    tip: tr("先找一個白色邊塊，把它轉到和它側面同色的中心下方，再把那一面轉兩下翻上來。", "Find a white edge, turn it under the centre of its side colour, then turn that face twice to bring it up."),
     formulas: [],
     demos: [{ name: tr("翻上來", "Bring up"), seq: "F2" }],
     pieces: sig(2, "W"),
@@ -218,7 +215,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: false,
     intro: tr("把白色角塊轉到它要去的位置正下方，重複「插角」直到它歸位、白色朝上。", "Turn a white corner to just below where it belongs, then repeat Insert until it is in, white side up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
-    tip: tr("角塊在右前下方時按「插角」，可能要按好幾次；位置不對就先轉下層。", "With the corner at front right, bottom, press Insert, maybe several times; if it is not there, turn the bottom layer first."),
     formulas: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     pieces: sig(3, "W"),
@@ -232,7 +228,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("翻過來，白色朝下。頂層的邊轉到和側面中心同色的位置，看它要往右還是往左，用對應的公式放進中層。", "Turn it over, white down. Line a top edge up with its side centre, see whether it goes right or left, and use that formula."),
     task: tr("把中層四個邊放好", "Fill the middle layer"),
-    tip: tr("找一個沒有黃色的頂層邊，轉上層讓它的前面顏色對到前面中心；它的上面顏色在右邊就「往右」，在左邊就「往左」。", "Find a top edge with no yellow; turn the top until its front colour matches the front centre. If its top colour is the right centre's, use Right, else Left."),
     formulas: [
       { name: tr("往右", "Right"), seq: RIGHT },
       { name: tr("往左", "Left"), seq: LEFT },
@@ -252,7 +247,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("上面看到黃色的點、L 形或一條線：放好方向再按「十字」，一次一次變成十字。", "On top you see a dot, an L or a line of yellow: hold it the right way and press Cross until it becomes a cross."),
     task: tr("做出黃色十字", "Make the yellow cross"),
-    tip: tr("一條線要橫放；L 形要放在左上角（後面和左邊）；只有一點就直接按。", "Hold a line left to right; an L at the back left; with just a dot, press it straight away."),
     formulas: [{ name: tr("十字", "Cross"), seq: CROSS }],
     demos: [{ name: tr("十字", "Cross"), seq: CROSS }],
     pieces: sig(2, "Y"),
@@ -266,7 +260,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("用「小魚」把黃色的角翻上來，一次一次直到整面黃。", "Use Fish to turn the yellow corners up, again and again until the whole face is yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
-    tip: tr("只有一個角是黃的（像小魚）：把它放在左前方再按；其他情況讓左前角的黃色朝左再按。", "With one yellow corner (a fish), put it front left and press; otherwise turn the top so the front-left corner's yellow faces left, then press."),
     formulas: [{ name: tr("小魚", "Fish"), seq: SUNE }],
     demos: [{ name: tr("小魚", "Fish"), seq: SUNE }],
     pieces: sig(3, "Y"),
@@ -280,7 +273,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("把四個頂層角換到正確的位置（顏色和旁邊兩個中心一樣），先不管邊。", "Move the four top corners to their places (their colours match the two centres beside them); the edges come next."),
     task: tr("把頂層四個角放對位置", "Put the top corners in place"),
-    tip: tr("轉上層找一個已經在對的位置的角，把它放在左前方再按「換角」，可能要按兩次。", "Turn the top to find a corner already in place, keep it front left and press Swap, maybe twice."),
     formulas: [{ name: tr("換角", "Swap"), seq: CORNERS3 }],
     demos: [{ name: tr("換角", "Swap"), seq: CORNERS3 }],
     pieces: sig(3, "Y"),
@@ -294,7 +286,6 @@ const LESSONS_3: Lesson[] = [
     whiteDown: true,
     intro: tr("最後把頂層的邊換到對的位置，整顆就完成了。", "Last, move the top edges to their places and the cube is solved."),
     task: tr("把方塊完成", "Solve the cube"),
-    tip: tr("有一面整排都對的話，把它放在後面再按「換邊」，可能要按兩次。", "If one side's top row is all right, hold it at the back and press Edges, maybe twice."),
     formulas: [{ name: tr("換邊", "Edges"), seq: EDGES3 }],
     demos: [{ name: tr("換邊", "Edges"), seq: EDGES3 }],
     pieces: sig(2, "Y"),
@@ -312,7 +303,6 @@ const LESSONS_2: Lesson[] = [
     whiteDown: false,
     intro: tr("把四個白色角塊轉到上面，而且每一側上排的兩格要同色。角塊在右前下方時用「插角」把它送上去。", "Bring the four white corners to the top, with the two stickers of each side's top row matching. With a corner at front right, bottom, Insert sends it up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
-    tip: tr("先放好一個白角當基準；下一個角轉到它要去的位置正下方，重複「插角」。", "Place one white corner first; turn the next one to just below where it belongs and repeat Insert."),
     formulas: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     demos: [{ name: tr("插角", "Insert"), seq: INSERT_CORNER }],
     pieces: sig(3, "W"),
@@ -325,7 +315,6 @@ const LESSONS_2: Lesson[] = [
     whiteDown: true,
     intro: tr("翻過來，白色朝下。用「小魚」把黃色的角翻上來，直到上面全黃。", "Turn it over, white down. Use Fish to turn the yellow corners up until the top is all yellow."),
     task: tr("讓上面全部變黃", "Make the top all yellow"),
-    tip: tr("只有一個角是黃的：把它放在左前方再按；其他情況讓左前角的黃色朝左再按。", "With one yellow corner, put it front left and press; otherwise turn the top so the front-left corner's yellow faces left, then press."),
     formulas: [{ name: tr("小魚", "Fish"), seq: SUNE }],
     demos: [{ name: tr("小魚", "Fish"), seq: SUNE }],
     pieces: sig(3, "Y"),
@@ -339,7 +328,6 @@ const LESSONS_2: Lesson[] = [
     whiteDown: true,
     intro: tr("最後把頂層的角換到對的位置，整顆就完成了。", "Last, move the top corners to their places and the cube is solved."),
     task: tr("把方塊完成", "Solve the cube"),
-    tip: tr("找一側上排兩格同色的（像一對車燈），把它放在後面再按「換角」。", "Find a side whose two top stickers match (headlights), hold it at the back and press Swap."),
     formulas: [{ name: tr("換角", "Swap"), seq: TPERM }],
     demos: [{ name: tr("換角", "Swap"), seq: TPERM }],
     pieces: () => true,
@@ -352,7 +340,7 @@ const LESSONS_2: Lesson[] = [
 export const LESSONS: Record<LearnSize, Lesson[]> = { 2: LESSONS_2, 3: LESSONS_3 };
 
 /** A practice puzzle: the cube to start from, and roughly how many moves a good solve takes. */
-export function puzzle(size: LearnSize, index: number, i: number, rand: () => number = Math.random): { start: Sticker[]; par: number } {
+export function puzzle(size: LearnSize, index: number, i: number, rand: () => number = Math.random): { start: Sticker[]; par: number; setup: string } {
   const lesson = LESSONS[size][index]!;
   const solved = solvedFor(size, lesson.whiteDown);
   for (let tries = 0; tries < 50; tries++) {
@@ -360,9 +348,18 @@ export function puzzle(size: LearnSize, index: number, i: number, rand: () => nu
     const start = alg ? applyAlgorithm(solved, parseAlgorithm(alg, size)) : solved;
     if (alg && (lesson.goal(start, size) || (lesson.keep && !lesson.keep(start, size)))) continue;
     const moves = alg.split(/\s+/).filter((t) => t && !/^[xyz]/.test(t)).length;
-    return { start, par: Math.max(8, Math.round(moves * 2)) };
+    return { start, par: Math.max(8, Math.round(moves * 2)), setup: alg };
   }
   throw new Error(`no puzzle for lesson ${size}×${size} #${index}`);
+}
+
+/**
+ * The hint's way to the goal: back through what was done on this puzzle, then back through the
+ * puzzle's setup, with turns of one layer in a row merged (and cancelled when they add up to none).
+ * It always gets there; when the turns so far were on the way, it is just the rest of the way.
+ */
+export function hintPlan(done: string[], setup: string): string[] {
+  return [...invert(done.join(" ")).split(" "), ...invert(setup).split(" ")].filter(Boolean).reduce(pushMove, [] as string[]);
 }
 
 /** Where a watch card starts: the solved cube with the formula undone, so playing it puts things right. */
