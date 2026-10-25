@@ -133,6 +133,7 @@
     <div class="study-input study-only" id="studyInput">
       <div class="study-text-row" id="studyTextRow"><input class="study-text" id="studyText" type="text" placeholder="R U R' U'" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-label="轉法"></div>
       <div class="keys" id="studyKeys"></div>
+      <div class="macro-row" id="studyMacros"></div>
       <button class="primary go" id="studyGo" aria-label="求解">Go</button>
     </div>
   </section>
@@ -183,6 +184,15 @@
     <p class="dialog-title" id="leaveTitle">回到首頁？</p>
     <p class="muted" id="leaveText"></p>
     <div class="leave-row"><button type="button" id="leaveCancel">取消</button><button type="button" class="primary" id="leaveGo">回首頁</button></div>
+  </div>
+</dialog>
+<dialog id="macroDialog" class="dialog" aria-label="自訂公式">
+  <div class="dialog-body">
+    <div class="macro-head"><p class="dialog-title" id="macroTitle">自訂公式</p><button type="button" class="icon-btn small-btn" id="macroClose" aria-label="取消"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>
+    <p class="muted" id="macroNote"></p>
+    <div class="macro-rows" id="macroRows"></div>
+    <p class="macro-error hidden" id="macroError"></p>
+    <button type="button" class="primary macro-save" id="macroSave">儲存</button>
   </div>
 </dialog>
 <dialog id="tourDialog" class="tour" aria-label="說明">
