@@ -10,9 +10,7 @@ export type Segment =
   | { kind: "edges"; from: number; to: number; orbit: number; orbits: number }
   | { kind: "parity"; from: number; to: number }
   | { kind: "cube3"; from: number; to: number; phase: 1 | 2 }
-  | { kind: "optimal"; from: number; to: number }
-  /** Teaching solve (layer by layer): one piece or one formula per segment, with its explanation. */
-  | { kind: "lbl"; from: number; to: number; stage: number; title: string; body: string; alg?: string; pieces: string[] | null };
+  | { kind: "optimal"; from: number; to: number };
 
 const PHASE2 = new Set(["U", "U'", "U2", "D", "D'", "D2", "R2", "L2", "F2", "B2"]);
 

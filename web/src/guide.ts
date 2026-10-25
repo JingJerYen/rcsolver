@@ -85,24 +85,21 @@ export interface Chip {
   kind: Segment["kind"];
   from: number;
   to: number;
-  /** Teaching stage number (1–7); the orientation step joins stage 1. */
-  stage?: number;
 }
 
-/** Consecutive segments of one kind form a chip: centres, edges, parity, 3×3; teaching stages one each. */
+/** Consecutive segments of one kind form a chip: centres, edges, parity, 3×3. */
 export function chipsFor(segments: Segment[]): Chip[] {
   const out: Chip[] = [];
   for (const s of segments) {
-    const stage = s.kind === "lbl" ? Math.max(1, s.stage) : undefined;
     const last = out[out.length - 1];
-    if (last && last.kind === s.kind && last.stage === stage) last.to = s.to;
-    else out.push({ kind: s.kind, from: s.from, to: s.to, ...(stage !== undefined ? { stage } : {}) });
+    if (last && last.kind === s.kind) last.to = s.to;
+    else out.push({ kind: s.kind, from: s.from, to: s.to });
   }
   return out;
 }
 
 /** Title and explanation of what the solver is doing in this segment, in the device's language. */
-export function describe(seg: Segment, size: number): { title: string; body: string; alg?: string } {
+export function describe(seg: Segment, size: number): { title: string; body: string } {
   const odd = size % 2 === 1;
   switch (seg.kind) {
     case "centres": {
@@ -157,7 +154,5 @@ export function describe(seg: Segment, size: number): { title: string; body: str
         title: tr("最短解", "Shortest solution"),
         body: tr("電腦搜尋過所有可能，這是步數最少的解法之一，每一步都讓剩下的步數少一。", "The computer searched every possibility. This is one of the shortest solutions: each move takes you one move closer."),
       };
-    case "lbl":
-      return { title: seg.title, body: seg.body, ...(seg.alg ? { alg: seg.alg } : {}) };
   }
 }

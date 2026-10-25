@@ -7,7 +7,7 @@ import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
 import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, studyMove, tokenize, tokensThrough, twistToken } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
-import type { Cell, Segment, SolveMode } from "./solveAny.js";
+import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
@@ -38,7 +38,7 @@ interface Save {
   index: number;
   /** What each stretch of the moves does, when the moves came from our solver. */
   segments?: Segment[];
-  /** Solved with the teaching method (3×3 layer by layer). */
+  /** Saved from the teaching mode that was removed: its stage notes are no longer shown. */
   teach?: boolean;
   /** Name the user gave it; without one the card shows when it was saved. */
   title?: string;
@@ -227,7 +227,7 @@ function saveCurrent() {
   if (!net) return;
   const entry: Save = studying
     ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true }
-    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(solveMode === "teach" ? { teach: true } : {}) };
+    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   savedKey = progressKey();
@@ -272,9 +272,8 @@ function openSaved(sv: Save) {
   net = makeState(sv.size, response.recognition);
   renderNet($("net"), net);
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
-  segments = sv.segments ?? null;
-  solveMode = sv.teach ? "teach" : "fast";
-  if (sv.teach) guideOn = true;
+  // an old teaching save keeps its moves; the stage notes went with the teaching mode
+  segments = sv.teach ? null : (sv.segments ?? null);
   startState = fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
   shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
@@ -461,7 +460,7 @@ function renderFill() {
   count.classList.toggle("hidden", !manualFill);
   count.classList.toggle("filled", left === 0);
   count.innerHTML = `${left === 0 ? '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}${tr("已填", "Filled")} <b>${total - left} / ${total}</b>`;
-  for (const id of ["solve", "teach", "shareResult"]) $<HTMLButtonElement>(id).disabled = left > 0;
+  for (const id of ["solve", "shareResult"]) $<HTMLButtonElement>(id).disabled = left > 0;
 }
 
 /** The AI could not be used: an empty net of the picked size, filled in by hand from the photos. */
@@ -522,7 +521,6 @@ function showResult() {
   if (response.warnings.length || manualFill) setEditor(true);
   renderFill();
   $("solve").classList.toggle("hidden", !SOLVABLE.includes(size));
-  $("teach").classList.toggle("hidden", size !== 3);
   // The 4×4 centre tables take a few seconds to build and the bigger cubes fetch theirs: start now.
   idle(() => warmAsync(n));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -539,9 +537,6 @@ let playTimer = 0;
 let turnMs = 1200;
 /** Stages of the current solution (null when the moves did not come from our solver). */
 let segments: Segment[] | null = null;
-let solveMode: SolveMode = "fast";
-/** Auto-play stops when this index is reached (the formula replay in the guide). */
-let playUntil: number | null = null;
 const GUIDE_KEY = "rcsolver.guide";
 let guideOn = false;
 try {
@@ -588,31 +583,26 @@ function setBusy(on: boolean) {
 }
 
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
-async function trySolve(mode: SolveMode): Promise<{ moves: string[]; segments: Segment[] } | null> {
+async function trySolve(): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
   const blank = FACES.flatMap((face) => net!.current[face].flatMap((line, row) => [...line].flatMap((ch, col) => (ch === UNKNOWN ? [{ face, row, col }] : []))));
   if (blank.length) return fail(blank);
-  const r = await solveAsync(net.size, net.current, undefined, mode);
+  const r = await solveAsync(net.size, net.current);
   return r.ok ? { moves: r.moves, segments: r.segments } : fail(r.badCells);
 }
 
-function startSolve(mode: SolveMode = "fast") {
+function startSolve() {
   if (!net) return;
   const btn = $<HTMLButtonElement>("solve");
   btn.disabled = true;
-  $<HTMLButtonElement>("teach").disabled = true;
   setBusy(true);
   void (async () => {
-    const solution = await trySolve(mode);
+    const solution = await trySolve();
     setBusy(false);
     btn.disabled = false;
-    $<HTMLButtonElement>("teach").disabled = false;
     if (!solution || !net) return;
     moves = parseAlgorithm(solution.moves.join(" "), net.size);
     segments = solution.segments;
-    solveMode = mode;
-    // the teaching solve is all about the explanations: open the guide with it
-    if (mode === "teach") guideOn = true;
     moveIndex = 0;
     shownIndex = 0;
     startState = fromNet(net.size, net.current);
@@ -678,7 +668,6 @@ const CHIP_ICONS: Record<Segment["kind"], string> = {
   parity: `<svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   cube3: `<span>3×3</span>`,
   optimal: `<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>`,
-  lbl: "", // teaching stages show their number instead
 };
 
 /**
@@ -704,38 +693,20 @@ function renderGuide() {
       const done = moveIndex >= c.to;
       const current = at >= c.from && at < c.to;
       const p = Math.max(0, Math.min(1, (moveIndex - c.from) / (c.to - c.from)));
-      const icon = c.kind === "lbl" ? `<span>${c.stage}</span>` : CHIP_ICONS[c.kind];
-      return `<button class="chip${done ? " complete" : ""}${current ? " current" : ""}" data-i="${i}" style="--p:${Math.round(p * 100)}%">${icon}</button>`;
+      return `<button class="chip${done ? " complete" : ""}${current ? " current" : ""}" data-i="${i}" style="--p:${Math.round(p * 100)}%">${CHIP_ICONS[c.kind]}</button>`;
     })
     .join("");
   const seg = segmentAt(segments, at);
   // only the pieces this stage works on keep their colours; the rest go grey
-  if (seg?.kind === "lbl") cubeView.setFocus(seg.pieces ? { pieces: new Set(seg.pieces) } : null);
-  else {
-    const keys = focusKeys(seg, net.size);
-    cubeView.setFocus(keys ? { keys } : null);
-  }
+  const keys = focusKeys(seg, net.size);
+  cubeView.setFocus(keys ? { keys } : null);
   const text = $("guideText");
   text.classList.toggle("hidden", !seg);
   if (seg) {
     const d = describe(seg, net.size);
     $("guideTitle").textContent = d.title;
     $("guideBody").textContent = d.body;
-    $("guideAlg").textContent = d.alg ?? "";
-    $("guideAlgRow").classList.toggle("hidden", !d.alg);
   }
-}
-
-/** Watch the current formula again: back to the start of this segment, then play to its end. */
-function replaySegment() {
-  if (!segments || cubeView.animating) return;
-  const seg = segmentAt(segments, Math.min(shownIndex, Math.max(0, moves.length - 1)));
-  if (!seg) return;
-  jumpTo(seg.from, seg.from);
-  playUntil = seg.to;
-  playing = true;
-  renderSolve();
-  void step(1);
 }
 
 /** One move forward or back; `fast` turns at twice the speed (a whole sequence from a key). */
@@ -757,14 +728,13 @@ async function step(delta: 1 | -1, fast = false) {
   moveIndex = target;
   renderSolve();
   if (playing) {
-    if (moveIndex >= moves.length || (playUntil !== null && moveIndex >= playUntil)) stopPlaying();
+    if (moveIndex >= moves.length) stopPlaying();
     else playTimer = window.setTimeout(() => void step(1), playGapMs);
   }
 }
 
 function stopPlaying() {
   playing = false;
-  playUntil = null;
   clearTimeout(playTimer);
   if (!$("solveView").classList.contains("hidden")) renderSolve();
 }
@@ -789,7 +759,7 @@ function setMarkedOnly(on: boolean) {
 }
 
 /** The solve a study was opened from, to go back to exactly as it was (the study's own moves are dropped). */
-let studyFrom: { net: NetState; start: Sticker[]; moves: Move[]; segments: Segment[] | null; mode: SolveMode; index: number } | null = null;
+let studyFrom: { net: NetState; start: Sticker[]; moves: Move[]; segments: Segment[] | null; index: number } | null = null;
 const STUDY_COLORS: Record<Face, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
 
 function solvedState(n: number): Sticker[] {
@@ -829,7 +799,6 @@ function startStudy(n: number, start: Sticker[]) {
   moveIndex = 0;
   shownIndex = 0;
   segments = null;
-  solveMode = "fast";
   studyTokens = [];
   studyDepth = 1;
   studyWide = false;
@@ -1392,7 +1361,7 @@ $("studyGo").onclick = () => {
   setBusy(true);
   void (async () => {
     const studyNet = netFor(n, from);
-    const r = await solveAsync(n, studyNet.current, undefined, "fast");
+    const r = await solveAsync(n, studyNet.current);
     setBusy(false);
     btn.disabled = false;
     // every study state comes from turning a solved cube, so it always solves
@@ -1401,7 +1370,6 @@ $("studyGo").onclick = () => {
     startState = from;
     moves = parseAlgorithm(r.moves.join(" "), n);
     segments = r.segments;
-    solveMode = "fast";
     moveIndex = 0;
     shownIndex = 0;
     studyFrom = null;
@@ -1414,13 +1382,13 @@ $("studyGo").onclick = () => {
 /** From a solve: study the cube as it is at this step. */
 $("toStudy").onclick = () => {
   if (!net || cubeView.animating) return;
-  const from = { net, start: startState, moves, segments, mode: solveMode, index: moveIndex };
+  const from = { net, start: startState, moves, segments, index: moveIndex };
   startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
   studyFrom = from;
   $("backToSolve").classList.remove("hidden");
 };
 
-/** Each tap colours the next group (centre orbits, then edges, then corners); after the last, everything again. */
+/** The eye: only the marked pieces keep their colours, so it is easy to follow where they go. */
 $("studyFocusBtn").onclick = () => setMarkedOnly(!markedOnly);
 // the eye needs something to show: no marks, no eye (and the view goes back to full colour)
 cubeView.onMarks = (count) => {
@@ -1438,7 +1406,6 @@ $("backToSolve").onclick = () => {
   startState = f.start;
   moves = f.moves;
   segments = f.segments;
-  solveMode = f.mode;
   setStudying(false);
   cubeView.setState(net.size, f.start);
   jumpTo(f.index, Math.max(0, f.index - 1));
@@ -1563,9 +1530,7 @@ $("reviewThumbs").onclick = (e) => {
 };
 $("retake").onclick = () => void startCapture();
 $("again").onclick = () => void startCapture();
-$("solve").onclick = () => startSolve("fast");
-$("teach").onclick = () => startSolve("teach");
-$("replayAlg").onclick = replaySegment;
+$("solve").onclick = () => startSolve();
 $("fix").onclick = () => setEditor($("editor").classList.contains("hidden"));
 $("shareResult").onclick = () => {
   if (net) void copyText(shareLink(net.size, net.current), $("shareResult"));
@@ -1733,11 +1698,12 @@ async function openSharedLink() {
     let moves = z.moves ?? [];
     if (!z.moves && z.index > 0) {
       setBusy(true);
-      const r = await solveAsync(z.size, z.faces, undefined, z.teach ? "teach" : "fast");
+      const r = await solveAsync(z.size, z.faces);
       setBusy(false);
       moves = r.ok ? r.moves : [];
     }
-    openStudy({ ts: Date.now(), size: z.size, faces: cubeAtStep(z.size, z.faces, moves, z.index), moves: [], index: 0, study: true });
+    // an old teaching link counted steps of a solve that is gone: it opens at the scramble
+    openStudy({ ts: Date.now(), size: z.size, faces: cubeAtStep(z.size, z.faces, moves, z.teach ? 0 : z.index), moves: [], index: 0, study: true });
     history.replaceState(null, "", location.pathname);
     return;
   }
