@@ -121,7 +121,7 @@ async function postMacro(app: ReturnType<typeof mockApp>["app"], payload: unknow
   return app.request("/api/macro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
 }
 
-test("macro in mock mode returns a name and moves", async () => {
+test("macro in mock mode returns moves", async () => {
   const { app } = mockApp();
   const res = await postMacro(app, { size: 3, ask: "T-perm", marks: ["corner UFR"] });
   assert.equal(res.status, 200);

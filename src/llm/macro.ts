@@ -20,8 +20,8 @@ export interface MacroOutcome extends MacroOutput {
 export async function writeMacro(config: Config, body: MacroBody): Promise<MacroOutcome> {
   if (config.mockMode) {
     // "做不到" or "impossible" in the request exercises the page's no-sequence path
-    if (/做不到|impossible/i.test(body.ask)) return { name: "", moves: "", error: "（模擬）這個做不到。", model: "mock", mock: true, ms: 0 };
-    return { name: "Mk", moves: "R U R' U' R' F R2 U' R' U' R U R' F'", error: null, model: "mock", mock: true, ms: 0 };
+    if (/做不到|impossible/i.test(body.ask)) return { moves: "", error: "（模擬）這個做不到。", model: "mock", mock: true, ms: 0 };
+    return { moves: "R U R' U' R' F R2 U' R' U' R U R' F'", error: null, model: "mock", mock: true, ms: 0 };
   }
 
   const client = getClient(config);

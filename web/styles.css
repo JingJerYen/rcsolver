@@ -307,9 +307,6 @@ th{color:#607189;font-weight:600}
 .macro-ai.open .macro-ai-toggle span{flex:1;text-align:left}
 .macro-ai.open .macro-ai-chevron{display:block}
 .macro-ai.open .macro-ai-box{display:flex}
-.macro-ai-dots{flex:none;height:42px;min-width:48px;border-radius:21px;border:1px solid #cdd7e5;background:#fff;color:#607189;padding:0 10px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:4px}
-.macro-ai-dots[aria-pressed="true"]{border-color:#195ed6;background:#e9f0ff;color:#195ed6}
-.macro-ai-dots[aria-pressed="false"] svg{opacity:.35}
 .macro-ai-text{flex:1;min-width:0;height:42px;border:1px solid #cdd7e5;border-radius:21px;padding:0 14px;font:16px system-ui,"Noto Sans TC",sans-serif;color:#192a40;background:#fff}
 .macro-ai-text:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
 .macro-ai-send{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
