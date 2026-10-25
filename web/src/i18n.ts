@@ -56,6 +56,8 @@ const LABELS_EN: Record<string, string> = {
   說明: "Help",
   請稍候: "Please wait",
   手轉: "Turn layers by hand",
+  收起播放列: "Hide the playback controls",
+  展開播放列: "Show the playback controls",
   自訂公式: "Your own sequences",
   設定自訂公式: "Edit your own sequences",
   刪除這一組: "Delete this one",

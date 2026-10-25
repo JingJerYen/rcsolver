@@ -985,6 +985,29 @@ const tourDialog = $<HTMLDialogElement>("tourDialog");
 tourDialog.querySelector(".tour-skip")!.textContent = tr("略過", "Skip");
 $("studyHelp").onclick = () => studyTour();
 
+/* Study mode's fold: hide the slider and play buttons so the keys sit higher. Remembered per device. */
+const PLAYBAR_KEY = "rcsolver.playbar";
+function setCompact(on: boolean) {
+  $("solveView").classList.toggle("compact", on);
+  const btn = $("playToggle");
+  btn.setAttribute("aria-expanded", String(!on));
+  btn.setAttribute("aria-label", on ? tr("展開播放列", "Show the playback controls") : tr("收起播放列", "Hide the playback controls"));
+}
+try {
+  setCompact(localStorage.getItem(PLAYBAR_KEY) === "0");
+} catch {
+  setCompact(false);
+}
+$("playToggle").onclick = () => {
+  const on = !$("solveView").classList.contains("compact");
+  setCompact(on);
+  try {
+    localStorage.setItem(PLAYBAR_KEY, on ? "0" : "1");
+  } catch {
+    /* storage unavailable */
+  }
+};
+
 /*
  * Your own sequences: up to five named ones (names of at most three characters), kept on this
  * device. A key adds the whole sequence to the moves, written out, so saves, copies and shared
@@ -997,17 +1020,23 @@ interface Macro {
 }
 const MACRO_KEY = "rcsolver.macros";
 const MACRO_MAX = 5;
-const MACRO_NAME_MAX = 3;
+const MACRO_NAME_MAX = 2;
 const MACRO_EXAMPLES: Macro[] = [
   { name: "Sx", seq: "R U R' U'" },
-  { name: "Sun", seq: "R U R' U R U2 R'" },
+  { name: "Su", seq: "R U R' U R U2 R'" },
 ];
 function loadMacros(): Macro[] {
   try {
     const raw = localStorage.getItem(MACRO_KEY);
     if (raw === null) return MACRO_EXAMPLES;
     const list = JSON.parse(raw) as Macro[];
-    return Array.isArray(list) ? list.filter((m) => m && typeof m.name === "string" && typeof m.seq === "string").slice(0, MACRO_MAX) : MACRO_EXAMPLES;
+    // names saved before the limit was two characters are cut to it
+    return Array.isArray(list)
+      ? list
+          .filter((m) => m && typeof m.name === "string" && typeof m.seq === "string")
+          .slice(0, MACRO_MAX)
+          .map((m) => ({ name: [...m.name].slice(0, MACRO_NAME_MAX).join(""), seq: m.seq }))
+      : MACRO_EXAMPLES;
   } catch {
     return MACRO_EXAMPLES;
   }
@@ -1203,8 +1232,8 @@ function studyTour() {
       targets: [$("studyMacros")],
       title: tr("自訂公式", "Your own sequences"),
       body: tr(
-        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 3 個字。",
-        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 3 characters.",
+        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 2 個字。",
+        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 2 characters.",
       ),
     },
     {
