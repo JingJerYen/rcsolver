@@ -163,27 +163,32 @@ function setPhase(phase: "watch" | "practice") {
   $("lessonDemos").classList.toggle("hidden", !watch);
   $("lessonGo").classList.toggle("hidden", !watch);
   $("lessonKeys").classList.toggle("hidden", watch);
-  $("lessonRestart").classList.toggle("hidden", watch);
   $("learnHint").classList.toggle("hidden", watch);
-  $("learnReset").classList.toggle("hidden", !watch || !r.lesson.copy);
+  // one Reset, same place, every lesson and both halves: back to the start of what is on screen
+  $("learnReset").classList.remove("hidden", "pulse");
   $("learnMoves").classList.toggle("hidden", watch);
   $("lessonTip").classList.add("hidden");
   view.setTwisting(!watch);
 }
 
-/** Only the pieces this stage works on keep their colours, and the centres, which say where they go. */
+/**
+ * What the learner knows keeps its colours: the pieces of this stage and of every stage before
+ * it, and the centres. Only what later lessons teach goes grey; from the yellow face on, nothing.
+ */
 function focusLesson(on: boolean) {
   const r = run!;
   if (!on || r.lesson.copy) return view.setFocus(null);
+  const taught = LESSONS[r.size].slice(1, r.index + 1);
   const pieces = new Set<string>();
-  const solved = solvedFor(r.size, r.lesson.whiteDown);
+  let grey = 0;
   const byPiece = new Map<string, string[]>();
-  for (const s of solved) byPiece.set(s.p.join(","), [...(byPiece.get(s.p.join(",")) ?? []), s.c]);
+  for (const s of solvedFor(r.size, r.lesson.whiteDown)) byPiece.set(s.p.join(","), [...(byPiece.get(s.p.join(",")) ?? []), s.c]);
   for (const cols of byPiece.values()) {
     const sig = cols.sort().join("");
-    if (sig.length === 1 || r.lesson.pieces(sig)) pieces.add(sig);
+    if (sig.length === 1 || taught.some((l) => l.pieces(sig))) pieces.add(sig);
+    else grey++;
   }
-  view.setFocus({ pieces });
+  view.setFocus(grey ? { pieces } : null);
 }
 
 function openLesson(size: LearnSize, index: number) {
@@ -207,10 +212,10 @@ function openLesson(size: LearnSize, index: number) {
 }
 
 const PLAY_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>';
-const RESET_ICON =
-  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const DONE_ICON =
+  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-/** The watch cards: the card in use shows its turns done and the next one; once all are done its button resets. */
+/** The watch cards: the card in use shows its turns done and the next one; once all are done its button rests and Reset calls. */
 function renderDemos() {
   const r = run!;
   $("lessonDemos").innerHTML = r.lesson.demos
@@ -219,10 +224,12 @@ function renderDemos() {
       const active = !r.lesson.copy && i === demoCard;
       const done = active && demoStep >= moves.length;
       const seq = moves.map((m, k) => `<span class="${active && k < demoStep ? "is-done" : active && k === demoStep ? "is-next" : ""}">${esc(pretty(m))}</span>`).join(" ");
-      const label = done ? tr(`重設${d.name}`, `Reset ${d.name}`) : tr(`${d.name}：下一步`, `${d.name}: next turn`);
-      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}</span><code>${seq}</code><button type="button" class="lesson-play${done ? " reset" : ""}" data-demo="${i}" aria-label="${esc(label)}">${done ? RESET_ICON : PLAY_ICON}</button></div>`;
+      const label = done ? tr(`${d.name}：轉完了`, `${d.name}: all turned`) : tr(`${d.name}：下一步`, `${d.name}: next turn`);
+      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}</span><code>${seq}</code><button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
     })
     .join("");
+  const finished = !r.lesson.copy && demoStep >= (r.lesson.demos[demoCard]?.seq.split(" ").length ?? Infinity);
+  $("learnReset").classList.toggle("pulse", finished);
 }
 
 /** Turn through a sequence on the lesson cube. */
@@ -288,7 +295,6 @@ function startPuzzle(k: number) {
   r.moves = 0;
   setPhase("practice");
   $("lessonCount").textContent = tr(`練習 ${k + 1} / ${PUZZLES}`, `Practice ${k + 1} / ${PUZZLES}`);
-  $("lessonRestart").textContent = tr("重來這一題", "Start this one again");
   $("learnHintLabel").textContent = tr("提示", "Hint");
   if (r.lesson.copy) renderCopy();
   else $("lessonText").textContent = r.lesson.task;
@@ -410,8 +416,9 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
       return;
     }
     const moves = demo.seq.split(" ");
-    if (i !== demoCard || demoStep >= moves.length) {
-      // another card, or this one done: set its starting cube out, ready for the first tap
+    if (i === demoCard && demoStep >= moves.length) return; // all turned: Reset starts it again
+    if (i !== demoCard) {
+      // another card: set its starting cube out, ready for the first tap
       demoCard = i;
       demoStep = 0;
       view.setState(r.size, demoStart(r.size, r.index, demo.seq));
@@ -424,11 +431,6 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     demoStep++;
     busy = false;
     renderDemos();
-  };
-  // the notation lesson only: back to the solved cube
-  $("learnReset").onclick = () => {
-    if (!run || busy || view.animating) return;
-    view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
   };
   $("lessonGo").onclick = () => run && startPuzzle(0);
   $("lessonKeys").onclick = async (e) => {
@@ -453,11 +455,20 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     busy = false;
     afterMove(turns);
   };
-  // start this puzzle again whatever is going on: stop a sequence part way, then put back the
+  // Reset: in a watch, the start of the card in use (the solved cube in the notation lesson); in
+  // practice, this puzzle again whatever is going on: stop a sequence part way, then put back the
   // cube, the view and the counter (the turns already made still count toward the stars)
-  $("lessonRestart").onclick = async () => {
+  $("learnReset").onclick = async () => {
     const r = run;
-    if (!r || r.phase !== "practice") return;
+    if (!r) return;
+    if (r.phase === "watch") {
+      if (busy || view.animating) return;
+      const demo = r.lesson.demos[demoCard];
+      view.setState(r.size, r.lesson.copy || !demo ? solvedFor(r.size, r.lesson.whiteDown) : demoStart(r.size, r.index, demo.seq));
+      demoStep = 0;
+      renderDemos();
+      return;
+    }
     playGen++;
     busy = true;
     for (let i = 0; view.animating && i < 50; i++) await new Promise((done) => setTimeout(done, 20));
