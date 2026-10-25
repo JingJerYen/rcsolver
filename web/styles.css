@@ -231,12 +231,12 @@ th{color:#607189;font-weight:600}
 .k:active{transform:scale(.95)}
 .k.face{background:#195ed6;color:#fff;border-color:#195ed6;font-size:17px}
 .k.ccw{background:#e3ecfb;color:#195ed6;border-color:#9dbcf0;font-size:17px}
-.krow.four{grid-template-columns:repeat(4,1fr)}
+.krow.three{grid-template-columns:repeat(3,1fr)}
 .back-solve{color:#195ed6;border-color:#195ed6;background:#e9f0ff}
 .save .save-kind{position:absolute;left:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center}
 .k.small{height:36px;font:600 14px system-ui,"Noto Sans TC",sans-serif}
 .k.on{background:#e9f0ff;border-color:#195ed6;color:#195ed6}
-.k.del{color:#c92a2a}
+.study-del{color:#c92a2a}
 .study-input .go{min-height:56px}
 .ai-fail .dialog-title{display:flex;align-items:center;gap:8px;font-size:17px}
 .ai-fail .muted{margin:4px 0 0;font-size:14px}
@@ -272,7 +272,7 @@ th{color:#607189;font-weight:600}
 /* with hand turns on, a drag on the cube must not scroll the page */
 #solveView.study.twisting #cube{touch-action:none}
 /* turning by hand, the keys are not needed: the text box and Go stay */
-#solveView.study.twisting #studyKeys{display:none}
+#solveView.study.twisting #studyKeys,#solveView.study.twisting #studyTurns{display:none}
 /* study mode's own move sequences: one row of up to five, kept while turning by hand */
 .macro-row{display:flex;gap:6px;margin-top:6px}
 .k.macro{flex:1 1 0;background:#fff7df;border-color:#e0a21c;color:#6b4b00;font:700 min(19px,4.8vw) system-ui,"Noto Sans TC",sans-serif;white-space:nowrap;overflow:hidden}

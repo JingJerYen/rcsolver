@@ -926,13 +926,14 @@ function openStudy(sv: Save) {
 const HOLD_MS = 350;
 let holdTimer = 0;
 let held = false;
-const studyKeys = $("studyKeys");
+// the move keys and the x y z row below the yellow keys behave alike
+const keyPads = [$("studyKeys"), $("studyTurns")];
 function endHold() {
   clearTimeout(holdTimer);
   holdTimer = 0;
   if (held) cubeView.setPreview(null);
 }
-studyKeys.addEventListener("pointerdown", (e) => {
+function keyDown(e: PointerEvent) {
   const k = (e.target as HTMLElement).closest<HTMLElement>("[data-tok]");
   endHold();
   held = false;
@@ -943,12 +944,9 @@ studyKeys.addEventListener("pointerdown", (e) => {
     held = true;
     cubeView.setPreview(mv);
   }, HOLD_MS);
-});
-for (const type of ["pointerup", "pointercancel", "pointerleave"]) studyKeys.addEventListener(type, endHold);
-// a long press would otherwise open the phone's menu or start selecting text
-studyKeys.addEventListener("contextmenu", (e) => e.preventDefault());
+}
 
-studyKeys.onclick = (e) => {
+function keyTap(e: MouseEvent) {
   const k = (e.target as HTMLElement).closest<HTMLElement>("button");
   if (!k || !net) return;
   if (held) {
@@ -968,12 +966,24 @@ studyKeys.onclick = (e) => {
     renderKeys();
     return;
   }
-  let next: string[];
-  if (k.dataset.tok) next = pushMove(studyTokens, k.dataset.tok);
-  else if (k.dataset.del !== undefined) next = studyTokens.slice(0, -1);
-  else return;
+  if (!k.dataset.tok) return;
+  const next = pushMove(studyTokens, k.dataset.tok);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, k.dataset.tok);
+}
+for (const pad of keyPads) {
+  pad.addEventListener("pointerdown", keyDown);
+  for (const type of ["pointerup", "pointercancel", "pointerleave"]) pad.addEventListener(type, endHold);
+  // a long press would otherwise open the phone's menu or start selecting text
+  pad.addEventListener("contextmenu", (e) => e.preventDefault());
+  pad.addEventListener("click", keyTap);
+}
+// ⌫ beside the text drops the last move; it stays while turning by hand, to take back a turn
+$("studyDel").onclick = () => {
+  if (!net || !studyTokens.length) return;
+  const next = studyTokens.slice(0, -1);
+  $<HTMLInputElement>("studyText").value = next.join(" ");
+  setStudyTokens(next);
 };
 $("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value));
 $("studyText").onkeydown = (e) => {
@@ -1229,19 +1239,19 @@ function studyTour() {
         ) + (big ? tr("最上面一排先選第幾層，或「多層」一次轉好幾層。", " The top row picks the layer, or Wide to turn several at once.") : ""),
     },
     {
-      targets: [$("studyMacros")],
+      targets: [$("studyMacros"), $("studyTurns")],
       title: tr("自訂公式", "Your own sequences"),
       body: tr(
-        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 2 個字。",
-        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 2 characters.",
+        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 2 個字。下面的 x y z 把整顆方塊翻個方向，不轉任何一層。",
+        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 2 characters. Below them, x y z turn the whole cube over without turning any layer.",
       ),
     },
     {
       targets: [$("studyTextRow")],
       title: tr("轉法文字框", "The moves"),
       body: tr(
-        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。左邊調整播放時每步停留的時間，右邊複製整段轉法。",
-        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the left, how long each move stays during playback; on the right, copy the whole sequence.",
+        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。左邊調整播放時每步停留的時間；右邊 ⌫ 刪掉最後一步，再右邊複製整段轉法。",
+        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the left, how long each move stays during playback; on the right, delete the last move, then copy the whole sequence.",
       ),
     },
     {
