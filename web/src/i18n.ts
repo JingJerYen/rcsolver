@@ -47,6 +47,8 @@ const LABELS_EN: Record<string, string> = {
   手轉: "Turn layers by hand",
   收起播放列: "Hide the playback controls",
   刪除最後一步: "Delete the last move",
+  回到關卡地圖: "Back to the lessons",
+  教學用的方塊: "The lesson cube",
   展開播放列: "Show the playback controls",
   自訂公式: "Your own sequences",
   設定自訂公式: "Edit your own sequences",
