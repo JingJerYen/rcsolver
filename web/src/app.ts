@@ -8,7 +8,7 @@ import { localizePage, tr } from "./i18n.js";
 import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize, twistToken } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
-import { chipsFor, describe, focusKeys, segmentAt, studyGroupInfo, studyGroups } from "./guide.js";
+import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
@@ -693,7 +693,7 @@ function renderGuide() {
   if (!segments || !net || !guideOn) {
     row.classList.add("hidden");
     $("guideText").classList.add("hidden");
-    cubeView.setFocus(studyFocusKeys());
+    cubeView.setFocus(null);
     return;
   }
   row.classList.remove("hidden");
@@ -776,25 +776,14 @@ let studyDepth = 1;
 let studyWide = false;
 /** An edit arrived while a turn was animating: jump to the new end once it finishes. */
 let studyDirty = false;
-/** Study mode's "?": which of studyGroups() is in colour, -1 for all of them. Separate from guide mode's switch. */
-let studyFocus = -1;
-let studyGroupList: Set<string>[] = [];
-let studyGroupTexts: { title: string; body: string }[] = [];
-
-function studyFocusKeys(): { keys: Set<string> } | null {
-  const g = studying && studyFocus >= 0 ? studyGroupList[studyFocus] : undefined;
-  return g ? { keys: g } : null;
-}
-
-function setStudyFocus(i: number) {
-  studyFocus = i;
-  $("studyFocusBtn").classList.toggle("on", i >= 0);
-  cubeView.setFocus(studyFocusKeys());
-  // the same kind of explanation guide mode gives, for the group in colour
-  const info = i >= 0 ? studyGroupTexts[i] : undefined;
-  $("studyGroupText").classList.toggle("hidden", !info);
-  $("studyGroupTitle").textContent = info?.title ?? "";
-  $("studyGroupBody").textContent = info?.body ?? "";
+/** Study mode's eye: only the pieces carrying a mark in colour. Separate from guide mode's switch. */
+let markedOnly = false;
+function setMarkedOnly(on: boolean) {
+  markedOnly = on;
+  const btn = $("studyFocusBtn");
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", String(on));
+  cubeView.setMarkedOnly(on);
 }
 
 /** The solve a study was opened from, to go back to exactly as it was (the study's own moves are dropped). */
@@ -844,13 +833,11 @@ function startStudy(n: number, start: Sticker[]) {
   studyWide = false;
   studyFrom = null;
   $("backToSolve").classList.add("hidden");
-  studyGroupList = studyGroups(n);
-  studyGroupTexts = studyGroupInfo(n);
   $<HTMLInputElement>("studyText").value = "";
   $("studyText").classList.remove("bad");
   setStudying(true);
   renderKeys();
-  setStudyFocus(-1);
+  setMarkedOnly(false);
   cubeView.setState(n, start);
   // every study, a save included, opens at the starting angle rather than wherever the view was left
   cubeView.resetView();
@@ -1060,8 +1047,8 @@ function studyTour() {
       targets: [$("cube").parentElement!],
       title: tr("3D 方塊", "The cube"),
       body: tr(
-        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消。右上的「?」每按一下只亮一組塊，並附上說明。",
-        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The ? at the top right lights one group of pieces at a time, with an explanation.",
+        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消；右上的眼睛只讓有圓點的塊保留顏色，方便看它們怎麼移動。",
+        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The eye at the top right keeps only the dotted pieces in colour, so you can follow where they go.",
       ),
     },
     {
@@ -1139,7 +1126,12 @@ $("toStudy").onclick = () => {
 };
 
 /** Each tap colours the next group (centre orbits, then edges, then corners); after the last, everything again. */
-$("studyFocusBtn").onclick = () => setStudyFocus(studyFocus + 1 < studyGroupList.length ? studyFocus + 1 : -1);
+$("studyFocusBtn").onclick = () => setMarkedOnly(!markedOnly);
+// the eye needs something to show: no marks, no eye (and the view goes back to full colour)
+cubeView.onMarks = (count) => {
+  $<HTMLButtonElement>("studyFocusBtn").disabled = count === 0;
+  if (count === 0 && markedOnly) setMarkedOnly(false);
+};
 
 /** Back to the solve this study came from, at the step it was left on. Go, by contrast, solves afresh. */
 $("backToSolve").onclick = () => {
