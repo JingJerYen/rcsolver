@@ -13,9 +13,9 @@
 - [ ] **隱私權政策**
   - 照片會送到 Anthropic 辨識；兩家商店都要隱私權政策網址，還要填資料安全表單。
   - 寫一頁放在網站上（中英文），說明拍的照片送去哪、會不會保存、存檔只在手機上。
-- [ ] **名稱的商標風險**
-  - 畫面上方寫「Rubik Cube Solver」，「Rubik's」是註冊商標，商店常因此退件或下架。
-  - 換成不含 Rubik 的名字（主畫面圖示的名字已經是「Cube方塊」），網頁標題、`index.html` 的 header、README 一起改。
+- [x] **名稱的商標風險**
+  - 「Rubik's」是註冊商標，商店常因此退件或下架；畫面上方已從「Rubik Cube Solver」改成「Cube Solver」（2026-10-25）。
+  - 上架時商店名稱、說明文字也不要用 Rubik（可以說「魔術方塊」「speed cube」）。
 - [ ] **包成商店 App**
   - Google Play：用 TWA（Trusted Web Activity，可用 Bubblewrap 或 PWABuilder），需要 Digital Asset Links（`/.well-known/assetlinks.json`）。
   - App Store：需要原生外殼（例如 Capacitor），注意審核指南 4.2（只是網頁的 App 會被退）；相機權限要寫用途說明。
