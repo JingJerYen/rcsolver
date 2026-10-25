@@ -6,7 +6,7 @@
 import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
+import { LESSONS, demoStart, hintPlan, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
 import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
@@ -93,8 +93,11 @@ interface Run {
   puzzleNo: number;
   start: Sticker[];
   par: number;
-  /** Cube after each action, for ⌫. */
+  /** The moves that made this puzzle from the solved cube, which the hint undoes. */
+  setup: string;
+  /** Cube after each action, for ⌫, and the turns of each action, for the hint. */
   history: Sticker[][];
+  steps: string[][];
   /** Notation lesson: how many of the moves to copy are done. */
   copied: number;
   moves: number;
@@ -182,7 +185,7 @@ function focusLesson(on: boolean) {
 
 function openLesson(size: LearnSize, index: number) {
   const lesson = LESSONS[size][index]!;
-  run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, history: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
+  run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, setup: "", history: [], steps: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
   $("lessonTitle").textContent = lessonName(index, lesson);
   $("lessonCount").textContent = "";
   $("lessonText").textContent = lesson.intro;
@@ -245,12 +248,15 @@ function startPuzzle(k: number) {
   if (r.lesson.copy) {
     r.start = solvedFor(r.size, false);
     r.par = r.lesson.copy[k]!.length;
+    r.setup = "";
   } else {
     const p = puzzle(r.size, r.index, k);
     r.start = p.start;
     r.par = p.par;
+    r.setup = p.setup;
   }
   r.history = [r.start];
+  r.steps = [];
   r.copied = 0;
   r.moves = 0;
   setPhase("practice");
@@ -261,6 +267,7 @@ function startPuzzle(k: number) {
   else $("lessonText").textContent = r.lesson.task;
   renderKeys();
   renderMoves();
+  view.setPreview(null);
   view.setState(r.size, r.start);
   view.resetView();
   focusLesson(false);
@@ -268,13 +275,13 @@ function startPuzzle(k: number) {
 
 const same = (size: number, a: Sticker[], b: Sticker[]) => JSON.stringify(toNet(size, a)) === JSON.stringify(toNet(size, b));
 
-/** After each turn, key or hand: count it, keep it for ⌫, and see whether the puzzle is done. */
-function afterMove(turns: number) {
+/** After each turn, key or hand: count it, keep it for ⌫ and the hint, and see whether the puzzle is done. */
+function afterMove(turns: number, tokens: string[]) {
   const r = run!;
   r.moves += turns;
   renderMoves();
   $("lessonTip").classList.add("hidden");
-  focusLesson(false);
+  view.setPreview(null);
   const now = view.getState();
   if (r.lesson.copy) {
     const moves = r.lesson.copy[r.puzzleNo]!;
@@ -292,11 +299,13 @@ function afterMove(turns: number) {
     }
     r.copied++;
     r.history.push(now);
+    r.steps.push(tokens);
     renderCopy();
     if (r.copied === moves.length) void solved();
     return;
   }
   r.history.push(now);
+  r.steps.push(tokens);
   if (r.lesson.goal(now, r.size)) void solved();
 }
 
@@ -345,7 +354,8 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   view.canTwist = () => run?.phase === "practice" && !busy;
   view.onTwist = (axis, layer, quarters) => {
     if (!run || run.phase !== "practice") return;
-    if (twistToken(run.size, axis, layer, quarters)) afterMove(1);
+    const token = twistToken(run.size, axis, layer, quarters);
+    if (token) afterMove(1, [token]);
   };
 
   $("learnCard").onclick = openLearnMap;
@@ -382,6 +392,8 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     if (b.dataset.undo !== undefined) {
       if (r.history.length < 2) return;
       r.history.pop();
+      r.steps.pop();
+      view.setPreview(null);
       view.setState(r.size, r.history[r.history.length - 1]!);
       if (r.lesson.copy) {
         r.copied = Math.max(0, r.copied - 1);
@@ -392,23 +404,26 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     busy = true;
     const turns = await play(b.dataset.seq!, KEY_MS);
     busy = false;
-    afterMove(turns);
+    afterMove(turns, b.dataset.seq!.split(" "));
   };
   $("lessonRestart").onclick = () => {
     const r = run;
     if (!r || busy || view.animating) return;
     r.history = [r.start];
+    r.steps = [];
     r.copied = 0;
+    view.setPreview(null);
     view.setState(r.size, r.start);
     if (r.lesson.copy) renderCopy();
   };
   $("learnHint").onclick = () => {
     const r = run;
     if (!r || r.phase !== "practice") return;
+    // no words: the next turn drawn on the cube, its layers outlined and an arrow, until a move is made
+    const next = r.lesson.copy ? r.lesson.copy[r.puzzleNo]![r.copied] : hintPlan(r.steps.flat(), r.setup)[0];
+    if (!next || busy || view.animating) return;
     r.hints++;
-    $("lessonTip").textContent = r.lesson.tip;
-    $("lessonTip").classList.remove("hidden");
-    focusLesson(true);
+    view.setPreview(parseMove(next, r.size));
   };
   $("doneNextBtn").onclick = () => {
     const r = run;
@@ -427,12 +442,14 @@ export const learnTest = {
     busy = true;
     const turns = await play(token, 60);
     busy = false;
-    afterMove(turns);
+    afterMove(turns, token.split(" "));
   },
   solve() {
     if (run) view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
   },
   point: (key: string) => view.pointOf(key),
+  /** The turn the hint would show now. */
+  hint: () => (run && !run.lesson.copy ? hintPlan(run.steps.flat(), run.setup)[0] : null),
   get state() {
     return run && { size: run.size, index: run.index, phase: run.phase, puzzleNo: run.puzzleNo, copied: run.copied, moves: run.moves, hints: run.hints };
   },
