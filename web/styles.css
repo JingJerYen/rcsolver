@@ -383,6 +383,8 @@ th{color:#607189;font-weight:600}
 #learnView .go{margin-top:14px;width:100%}
 .lesson-keys{display:flex;gap:6px;margin-top:12px}
 .lesson-keys .k{flex:1 1 0}
+.lesson-keys .k.hint-key{background:#e9f0ff;border:2px solid #195ed6;color:#195ed6;animation:keyPulse 1s ease-in-out infinite}
+@keyframes keyPulse{50%{box-shadow:0 0 0 5px rgba(25,94,214,.25)}}
 .lesson-keys .k.del{flex:0 0 50px;color:#c92a2a}
 .lesson-restart{width:100%;margin-top:12px;min-height:48px;border-radius:24px;font-weight:700}
 /* lesson done */

@@ -207,14 +207,26 @@ function openLesson(size: LearnSize, index: number) {
 }
 
 /** Turn through a sequence on the lesson cube. */
-async function play(seq: string, ms: number): Promise<number> {
+/** Bumped by "start again" to stop a sequence that is still turning. */
+let playGen = 0;
+/** Turn through a sequence on the lesson cube; the number of turns, or null when stopped part way. */
+async function play(seq: string, ms: number): Promise<number | null> {
   const r = run!;
+  const gen = playGen;
   let turns = 0;
   for (const t of seq.split(/\s+/).filter(Boolean)) {
+    if (gen !== playGen) return null;
     await view.animate(parseMove(t, r.size), 1, ms);
     if (!/^[xyz]/.test(t)) turns++;
   }
-  return turns;
+  return gen === playGen ? turns : null;
+}
+
+/** The hint's turn is a whole-cube one: light the key that does it, since a drag turns layers only. */
+function lightKey(token: string | null) {
+  for (const k of $("lessonKeys").querySelectorAll("[data-seq]")) k.classList.remove("hint-key");
+  if (!token || !/^y/.test(token)) return;
+  $("lessonKeys").querySelector(`[data-seq="${token === "y'" ? "y'" : "y"}"]`)?.classList.add("hint-key");
 }
 
 function renderCopy() {
@@ -282,6 +294,7 @@ function afterMove(turns: number, tokens: string[]) {
   renderMoves();
   $("lessonTip").classList.add("hidden");
   view.setPreview(null);
+  lightKey(null);
   const now = view.getState();
   if (r.lesson.copy) {
     const moves = r.lesson.copy[r.puzzleNo]!;
@@ -394,6 +407,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
       r.history.pop();
       r.steps.pop();
       view.setPreview(null);
+      lightKey(null);
       view.setState(r.size, r.history[r.history.length - 1]!);
       if (r.lesson.copy) {
         r.copied = Math.max(0, r.copied - 1);
@@ -403,18 +417,32 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     }
     busy = true;
     const turns = await play(b.dataset.seq!, KEY_MS);
+    if (turns === null) return; // "start again" took over
     busy = false;
     afterMove(turns, b.dataset.seq!.split(" "));
   };
-  $("lessonRestart").onclick = () => {
+  // start this puzzle again whatever is going on: stop a sequence part way, then put back the
+  // cube, the view and the counter (the turns already made still count toward the stars)
+  $("lessonRestart").onclick = async () => {
     const r = run;
-    if (!r || busy || view.animating) return;
+    if (!r || r.phase !== "practice") return;
+    playGen++;
+    busy = true;
+    for (let i = 0; view.animating && i < 50; i++) await new Promise((done) => setTimeout(done, 20));
+    if (run !== r) return;
+    r.totalMoves += r.moves;
+    r.moves = 0;
     r.history = [r.start];
     r.steps = [];
     r.copied = 0;
     view.setPreview(null);
+    lightKey(null);
     view.setState(r.size, r.start);
+    view.resetView();
+    $("lessonTip").classList.add("hidden");
+    renderMoves();
     if (r.lesson.copy) renderCopy();
+    busy = false;
   };
   $("learnHint").onclick = () => {
     const r = run;
@@ -424,6 +452,7 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     if (!next || busy || view.animating) return;
     r.hints++;
     view.setPreview(parseMove(next, r.size));
+    lightKey(next);
   };
   $("doneNextBtn").onclick = () => {
     const r = run;
@@ -442,7 +471,7 @@ export const learnTest = {
     busy = true;
     const turns = await play(token, 60);
     busy = false;
-    afterMove(turns, token.split(" "));
+    if (turns !== null) afterMove(turns, token.split(" "));
   },
   solve() {
     if (run) view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
