@@ -45,7 +45,6 @@ function saveStars(size: LearnSize, index: number, stars: number) {
   }
 }
 const starsOf = (p: Progress, size: LearnSize, i: number) => p[size][i] ?? 0;
-const unlocked = (p: Progress, size: LearnSize, i: number) => i === 0 || starsOf(p, size, i - 1) > 0;
 /** The lesson to take next: the first without a star. */
 const nextLesson = (p: Progress, size: LearnSize) => {
   const i = LESSONS[size].findIndex((_, k) => starsOf(p, size, k) === 0);
@@ -72,13 +71,11 @@ const lessonName = (i: number, l: Lesson) => tr(`第 ${i + 1} 關・${l.title}`,
 const STAR = (fill: string, size = 15) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="${fill}"/></svg>`;
 const starsHtml = (n: number, size?: number) => [0, 1, 2].map((k) => STAR(k < n ? "#f4b400" : "#d3dae4", size)).join("");
-const LOCK =
-  '<span class="lesson-lock" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></span>';
 
 /** The map icon: the face this stage finishes, as a small grid. */
-function iconHtml(l: Lesson, size: LearnSize, locked: boolean): string {
+function iconHtml(l: Lesson, size: LearnSize): string {
   if (!l.icon) return '<span class="lesson-letters">R U</span>';
-  const cells = [...l.icon].map((ch) => `<i style="background:${locked ? (ch === "." ? "#8f9aa8" : "#c9d1dc") : ch === "." ? "#5b6878" : COLOR_HEX[ch as Color]}"></i>`).join("");
+  const cells = [...l.icon].map((ch) => `<i style="background:${ch === "." ? "#5b6878" : COLOR_HEX[ch as Color]}"></i>`).join("");
   return `<span class="lesson-grid" style="grid-template-columns:repeat(${size},1fr)">${cells}</span>`;
 }
 
@@ -129,22 +126,16 @@ function renderMap() {
   const p = loadProgress();
   $("learnMapTitle").textContent = tr("學習", "Learn");
   for (const b of $("learnSizes").querySelectorAll<HTMLButtonElement>("button")) b.setAttribute("aria-selected", String(Number(b.dataset.size) === mapSize));
-  const next = nextLesson(p, mapSize);
+  // every lesson is open, in any order; the stars stay as each lesson's record
   $("lessonList").innerHTML = LESSONS[mapSize]
     .map((l, i) => {
       const stars = starsOf(p, mapSize, i);
-      const locked = !unlocked(p, mapSize, i);
-      const current = i === next && !locked;
       // prefixed: a bare "done" would pick up the solve screen's .done block
-      const state = locked ? "is-locked" : current ? "is-current" : stars ? "is-done" : "is-open";
-      const label = `${lessonName(i, l)}${locked ? tr("（還沒解鎖）", " (locked)") : stars ? tr(`，${stars} 顆星`, `, ${stars} ${stars === 1 ? "star" : "stars"}`) : ""}`;
+      const state = stars ? "is-done" : "is-open";
+      const label = `${lessonName(i, l)}${stars ? tr(`，${stars} 顆星`, `, ${stars} ${stars === 1 ? "star" : "stars"}`) : ""}`;
       // a finished lesson can be taken again: say so, or its stars read like a closed record
-      const extra = stars
-        ? `<span class="lesson-stars">${starsHtml(stars)}</span><span class="lesson-start again">${tr("再練", "Again")}</span>`
-        : current
-          ? `<span class="lesson-start">${tr("開始", "Start")}</span>`
-          : "";
-      return `<li><button type="button" class="lesson ${state}" data-i="${i}" aria-label="${esc(label)}"${locked ? " disabled" : ""}><span class="lesson-icon">${iconHtml(l, mapSize, locked)}${locked ? LOCK : ""}</span><span class="lesson-name"><b>${esc(l.title)}</b>${extra}</span><span class="lesson-no">${i + 1}</span></button></li>`;
+      const extra = stars ? `<span class="lesson-stars">${starsHtml(stars)}</span><span class="lesson-start again">${tr("再練", "Again")}</span>` : "";
+      return `<li><button type="button" class="lesson ${state}" data-i="${i}" aria-label="${esc(label)}"><span class="lesson-icon">${iconHtml(l, mapSize)}</span><span class="lesson-name"><b>${esc(l.title)}</b>${extra}</span><span class="lesson-no">${i + 1}</span></button></li>`;
     })
     .join("");
 }
@@ -192,7 +183,18 @@ function focusLesson(on: boolean) {
   view.setFocus(grey ? { pieces } : null);
 }
 
+/** Where the lesson's × goes: the map, or back to the screen that opened it (the study mode's hint). */
+let backTo: (() => void) | null = null;
+
+/** Open a lesson from outside the map; its × comes back through `back`. */
+export function openLessonFrom(size: LearnSize, index: number, back: () => void) {
+  setMapSize(size);
+  openLesson(size, index);
+  backTo = back;
+}
+
 function openLesson(size: LearnSize, index: number) {
+  backTo = null;
   const lesson = LESSONS[size][index]!;
   run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, history: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
   $("lessonTitle").textContent = lessonName(index, lesson);
@@ -383,7 +385,7 @@ function finish() {
   ].join("");
   const next = LESSONS[r.size][r.index + 1];
   $("doneNext").classList.toggle("hidden", !next);
-  if (next) $("doneNext").innerHTML = `<span>${tr("解鎖下一關", "Next up")}</span><b>${esc(lessonName(r.index + 1, next))}</b>`;
+  if (next) $("doneNext").innerHTML = `<span>${tr("下一關", "Next up")}</span><b>${esc(lessonName(r.index + 1, next))}</b>`;
   $("doneNextBtn").textContent = next ? tr("下一關", "Next lesson") : tr("回地圖", "Back to the map");
   $("doneAgain").textContent = tr("再練一次", "Practise again");
   $("doneMap").textContent = tr("回地圖", "Back to the map");
@@ -412,7 +414,12 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-i]");
     if (b && !b.disabled) openLesson(mapSize, Number(b.dataset.i));
   };
-  $("learnBack").onclick = openLearnMap;
+  $("learnBack").onclick = () => {
+    const back = backTo;
+    backTo = null;
+    if (back) back();
+    else openLearnMap();
+  };
   $("lessonDemos").onclick = async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-demo]");
     if (!b || !run || busy || view.animating) return;
