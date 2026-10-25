@@ -129,9 +129,15 @@ function renderMap() {
       const stars = starsOf(p, mapSize, i);
       const locked = !unlocked(p, mapSize, i);
       const current = i === next && !locked;
-      const state = locked ? "locked" : current ? "current" : stars ? "done" : "open";
+      // prefixed: a bare "done" would pick up the solve screen's .done block
+      const state = locked ? "is-locked" : current ? "is-current" : stars ? "is-done" : "is-open";
       const label = `${lessonName(i, l)}${locked ? tr("（還沒解鎖）", " (locked)") : stars ? tr(`，${stars} 顆星`, `, ${stars} stars`) : ""}`;
-      const extra = stars ? `<span class="lesson-stars">${starsHtml(stars)}</span>` : current ? `<span class="lesson-start">${tr("開始", "Start")}</span>` : "";
+      // a finished lesson can be taken again: say so, or its stars read like a closed record
+      const extra = stars
+        ? `<span class="lesson-stars">${starsHtml(stars)}</span><span class="lesson-start again">${tr("再練", "Again")}</span>`
+        : current
+          ? `<span class="lesson-start">${tr("開始", "Start")}</span>`
+          : "";
       return `<li><button type="button" class="lesson ${state}" data-i="${i}" aria-label="${esc(label)}"${locked ? " disabled" : ""}><span class="lesson-icon">${iconHtml(l, mapSize, locked)}${locked ? LOCK : ""}</span><span class="lesson-name"><b>${esc(l.title)}</b>${extra}</span><span class="lesson-no">${i + 1}</span></button></li>`;
     })
     .join("");
