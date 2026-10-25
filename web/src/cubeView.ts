@@ -20,6 +20,10 @@ export class CubeView {
    */
   private marks = new Set<number>();
   private marking = false;
+  /** Study mode's eye: only the pieces carrying a mark keep their colours, the rest go grey. */
+  private markedOnly = false;
+  /** Told whenever the marks change, with how many there are. */
+  onMarks: ((count: number) => void) | null = null;
   /** Where each visible sticker was last drawn, front last, for finding the one under a tap. */
   private hits: { poly: [number, number][]; key: string }[] = [];
   private press: { x: number; y: number; moved: boolean } | null = null;
@@ -156,11 +160,22 @@ export class CubeView {
     const index = this.indexAt.get(key);
     if (index === undefined) return;
     this.marks.add(index);
-    if (!this.anim) this.draw();
+    this.marksChanged();
   }
 
   clearMarks() {
     this.marks.clear();
+    this.marksChanged();
+  }
+
+  private marksChanged() {
+    this.onMarks?.(this.marks.size);
+    if (!this.anim) this.draw();
+  }
+
+  /** Grey out every piece without a mark (the pieces follow their stickers as they move). */
+  setMarkedOnly(on: boolean) {
+    this.markedOnly = on;
     if (!this.anim) this.draw();
   }
 
@@ -183,7 +198,7 @@ export class CubeView {
     const index = key === null ? undefined : this.indexAt.get(key);
     if (index === undefined) return;
     if (!this.marks.delete(index)) this.marks.add(index);
-    this.draw();
+    this.marksChanged();
   }
 
   /** Where a visible sticker was last drawn (its centre, canvas pixels), or null. */
@@ -363,6 +378,8 @@ export class CubeView {
     const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f } : this.twist;
     const rot = (p: Vec, active: boolean): Vec => (active && turn ? rotateVec(p, turn.axis, turn.angle) : p);
 
+    // the pieces (by where they are now) that carry a mark, for the marked-only view
+    const litPieces = this.markedOnly ? new Set([...this.marks].map((i) => this.stickers[i]!.p.join(","))) : null;
     type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; key: string; marked: boolean };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
@@ -401,7 +418,7 @@ export class CubeView {
           });
         const key = `${c.join(",")}|${n.join(",")}`;
         const raw = this.lookup.get(key);
-        const muted = focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted);
+        const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted));
         const centre: Vec = [...c] as Vec;
         centre[ax] += sign;
         faces.push({
