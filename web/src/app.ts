@@ -415,11 +415,11 @@ async function send() {
   if (FACES.some((f) => !faces[f])) return;
   $<HTMLButtonElement>("send").disabled = true;
   $("sendError").classList.add("hidden");
-  $("sendStatus").innerHTML = `<span class="spinner"></span>`;
+  setBusy(true);
   try {
     response = await recognize(size, faces);
   } catch (err) {
-    $("sendStatus").textContent = "";
+    setBusy(false);
     $<HTMLButtonElement>("send").disabled = false;
     if (!(err instanceof ApiError && err.code === "NO_CUBE")) {
       // The photos are fine but the AI could not be used: pick the size and fill the colours in by hand.
@@ -437,7 +437,7 @@ async function send() {
     card.classList.add("shake");
     return;
   }
-  $("sendStatus").textContent = "";
+  setBusy(false);
   showResult();
 }
 
@@ -581,22 +581,18 @@ function fail(badCells: { face: Face; row: number; col: number }[]) {
   return null;
 }
 
-/* ---------- busy overlay: shown while a solve runs off the main thread ---------- */
+/* ---------- busy overlay: one large spinner for every wait (the AI reading the photos, a solve) ---------- */
 
-function setBusy(on: boolean, fraction = 0) {
+function setBusy(on: boolean) {
   $("busy").classList.toggle("hidden", !on);
-  const bar = $("busyBar");
-  // table loading reports real progress; the solve itself has none, so the bar then slides
-  bar.classList.toggle("indeterminate", fraction >= 1);
-  bar.style.width = `${Math.round(Math.min(fraction, 1) * 100)}%`;
 }
 
 /** Validate the checked net and solve it; on failure mark what is wrong and shake. */
-async function trySolve(mode: SolveMode, onProgress?: (f: number) => void): Promise<{ moves: string[]; segments: Segment[] } | null> {
+async function trySolve(mode: SolveMode): Promise<{ moves: string[]; segments: Segment[] } | null> {
   if (!net) return null;
   const blank = FACES.flatMap((face) => net!.current[face].flatMap((line, row) => [...line].flatMap((ch, col) => (ch === UNKNOWN ? [{ face, row, col }] : []))));
   if (blank.length) return fail(blank);
-  const r = await solveAsync(net.size, net.current, onProgress, mode);
+  const r = await solveAsync(net.size, net.current, undefined, mode);
   return r.ok ? { moves: r.moves, segments: r.segments } : fail(r.badCells);
 }
 
@@ -605,14 +601,12 @@ function startSolve(mode: SolveMode = "fast") {
   const btn = $<HTMLButtonElement>("solve");
   btn.disabled = true;
   $<HTMLButtonElement>("teach").disabled = true;
-  btn.innerHTML = `<span class="spinner"></span>`;
   setBusy(true);
   void (async () => {
-    const solution = await trySolve(mode, (f) => setBusy(true, f));
+    const solution = await trySolve(mode);
     setBusy(false);
     btn.disabled = false;
     $<HTMLButtonElement>("teach").disabled = false;
-    btn.textContent = "Go";
     if (!solution || !net) return;
     moves = parseAlgorithm(solution.moves.join(" "), net.size);
     segments = solution.segments;
@@ -1116,7 +1110,7 @@ $("studyGo").onclick = () => {
   setBusy(true);
   void (async () => {
     const studyNet = netFor(n, from);
-    const r = await solveAsync(n, studyNet.current, (f) => setBusy(true, f), "fast");
+    const r = await solveAsync(n, studyNet.current, undefined, "fast");
     setBusy(false);
     btn.disabled = false;
     // every study state comes from turning a solved cube, so it always solves
@@ -1415,7 +1409,7 @@ async function openSharedLink() {
     let moves = z.moves ?? [];
     if (!z.moves && z.index > 0) {
       setBusy(true);
-      const r = await solveAsync(z.size, z.faces, (f) => setBusy(true, f), z.teach ? "teach" : "fast");
+      const r = await solveAsync(z.size, z.faces, undefined, z.teach ? "teach" : "fast");
       setBusy(false);
       moves = r.ok ? r.moves : [];
     }

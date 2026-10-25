@@ -54,6 +54,7 @@ const LABELS_EN: Record<string, string> = {
   轉回正面: "Back to the front view",
   分區顯示: "Show one group of pieces",
   說明: "Help",
+  請稍候: "Please wait",
   手轉: "Turn layers by hand",
 };
 
