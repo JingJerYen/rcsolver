@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deltaTurn, describeMark, keyToken, pushMove, readMoves, scrambleTokens, studyMove, tokenize, twistToken } from "../web/src/study.js";
+import { deltaTurn, describeMark, keyToken, pushMove, readMoves, scrambleTokens, studyMove, tokenize, tokensThrough, twistToken } from "../web/src/study.js";
 import { applyAlgorithm, applyMove, fromNet, isSolved, layerValues, toNet, type Move } from "../web/src/cubeState.js";
 import type { Face } from "../web/src/api.js";
 
@@ -124,4 +124,12 @@ test("describeMark names the piece and the dotted face; big cubes add row and co
   assert.equal(describeMark(key([-1, 3, 3], [0, 0, 1]), 4), "edge UF (dot on the F face, row 1, column 2)");
   // on U (B at the top), the sticker next to F and R is the bottom-right one
   assert.equal(describeMark(key([3, 3, 3], [0, 1, 0]), 4), "corner UFR (dot on the U face, row 4, column 4)");
+});
+
+test("tokensThrough keeps the moves up to the slider and drops the rest", () => {
+  const t = ["R", "U", "Q", "F", "D"];
+  assert.deepEqual(tokensThrough(t, 3, 0), []);
+  assert.deepEqual(tokensThrough(t, 3, 2), ["R", "U"], "an unreadable token after the cut goes too");
+  assert.deepEqual(tokensThrough(t, 3, 3), ["R", "U", "Q", "F"], "one before it stays");
+  assert.deepEqual(tokensThrough(t, 3, 4), t);
 });
