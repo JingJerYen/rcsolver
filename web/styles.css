@@ -379,6 +379,10 @@ th{color:#607189;font-weight:600}
 .lesson-demo{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:#fff7df;border:1px solid #e0a21c}
 .lesson-demo-name{flex:none;font-size:14px;font-weight:700;color:#6b4b00;min-width:34px}
 .lesson-demo code{flex:1;min-width:0;font:700 15px/1.4 ui-monospace,monospace;color:#192a40}
+.lesson-demo code span.is-done{color:#a6b1bf}
+.lesson-demo code span.is-next{background:#195ed6;color:#fff;border-radius:5px;padding:0 4px}
+.lesson-demo:not(.active){background:#fff;border-color:#dde5ef}
+.lesson-play.reset{background:#fff;color:#195ed6;border:2px solid #195ed6}
 .lesson-play{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 #learnView .go{margin-top:14px;width:100%}
 .lesson-keys{display:flex;gap:6px;margin-top:12px}
