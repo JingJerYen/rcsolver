@@ -137,7 +137,7 @@ function renderMap() {
       const current = i === next && !locked;
       // prefixed: a bare "done" would pick up the solve screen's .done block
       const state = locked ? "is-locked" : current ? "is-current" : stars ? "is-done" : "is-open";
-      const label = `${lessonName(i, l)}${locked ? tr("（還沒解鎖）", " (locked)") : stars ? tr(`，${stars} 顆星`, `, ${stars} stars`) : ""}`;
+      const label = `${lessonName(i, l)}${locked ? tr("（還沒解鎖）", " (locked)") : stars ? tr(`，${stars} 顆星`, `, ${stars} ${stars === 1 ? "star" : "stars"}`) : ""}`;
       // a finished lesson can be taken again: say so, or its stars read like a closed record
       const extra = stars
         ? `<span class="lesson-stars">${starsHtml(stars)}</span><span class="lesson-start again">${tr("再練", "Again")}</span>`
@@ -282,7 +282,7 @@ function renderKeys() {
 }
 
 function renderMoves() {
-  $("learnMoves").textContent = tr(`已轉 ${run!.moves} 步`, `${run!.moves} moves`);
+  $("learnMoves").textContent = tr(`已轉 ${run!.moves} 步`, `${run!.moves} ${run!.moves === 1 ? "move" : "moves"}`);
 }
 
 function startPuzzle(k: number) {
