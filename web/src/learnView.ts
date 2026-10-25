@@ -104,6 +104,8 @@ interface Run {
 }
 let run: Run | null = null;
 let busy = false;
+/** The watch card whose starting cube the reset button brings back: the last one played. */
+let demoCard = 0;
 
 /** The home card: where learning left off. */
 export function renderLearnCard() {
@@ -151,6 +153,7 @@ function setPhase(phase: "watch" | "practice") {
   $("lessonKeys").classList.toggle("hidden", watch);
   $("lessonRestart").classList.toggle("hidden", watch);
   $("learnHint").classList.toggle("hidden", watch);
+  $("learnReset").classList.toggle("hidden", !watch);
   $("learnMoves").classList.toggle("hidden", watch);
   $("lessonTip").classList.add("hidden");
   view.setTwisting(!watch);
@@ -185,6 +188,8 @@ function openLesson(size: LearnSize, index: number) {
     )
     .join("");
   setPhase("watch");
+  demoCard = 0;
+  $("learnResetLabel").textContent = tr("重設", "Reset");
   const first = lesson.demos[0];
   view.setState(size, first ? demoStart(size, index, first.seq) : solvedFor(size, lesson.whiteDown));
   view.resetView();
@@ -352,12 +357,16 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   $("lessonDemos").onclick = async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-demo]");
     if (!b || !run || busy || view.animating) return;
-    const demo = run.lesson.demos[Number(b.dataset.demo)]!;
+    // play from the cube as it is: jumping back first looks like the cube teleporting; Reset does that on purpose
+    demoCard = Number(b.dataset.demo);
     busy = true;
-    view.setState(run.size, demoStart(run.size, run.index, demo.seq));
-    await new Promise((done) => setTimeout(done, 250));
-    await play(demo.seq, DEMO_MS);
+    await play(run.lesson.demos[demoCard]!.seq, DEMO_MS);
     busy = false;
+  };
+  $("learnReset").onclick = () => {
+    if (!run || busy || view.animating) return;
+    const demo = run.lesson.demos[demoCard];
+    view.setState(run.size, demo ? demoStart(run.size, run.index, demo.seq) : solvedFor(run.size, run.lesson.whiteDown));
   };
   $("lessonGo").onclick = () => run && startPuzzle(0);
   $("lessonKeys").onclick = async (e) => {
