@@ -30,6 +30,10 @@ run_worker_first = ["/api/*"]
 [vars]
 RECOGNIZE_MODEL = "claude-opus-5-5"
 RECOGNIZE_EFFORT = "medium"
+# custom sequences written from plain words (the study mode "Ask AI"); share DAILY_LIMIT with photos
+MACRO_MODEL = "claude-sonnet-5-5"
+MACRO_EFFORT = "medium"
+MACRO_TIMEOUT_MS = "60000"
 RATE_LIMIT_PER_MIN = "6"
 DAILY_LIMIT = "100"
 

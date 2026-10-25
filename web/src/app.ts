@@ -1,11 +1,11 @@
-import { ApiError, FACES, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
+import { ApiError, FACES, askMacro, getHealth, recognize, type Face, type FaceImage, type RecognizeResponse } from "./api.js";
 import { STEPS, captureFromFile, captureFromVideo, closeCamera, openCamera, turnsBefore } from "./capture.js";
 import { GuideCube } from "./guideCube.js";
 import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, keypadHtml, pushMove, readMoves, studyMove, tokenize, twistToken } from "./study.js";
+import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, studyMove, tokenize, twistToken } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment, SolveMode } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -810,10 +810,9 @@ function setStudying(on: boolean) {
   cubeView.setMarking(on);
   cubeView.clearMarks();
   setTwistOn(twistOn);
-  // the pace and copy buttons sit either side of the move text in study mode, of the token strip otherwise
-  const row = on ? $("studyTextRow") : $("sequence").parentElement!;
-  row.prepend($("pace"));
-  row.append($("copySeq"));
+  $("viewHome").setAttribute("aria-label", on ? tr("轉回正面（長按打亂）", "Turn back to the front (hold to scramble)") : tr("轉回正面", "Turn back to the front"));
+  // the copy button sits after the move text in study mode, after the token strip otherwise
+  (on ? $("studyTextRow") : $("sequence").parentElement!).append($("copySeq"));
 }
 
 function renderKeys() {
@@ -1117,6 +1116,7 @@ function openMacroEditor() {
     return `<div class="macro-line"><input class="macro-name" maxlength="${MACRO_NAME_MAX}" value="${esc(m.name)}" placeholder="${tr("名字", "Ab")}" aria-label="${tr("名字", "Name")} ${i + 1}" autocomplete="off"><input class="macro-seq" value="${esc(m.seq)}" placeholder="R U R' U'" aria-label="${tr("轉法", "Moves")} ${i + 1}" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="macro-del" data-del aria-label="${tr("刪除這一組", "Delete this one")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>`;
   }).join("");
   checkMacros();
+  resetAi();
   macroDialog.showModal();
 }
 /** Mark what is missing or unreadable; returns the rows to keep, or null while any is wrong. */
@@ -1148,7 +1148,12 @@ $("macroRows").oninput = () => void checkMacros();
 $("macroRows").onclick = (e) => {
   const del = (e.target as HTMLElement).closest<HTMLElement>("[data-del]");
   if (!del) return;
-  del.parentElement!.querySelectorAll("input").forEach((input) => ((input as HTMLInputElement).value = ""));
+  const line = del.parentElement!;
+  line.querySelectorAll("input").forEach((input) => ((input as HTMLInputElement).value = ""));
+  if (line.classList.contains("ai-new")) {
+    line.classList.remove("ai-new");
+    aiRow = -1;
+  }
   checkMacros();
 };
 $("macroSave").onclick = () => {
@@ -1159,6 +1164,85 @@ $("macroSave").onclick = () => {
   macroDialog.close();
 };
 $("macroClose").onclick = () => macroDialog.close();
+
+/*
+ * "Ask AI" under the rows: one line of plain words (plus the marked pieces, if any) goes to the
+ * model, and its answer fills the next empty row, outlined, to keep with Save. Asking again
+ * rewrites that same row. Nothing checks what the moves do; unreadable ones turn red like typed ones.
+ */
+let aiRow = -1;
+function setAiOpen(open: boolean) {
+  $("macroAi").classList.toggle("open", open);
+  $("macroAiToggle").setAttribute("aria-expanded", String(open));
+  if (open) $("macroAiText").focus();
+}
+function aiError(text: string) {
+  $("macroAiError").textContent = text;
+  $("macroAiError").classList.toggle("hidden", !text);
+}
+function resetAi() {
+  aiRow = -1;
+  setAiOpen(false);
+  aiError("");
+  $<HTMLInputElement>("macroAiText").value = "";
+  const n = studying ? cubeView.markedKeys().length : 0;
+  const dots = $("macroAiDots");
+  dots.classList.toggle("hidden", n === 0);
+  dots.setAttribute("aria-pressed", "true");
+  dots.setAttribute("aria-label", tr(`附上 ${n} 個黑點`, `Include the ${n} marked piece${n === 1 ? "" : "s"}`));
+  $("macroAiDotCount").textContent = String(n);
+}
+$("macroAiLabel").textContent = tr("問 AI", "Ask AI");
+$<HTMLInputElement>("macroAiText").placeholder = tr("例如：交換兩個黑點", "e.g. swap the two marked pieces");
+$("macroAiText").setAttribute("aria-label", tr("想要什麼公式", "What sequence do you want"));
+$("macroAiSend").setAttribute("aria-label", tr("送出", "Send"));
+$("macroAiToggle").onclick = () => setAiOpen(!$("macroAi").classList.contains("open"));
+$("macroAiDots").onclick = () => {
+  const b = $("macroAiDots");
+  b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+};
+async function askAi() {
+  const ask = $<HTMLInputElement>("macroAiText").value.trim();
+  const send = $<HTMLButtonElement>("macroAiSend");
+  if (!ask || !net || send.disabled) return;
+  const lines = [...$("macroRows").querySelectorAll<HTMLElement>(".macro-line")];
+  const empty = (l: HTMLElement) => [...l.querySelectorAll("input")].every((i) => !(i as HTMLInputElement).value.trim());
+  const target = aiRow >= 0 ? aiRow : lines.findIndex(empty);
+  if (target < 0) return aiError(tr(`${MACRO_MAX} 組都滿了，先刪掉一組`, `All ${MACRO_MAX} are taken: delete one first`));
+  const withDots = !$("macroAiDots").classList.contains("hidden") && $("macroAiDots").getAttribute("aria-pressed") === "true";
+  const marks = withDots ? cubeView.markedKeys().map((k) => describeMark(k, net!.size)) : [];
+  aiError("");
+  send.disabled = true;
+  send.classList.add("busy");
+  try {
+    const a = await askMacro(net.size, ask, marks);
+    if (!a.moves.trim()) return aiError(a.error || tr("AI 沒有給轉法，換個說法試試", "No sequence came back: try other words"));
+    const line = lines[target]!;
+    line.querySelector<HTMLInputElement>(".macro-name")!.value = [...a.name.trim()].slice(0, MACRO_NAME_MAX).join("") || "AI";
+    line.querySelector<HTMLInputElement>(".macro-seq")!.value = tokenize(a.moves).join(" ");
+    lines.forEach((l, i) => l.classList.toggle("ai-new", i === target));
+    aiRow = target;
+    checkMacros();
+  } catch (err) {
+    const code = err instanceof ApiError ? err.code : "";
+    aiError(
+      code === "QUOTA_EXCEEDED"
+        ? tr("今天的 AI 次數用完了，明天再試", "Today's AI requests are used up: try tomorrow")
+        : code === "RATE_LIMITED"
+          ? tr("問得太快了，等一下再試", "Too many requests: wait a moment")
+          : code === "AI_TIMEOUT"
+            ? tr("AI 想太久了，換個說法試試", "The AI took too long: try other words")
+            : tr("AI 暫時無法使用，請稍後再試", "The AI is not available right now: try again later"),
+    );
+  } finally {
+    send.disabled = false;
+    send.classList.remove("busy");
+  }
+}
+$("macroAiSend").onclick = () => void askAi();
+$("macroAiText").onkeydown = (e) => {
+  if (e.key === "Enter") void askAi();
+};
 
 /*
  * Hand turns: with the switch on, a drag that starts on a sticker turns its layer (the layer
@@ -1225,8 +1309,8 @@ function studyTour() {
       targets: [$("cube").parentElement!],
       title: tr("3D 方塊", "The cube"),
       body: tr(
-        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消；右上的眼睛只讓有圓點的塊保留顏色，方便看它們怎麼移動。",
-        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The eye at the top right keeps only the dotted pieces in colour, so you can follow where they go.",
+        "左下的「手轉」開著時，用手指拖動某一層就會轉那一層；關掉時改成拖曳轉視角，並出現轉動鍵盤。右下的小方塊轉回正面，長按它會隨機打亂方塊。點任何一格會加上圓點記號，轉到哪都跟著，再點一次取消；右上的眼睛只讓有圓點的塊保留顏色，方便看它們怎麼移動。",
+        "With the hand button at the bottom left on, drag a layer to turn it; switch it off to drag the view around instead and get the move keys. The small cube at the bottom right turns the view back to the front; hold it to scramble the cube. Tap any sticker to put a dot on it that follows it wherever it goes; tap again to remove it. The eye at the top right keeps only the dotted pieces in colour, so you can follow where they go.",
       ),
     },
     {
@@ -1242,22 +1326,22 @@ function studyTour() {
       targets: [$("studyMacros"), $("studyTurns")],
       title: tr("自訂公式", "Your own sequences"),
       body: tr(
-        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改，最多 5 組，名字最多 2 個字。下面的 x y z 把整顆方塊翻個方向，不轉任何一層。",
-        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them: up to 5, names of up to 2 characters. Below them, x y z turn the whole cube over without turning any layer.",
+        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改（也能用「問 AI」直接說想要什麼），最多 5 組，名字最多 2 個字。下面的 x y z 把整顆方塊翻個方向，不轉任何一層。",
+        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them (or use Ask AI to describe what you want): up to 5, names of up to 2 characters. Below them, x y z turn the whole cube over without turning any layer.",
       ),
     },
     {
       targets: [$("studyTextRow")],
       title: tr("轉法文字框", "The moves"),
       body: tr(
-        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。左邊調整播放時每步停留的時間；右邊 ⌫ 刪掉最後一步，再右邊複製整段轉法。",
-        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the left, how long each move stays during playback; on the right, delete the last move, then copy the whole sequence.",
+        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。右邊 ⌫ 刪掉最後一步，再右邊複製整段轉法。",
+        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the right, delete the last move, then copy the whole sequence.",
       ),
     },
     {
-      targets: [$("slider"), $("prev").parentElement!],
+      targets: [$("sliderRow"), $("prev").parentElement!],
       title: tr("播放", "Playback"),
-      body: tr("上一步、下一步一次走一步，中間的播放鍵自動播完；拖曳滑桿可以跳到任何一步。", "Previous and next go one move at a time, play runs to the end, and the slider jumps to any move."),
+      body: tr("上一步、下一步一次走一步，中間的播放鍵自動播完；拖曳滑桿可以跳到任何一步，滑桿左邊調整播放時每步停留的時間。", "Previous and next go one move at a time, play runs to the end, and the slider jumps to any move; the button left of it sets how long each move stays during playback."),
     },
     {
       targets: [$("studyGo")],
@@ -1463,7 +1547,45 @@ $("shareResult").onclick = () => {
 };
 $("resetNet").onclick = resetNet;
 // the cube button jumps back to the starting angle after any amount of dragging
-$("viewHome").onclick = () => cubeView.resetView();
+/*
+ * The view button turns the cube back to the front; in study mode a long press scrambles it
+ * instead: random moves for this size go on the end of the moves, shown at once, not played.
+ */
+const SCRAMBLE_HOLD_MS = 600;
+let scrambleTimer = 0;
+let scrambledByHold = false;
+function scrambleStudy() {
+  if (!net || !studying || cubeView.animating) return;
+  stopPlaying();
+  studyTokens = [...studyTokens, ...scrambleTokens(net.size)];
+  $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
+  const read = readMoves(studyTokens, net.size);
+  $("studyText").classList.toggle("bad", read.bad);
+  moves = read.moves;
+  jumpTo(moves.length, moves.length - 1);
+  navigator.vibrate?.(30);
+}
+function endScrambleHold() {
+  clearTimeout(scrambleTimer);
+  $("viewHome").classList.remove("holding");
+}
+$("viewHome").addEventListener("pointerdown", () => {
+  scrambledByHold = false;
+  if (!studying) return;
+  $("viewHome").classList.add("holding");
+  scrambleTimer = window.setTimeout(() => {
+    endScrambleHold();
+    scrambledByHold = true;
+    scrambleStudy();
+  }, SCRAMBLE_HOLD_MS);
+});
+for (const type of ["pointerup", "pointercancel", "pointerleave"]) $("viewHome").addEventListener(type, endScrambleHold);
+$("viewHome").addEventListener("contextmenu", (e) => e.preventDefault());
+$("viewHome").onclick = () => {
+  // the click that ends a long press is not a tap
+  if (scrambledByHold) scrambledByHold = false;
+  else cubeView.resetView();
+};
 $("previewHome").onclick = () => previewView.resetView();
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
 const importDialog = $<HTMLDialogElement>("importDialog");

@@ -4,8 +4,9 @@ import type { Config } from "./config.js";
 import { AppError } from "./errors.js";
 import { log } from "./logger.js";
 import { FACES } from "./cube.js";
-import { RecognizeBodySchema } from "./schemas.js";
+import { MacroBodySchema, RecognizeBodySchema } from "./schemas.js";
 import { recognizeCube } from "./llm/recognize.js";
+import { writeMacro } from "./llm/macro.js";
 import { rateLimit, type IpResolver } from "./middleware/rateLimit.js";
 import type { QuotaStore } from "./quota.js";
 
@@ -72,6 +73,36 @@ export function createApp({ config, quota, getIp }: AppDeps) {
 
       const out = await recognizeCube(config, body);
       return c.json({ ok: true, ...out });
+    },
+  );
+
+  // one custom sequence from a request in plain words; counts against the same daily cap as photos
+  app.post(
+    "/api/macro",
+    rateLimit(config.rateLimitPerMin, getIp),
+    bodyLimit({
+      maxSize: 8 * 1024,
+      onError: () => {
+        throw new AppError("BAD_REQUEST", "請求太大。", 413);
+      },
+    }),
+    async (c) => {
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        throw new AppError("BAD_REQUEST", "JSON 格式錯誤。");
+      }
+      const parsed = MacroBodySchema.safeParse(raw);
+      if (!parsed.success) throw new AppError("BAD_REQUEST", "請求格式不正確。", 400, parsed.error.issues);
+      if (!config.mockMode) {
+        const q = await quota.take(config.dailyLimit);
+        if (!q.allowed) {
+          log.warn("daily quota exceeded", { used: q.used, limit: config.dailyLimit });
+          throw new AppError("QUOTA_EXCEEDED", "今天的 AI 額度已用完，明天再試。", 503);
+        }
+      }
+      return c.json({ ok: true, ...(await writeMacro(config, parsed.data)) });
     },
   );
 
