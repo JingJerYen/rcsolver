@@ -126,16 +126,12 @@ function renderMap() {
   const p = loadProgress();
   $("learnMapTitle").textContent = tr("學習", "Learn");
   for (const b of $("learnSizes").querySelectorAll<HTMLButtonElement>("button")) b.setAttribute("aria-selected", String(Number(b.dataset.size) === mapSize));
-  // every lesson is open, in any order; the stars stay as each lesson's record
+  // every lesson is open, in any order, and every row looks the same: its three stars, grey until earned
   $("lessonList").innerHTML = LESSONS[mapSize]
     .map((l, i) => {
       const stars = starsOf(p, mapSize, i);
-      // prefixed: a bare "done" would pick up the solve screen's .done block
-      const state = stars ? "is-done" : "is-open";
-      const label = `${lessonName(i, l)}${stars ? tr(`，${stars} 顆星`, `, ${stars} ${stars === 1 ? "star" : "stars"}`) : ""}`;
-      // a finished lesson can be taken again: say so, or its stars read like a closed record
-      const extra = stars ? `<span class="lesson-stars">${starsHtml(stars)}</span><span class="lesson-start again">${tr("再練", "Again")}</span>` : "";
-      return `<li><button type="button" class="lesson ${state}" data-i="${i}" aria-label="${esc(label)}"><span class="lesson-icon">${iconHtml(l, mapSize)}</span><span class="lesson-name"><b>${esc(l.title)}</b>${extra}</span><span class="lesson-no">${i + 1}</span></button></li>`;
+      const label = `${lessonName(i, l)}${tr(`，${stars} 顆星`, `, ${stars} ${stars === 1 ? "star" : "stars"}`)}`;
+      return `<li><button type="button" class="lesson" data-i="${i}" aria-label="${esc(label)}"><span class="lesson-icon">${iconHtml(l, mapSize)}</span><span class="lesson-name"><b>${esc(l.title)}</b><span class="lesson-stars">${starsHtml(stars)}</span></span><span class="lesson-no">${i + 1}</span></button></li>`;
     })
     .join("");
 }
@@ -216,6 +212,8 @@ function openLesson(size: LearnSize, index: number) {
 }
 
 const PLAY_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>';
+const COPY_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
 const DONE_ICON =
   '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -231,7 +229,7 @@ function renderDemos() {
       const title = d.case ? `${d.name}・${d.case}` : d.name;
       const label = done ? tr(`${title}：轉完了`, `${title}: all turned`) : tr(`${title}：下一步`, `${title}: next turn`);
       const when = active && d.when ? `<p class="lesson-demo-when">${esc(d.when)}</p>` : "";
-      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}${d.case ? `<small>${esc(d.case)}</small>` : ""}</span><code>${seq}</code>${when}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
+      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}${d.case ? `<small>${esc(d.case)}</small>` : ""}</span><code>${seq}</code>${when}${r.lesson.copy ? "" : `<button type="button" class="lesson-copy" data-copy="${i}" aria-label="${esc(tr(`複製${d.name}的轉法`, `Copy the moves of ${d.name}`))}">${COPY_ICON}</button>`}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
     })
     .join("");
   const finished = !r.lesson.copy && demoStep >= (r.lesson.demos[demoCard]?.seq.split(" ").length ?? Infinity);
@@ -421,6 +419,19 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     else openLearnMap();
   };
   $("lessonDemos").onclick = async (e) => {
+    // a card's copy button: its moves as typed (R U R' U'), to paste into study mode or anywhere
+    const c = (e.target as HTMLElement).closest<HTMLElement>("[data-copy]");
+    if (c && run) {
+      const seq = run.lesson.demos[Number(c.dataset.copy)]!.seq;
+      try {
+        await navigator.clipboard.writeText(seq);
+        c.classList.add("ok");
+        setTimeout(() => c.classList.remove("ok"), 1500);
+      } catch {
+        prompt("", seq);
+      }
+      return;
+    }
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-demo]");
     if (!b || !run || busy || view.animating) return;
     const r = run;

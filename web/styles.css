@@ -356,8 +356,6 @@ th{color:#607189;font-weight:600}
 .lesson-name b{flex-basis:100%}
 .lesson-name b{font-size:16px}
 .lesson-stars{display:flex;gap:2px}
-.lesson-start{align-self:flex-start;height:26px;padding:0 12px;border-radius:13px;background:#195ed6;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center}
-.lesson-start.again{background:#fff;color:#195ed6;border:1px solid #9dbcf0}
 .lesson-no{flex:none;font-size:13px;font-weight:700;color:#8593a5}
 /* a lesson */
 .learn-top{display:flex;align-items:center;gap:10px}
@@ -395,6 +393,8 @@ th{color:#607189;font-weight:600}
 .lesson-play.finished{background:#e3f4ea;color:#1b6b43;opacity:1}
 .lesson-demo{flex-wrap:wrap}
 .lesson-demo-when{order:3;flex-basis:100%;margin:2px 0 4px;font-size:13px;line-height:1.55;color:#6b4b00}
+.lesson-copy{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid #cdd7e5;background:#fff;color:#39536e;display:flex;align-items:center;justify-content:center;padding:0}
+.lesson-copy.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
 .lesson-play{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 #learnView .go{margin-top:14px;width:100%}
 .lesson-keys{display:flex;gap:6px;margin-top:12px}
