@@ -3,7 +3,7 @@
  * Older tokens also carry a step, and either the moves up to it or none (a solve: the solvers are
  * deterministic, so the receiver re-solves to rebuild the cube at that step).
  *
- * Bytes: version(1) size(1) flags(1, v2 only: bit 0 = teaching solve) index(2) movesCount(2)
+ * Bytes: version(1) size(1) flags(1, v2 only: bit 0 = the old teaching solve) index(2) movesCount(2)
  * stickers(⌈6N²/3⌉, three colours per byte) moves(1 each)
  */
 import type { Face } from "./api.js";
@@ -20,7 +20,7 @@ export interface SharePayload {
   index: number;
   /** Omitted when the solver reproduces the solution on its own. */
   moves?: string[];
-  /** The receiver solves with the teaching method (3×3 layer by layer). */
+  /** Made by the teaching mode that was removed: its index counted steps of a solve that no longer exists. */
   teach?: boolean;
 }
 

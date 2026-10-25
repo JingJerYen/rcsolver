@@ -13,11 +13,8 @@ import { buildCentreTables } from "./solvers/cube4centers.js";
 import { solveN } from "./solvers/solveN.js";
 import { ensureTables } from "./solvers/tables.js";
 import { cube3Segments, type Segment } from "./solvers/segments.js";
-import { solveTeach3 } from "./solvers/lbl3.js";
 
 export type { Segment };
-/** "fast" is the shortest-solution solver; "teach" is the layer-by-layer method with explanations (3×3 only). */
-export type SolveMode = "fast" | "teach";
 
 export type Cell = { face: Face; row: number; col: number };
 export type SolveResult = { ok: true; moves: string[]; segments: Segment[] } | { ok: false; badCells: Cell[] };
@@ -31,19 +28,10 @@ export async function prepare(size: number, onProgress?: (fraction: number) => v
 }
 
 /** Solve a net with the right solver; a failure names the cells that cannot be right (maybe none). */
-export function solveNet(size: number, n: Record<Face, string[]>, mode: SolveMode = "fast"): SolveResult {
+export function solveNet(size: number, n: Record<Face, string[]>): SolveResult {
   let moves: string[];
   let segments: Segment[];
-  if (size === 3 && mode === "teach") {
-    const conv = netToFacelets(n);
-    if (!conv) return { ok: false, badCells: FACES.map((face) => ({ face, row: 1, col: 1 })) };
-    const v = checkFacelets(conv.facelets);
-    if (!v.ok) return { ok: false, badCells: v.badFacelets.map(faceletCell) };
-    const r = solveTeach3(n);
-    if (!r) return { ok: false, badCells: [] };
-    moves = r.moves;
-    segments = r.segments;
-  } else if (size === 3) {
+  if (size === 3) {
     const conv = netToFacelets(n);
     if (!conv) return { ok: false, badCells: FACES.map((face) => ({ face, row: 1, col: 1 })) };
     const v = checkFacelets(conv.facelets);
