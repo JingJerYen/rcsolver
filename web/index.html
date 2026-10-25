@@ -104,10 +104,13 @@
     <p class="lesson-text" id="lessonText"></p>
     <div class="cube-wrap">
       <canvas id="learnCube" class="cube" aria-label="教學用的方塊"></canvas>
-      <span class="learn-moves hidden" id="learnMoves"></span>
-      <button class="hint-btn reset-btn hidden" id="learnReset"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="learnResetLabel">重設</span></button>
-      <button class="hint-btn hidden" id="learnHint"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span id="learnHintLabel">提示</span></button>
       <div class="learn-ok hidden" id="learnOk" aria-hidden="true"><svg viewBox="0 0 24 24" width="64" height="64"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>
+    <!-- the cube's tools sit under it, out of the way of the fingers turning it -->
+    <div class="learn-tools">
+      <button class="tool-btn reset-btn hidden" id="learnReset"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="learnResetLabel">重設</span></button>
+      <span class="learn-moves hidden" id="learnMoves"></span>
+      <button class="tool-btn hint-btn hidden" id="learnHint"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span id="learnHintLabel">提示</span></button>
     </div>
     <p class="lesson-tip hidden" id="lessonTip" role="status"></p>
     <div class="lesson-demos" id="lessonDemos"></div>

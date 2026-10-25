@@ -369,9 +369,11 @@ th{color:#607189;font-weight:600}
 .copy-move.done{background:#e3f4ea;color:#1b6b43}
 .copy-move.next{background:#195ed6;color:#fff}
 #learnView .cube{touch-action:none}
-.learn-moves{position:absolute;right:12px;top:10px;font-size:13px;font-weight:700;color:#5d6b7d}
-.hint-btn{position:absolute;right:10px;bottom:10px;height:40px;padding:0 14px;border-radius:20px;border-color:#e0a21c;background:#fff7df;color:#6b4b00;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
-.reset-btn{left:10px;right:auto;border-color:#cdd7e5;background:#fff;color:#233b55}
+.learn-tools{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:40px}
+.learn-moves{flex:1;text-align:center;font-size:13px;font-weight:700;color:#5d6b7d}
+.tool-btn{flex:none;height:40px;padding:0 14px;border-radius:20px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.hint-btn{margin-left:auto;border-color:#e0a21c;background:#fff7df;color:#6b4b00}
+.reset-btn{border-color:#cdd7e5;background:#fff;color:#233b55}
 .reset-btn.pulse{border:2px solid #195ed6;color:#195ed6;animation:keyPulse 1s ease-in-out infinite}
 .learn-ok{position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:rgba(27,107,67,.92);color:#fff;display:flex;align-items:center;justify-content:center;animation:pop .3s ease-out;pointer-events:none}
 @keyframes pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
