@@ -14,7 +14,8 @@ import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
-import { initLearn, learnTest, renderLearnCard } from "./learnView.js";
+import { initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
+import { studyHint } from "./hint.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
@@ -532,6 +533,8 @@ function showResult() {
 
 let moves: Move[] = [];
 let moveIndex = 0;
+/** The study hint on show: the step, shown move and moves it was worked out for (any change puts it away). */
+let hintShownAt: string | null = null;
 /** Cube as it was read, so any step can be reached by replaying the moves before it. */
 let startState: Sticker[] = [];
 let playing = false;
@@ -645,6 +648,7 @@ function renderSequence() {
 }
 
 function renderSolve() {
+  if (hintShownAt !== null && (!studying || hintMark() !== hintShownAt)) clearStudyHint();
   const done = moveIndex >= moves.length;
   $("progress").textContent = `${moves.length ? shownIndex + 1 : 0} / ${moves.length}`;
   const slider = $<HTMLInputElement>("slider");
@@ -777,6 +781,7 @@ function netFor(n: number, stickers: Sticker[]): NetState {
 
 function setStudying(on: boolean) {
   studying = on;
+  if (hintShownAt !== null) clearStudyHint();
   $("solveView").classList.toggle("study", on);
   // tapping a sticker marks it in study mode; every new study starts without marks
   cubeView.setMarking(on);
@@ -1329,6 +1334,14 @@ function studyTour() {
       body: tr("上一步、下一步一次走一步，播放鍵自動播完；拉桿可以跳到任何一步，從那裡再輸入新動作，後面的步驟會被換掉。拉桿左邊調整每步停留的時間。", "Previous and next go one move at a time and play runs to the end. The slider jumps to any move; a new move from there replaces the ones after it. The button left of it sets how long each move stays during playback."),
     },
     {
+      targets: [$("studyHint")],
+      title: tr("提示", "Hint"),
+      body: tr(
+        "照入門解法說方塊現在做到哪一步，並在方塊上圈出還要處理的塊；2×2、3×3 還能直接跳到學習模式的那一關。",
+        "Says which step of the beginner's method the cube is at and rings the pieces still to do; on a 2×2 or 3×3 it can take you to that lesson.",
+      ),
+    },
+    {
       targets: [$("studyGo")],
       title: tr("求解", "Solve"),
       body: tr("Go 會把畫面上的方塊交給求解器，接著照解法一步一步教你轉回去。", "Go hands the cube on screen to the solver and then walks you through solving it, move by move."),
@@ -1368,6 +1381,44 @@ $("studyGo").onclick = () => {
     cubeView.setState(n, from);
     renderSolve();
   })();
+};
+
+/*
+ * Hint, left of Go: which step of the beginner's method the cube on screen is at, in a line
+ * above the row, with the pieces still to do ringed on the cube (`web/src/hint.ts`). Any move,
+ * step or edit puts it away; a 2×2 or 3×3 step offers its lesson, and the lesson's × comes back.
+ */
+const hintMark = () => `${moveIndex}|${shownIndex}|${studyTokens.join(" ")}`;
+let hintLesson: { size: 2 | 3; index: number } | null = null;
+function clearStudyHint() {
+  hintShownAt = null;
+  $("studyTip").classList.add("hidden");
+  $("studyHint").setAttribute("aria-pressed", "false");
+  cubeView.setGuides(null);
+}
+$("studyHintLabel").textContent = tr("提示", "Hint");
+$("studyTipLearn").textContent = tr("去學這一關", "Learn this step");
+$("studyHint").onclick = () => {
+  if (!net || cubeView.animating) return;
+  if (hintShownAt !== null) return clearStudyHint();
+  stopPlaying();
+  const h = studyHint(net.size, cubeView.getState());
+  hintLesson = h?.lesson ?? null;
+  $("studyTipTitle").textContent = h ? h.title : tr("看不出來", "Can't tell");
+  $("studyTipBody").textContent = h ? h.body : tr("這個方塊的顏色對不起來，沒辦法判斷。", "The colours on this cube do not add up, so there is no hint.");
+  $("studyTipLearn").classList.toggle("hidden", !hintLesson);
+  $("studyTip").classList.remove("hidden");
+  $("studyHint").setAttribute("aria-pressed", "true");
+  cubeView.setGuides(h && h.rings.size ? { arrows: [], rings: h.rings } : null);
+  hintShownAt = hintMark();
+  // the card pushes the buttons down: keep the row (and the card above it) in sight
+  $("studyGo").scrollIntoView({ block: "nearest", behavior: "smooth" });
+};
+$("studyTipLearn").onclick = () => {
+  if (!hintLesson) return;
+  const { size: s, index } = hintLesson;
+  clearStudyHint();
+  openLessonFrom(s, index, () => showScreen("solveView"));
 };
 
 /** From a solve: study the cube as it is at this step. */

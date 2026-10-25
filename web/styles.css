@@ -239,6 +239,15 @@ th{color:#607189;font-weight:600}
 .k.on{background:#e9f0ff;border-color:#195ed6;color:#195ed6}
 .study-del{color:#c92a2a}
 .study-input .go{min-height:56px}
+/* Hint left of Go: where the cube is in the beginner's method, said above the row and ringed on the cube */
+.study-go-row{display:flex;gap:10px}
+.study-hint{flex:none;min-height:56px;padding:0 18px;border-radius:28px;border:1px solid #e0a21c;background:#fff7df;color:#6b4b00;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.study-hint[aria-pressed="true"]{border:2px solid #e0a21c;background:#ffe9a8}
+.study-tip{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:14px;background:#f2f6fd;border:1px solid #c9d9f3}
+.study-tip-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.study-tip-text b{font-size:14px;color:#195ed6}
+.study-tip-text span{font-size:15px;line-height:1.5}
+.study-tip-learn{flex:none;min-height:40px;padding:0 14px;border-radius:20px;border:0;background:#195ed6;color:#fff;font-size:14px;font-weight:700}
 .ai-fail .dialog-title{display:flex;align-items:center;gap:8px;font-size:17px}
 .ai-fail .muted{margin:4px 0 0;font-size:14px}
 .link-btn{align-self:center;border:0;background:none;color:#195ed6;min-height:44px}
@@ -339,15 +348,10 @@ th{color:#607189;font-weight:600}
 .seg button[aria-selected="true"]{background:#fff;color:#195ed6;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .lesson-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .lesson{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:10px 14px;border-radius:16px;border-color:#dde5ef;text-align:left;color:#192a40}
-.lesson.is-current{border:2px solid #195ed6;box-shadow:0 0 0 4px rgba(25,94,214,.12)}
-.lesson.is-locked{background:#e9eef4;color:#7a8799}
-.lesson.is-locked:disabled{opacity:1}
 .lesson-icon{position:relative;flex:none;width:54px;height:54px;border-radius:14px;background:#f4f7fb;display:flex;align-items:center;justify-content:center}
 .lesson-grid{width:36px;height:36px;box-sizing:border-box;display:grid;grid-auto-rows:1fr;gap:2px;padding:2px;background:#1d2733;border-radius:5px}
 .lesson-grid i{border-radius:1.5px}
 .lesson-letters{font:800 16px ui-monospace,monospace;color:#195ed6}
-.lesson.is-locked .lesson-letters{color:#8593a5}
-.lesson-lock{position:absolute;right:-4px;bottom:-4px;width:22px;height:22px;border-radius:50%;background:#8593a5;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #e9eef4}
 .lesson-name{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .lesson-name b{flex-basis:100%}
 .lesson-name b{font-size:16px}
