@@ -106,8 +106,12 @@ interface Run {
 }
 let run: Run | null = null;
 let busy = false;
-/** The watch card whose starting cube the reset button brings back: the last one played. */
+/**
+ * Watch cards play a formula one turn per tap: the card in use and how many of its turns are done.
+ * The notation lesson's cards are single turns played on the cube as it is, back to solved with Reset.
+ */
 let demoCard = 0;
+let demoStep = 0;
 
 /** The home card: where learning left off. */
 export function renderLearnCard() {
@@ -161,7 +165,7 @@ function setPhase(phase: "watch" | "practice") {
   $("lessonKeys").classList.toggle("hidden", watch);
   $("lessonRestart").classList.toggle("hidden", watch);
   $("learnHint").classList.toggle("hidden", watch);
-  $("learnReset").classList.toggle("hidden", !watch);
+  $("learnReset").classList.toggle("hidden", !watch || !r.lesson.copy);
   $("learnMoves").classList.toggle("hidden", watch);
   $("lessonTip").classList.add("hidden");
   view.setTwisting(!watch);
@@ -189,20 +193,36 @@ function openLesson(size: LearnSize, index: number) {
   $("lessonCount").textContent = "";
   $("lessonText").textContent = lesson.intro;
   $("lessonGo").textContent = tr("我會了，去練習", "Got it, let me try");
-  $("lessonDemos").innerHTML = lesson.demos
-    .map(
-      (d, i) =>
-        `<div class="lesson-demo"><span class="lesson-demo-name">${esc(d.name)}</span><code>${esc(pretty(d.seq))}</code><button type="button" class="lesson-play" data-demo="${i}" aria-label="${esc(tr(`播放${d.name}`, `Play ${d.name}`))}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></button></div>`,
-    )
-    .join("");
   setPhase("watch");
   demoCard = 0;
+  demoStep = 0;
   $("learnResetLabel").textContent = tr("重設", "Reset");
+  renderDemos();
+  // the notation lesson starts from the solved cube; a formula's card from the cube it fixes
   const first = lesson.demos[0];
-  view.setState(size, first ? demoStart(size, index, first.seq) : solvedFor(size, lesson.whiteDown));
+  view.setState(size, first && !lesson.copy ? demoStart(size, index, first.seq) : solvedFor(size, lesson.whiteDown));
   view.resetView();
   focusLesson(true);
   show("learnView");
+}
+
+const PLAY_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>';
+const RESET_ICON =
+  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** The watch cards: the card in use shows its turns done and the next one; once all are done its button resets. */
+function renderDemos() {
+  const r = run!;
+  $("lessonDemos").innerHTML = r.lesson.demos
+    .map((d, i) => {
+      const moves = d.seq.split(" ");
+      const active = !r.lesson.copy && i === demoCard;
+      const done = active && demoStep >= moves.length;
+      const seq = moves.map((m, k) => `<span class="${active && k < demoStep ? "is-done" : active && k === demoStep ? "is-next" : ""}">${esc(pretty(m))}</span>`).join(" ");
+      const label = done ? tr(`重設${d.name}`, `Reset ${d.name}`) : tr(`${d.name}：下一步`, `${d.name}: next turn`);
+      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}</span><code>${seq}</code><button type="button" class="lesson-play${done ? " reset" : ""}" data-demo="${i}" aria-label="${esc(label)}">${done ? RESET_ICON : PLAY_ICON}</button></div>`;
+    })
+    .join("");
 }
 
 /** Turn through a sequence on the lesson cube. */
@@ -379,16 +399,36 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
   $("lessonDemos").onclick = async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-demo]");
     if (!b || !run || busy || view.animating) return;
-    // play from the cube as it is: jumping back first looks like the cube teleporting; Reset does that on purpose
-    demoCard = Number(b.dataset.demo);
+    const r = run;
+    const i = Number(b.dataset.demo);
+    const demo = r.lesson.demos[i]!;
+    // the notation lesson: that one turn, on the cube as it is
+    if (r.lesson.copy) {
+      busy = true;
+      await play(demo.seq, DEMO_MS);
+      busy = false;
+      return;
+    }
+    const moves = demo.seq.split(" ");
+    if (i !== demoCard || demoStep >= moves.length) {
+      // another card, or this one done: set its starting cube out, ready for the first tap
+      demoCard = i;
+      demoStep = 0;
+      view.setState(r.size, demoStart(r.size, r.index, demo.seq));
+      renderDemos();
+      return;
+    }
+    // one turn per tap
     busy = true;
-    await play(run.lesson.demos[demoCard]!.seq, DEMO_MS);
+    await play(moves[demoStep]!, DEMO_MS);
+    demoStep++;
     busy = false;
+    renderDemos();
   };
+  // the notation lesson only: back to the solved cube
   $("learnReset").onclick = () => {
     if (!run || busy || view.animating) return;
-    const demo = run.lesson.demos[demoCard];
-    view.setState(run.size, demo ? demoStart(run.size, run.index, demo.seq) : solvedFor(run.size, run.lesson.whiteDown));
+    view.setState(run.size, solvedFor(run.size, run.lesson.whiteDown));
   };
   $("lessonGo").onclick = () => run && startPuzzle(0);
   $("lessonKeys").onclick = async (e) => {
