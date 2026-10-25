@@ -116,6 +116,5 @@ export function keypadHtml(size: number, depth: number, wide: boolean): string {
       const t = keyToken(f, depth, wide) + (prime ? "'" : "");
       return `<button type="button" class="k ${prime ? "ccw" : "face"}" data-tok="${t}">${t.replace("'", "′")}</button>`;
     }).join("");
-  return `${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>
-    <div class="krow four"><button type="button" class="k" data-tok="x">x</button><button type="button" class="k" data-tok="y">y</button><button type="button" class="k" data-tok="z">z</button><button type="button" class="k del" data-del aria-label="${tr("刪除", "Delete")}">⌫</button></div>`;
+  return `${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>`;
 }
