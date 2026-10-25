@@ -324,6 +324,37 @@ export function puzzle(size: LearnSize, index: number, i: number): { start: Stic
   return { start: applyAlgorithm(solvedFor(size, lesson.whiteDown), parseAlgorithm(setup, size)), par: turns + 4, setup };
 }
 
+/** One step a hint can point at: a lesson formula (its index), or a single turn to line things up. */
+export type HintStep = { formula: number } | { turn: string };
+
+/**
+ * The hint, thinking in the lesson's own terms: the shortest way to the goal using only this
+ * lesson's formulas and the turns that line them up (the top or bottom layer, or the whole cube
+ * with y), at most a few steps deep. Its first step, or null when the cube has wandered further
+ * than that (the caller then walks back with hintPlan).
+ */
+export function hintStep(size: LearnSize, index: number, cube: Sticker[]): HintStep | null {
+  const lesson = LESSONS[size][index]!;
+  if (lesson.goal(cube, size)) return null;
+  const faces = ["U", "D", "R", "L", "F", "B"].flatMap((f) => [f, `${f}'`, `${f}2`]);
+  const aligns = lesson.formulas.length ? (lesson.whiteDown ? ["U", "U'", "U2"] : ["D", "D'", "D2"]).concat(["y", "y'"]) : faces;
+  const steps: { step: HintStep; moves: ReturnType<typeof parseAlgorithm> }[] = [
+    ...lesson.formulas.map((f, i) => ({ step: { formula: i } as HintStep, moves: parseAlgorithm(f.seq, size) })),
+    ...aligns.map((t) => ({ step: { turn: t } as HintStep, moves: parseAlgorithm(t, size) })),
+  ];
+  const deepest = lesson.formulas.length ? 4 : 3;
+  const sameLayer = (a: HintStep, b: HintStep) => "turn" in a && "turn" in b && a.turn[0] === b.turn[0];
+  const search = (s: Sticker[], depth: number, last: HintStep | null): boolean => {
+    if (lesson.goal(s, size)) return true;
+    if (depth === 0) return false;
+    // two turns of one layer in a row are one turn, tried already at a shallower depth
+    return steps.some((st) => !(last && sameLayer(last, st.step)) && search(applyAlgorithm(s, st.moves), depth - 1, st.step));
+  };
+  for (let depth = 1; depth <= deepest; depth++)
+    for (const st of steps) if (search(applyAlgorithm(cube, st.moves), depth - 1, st.step)) return st.step;
+  return null;
+}
+
 /**
  * The hint's way to the goal: back through what was done on this puzzle, then back through the
  * puzzle's setup, with turns of one layer in a row merged (and cancelled when they add up to none).
