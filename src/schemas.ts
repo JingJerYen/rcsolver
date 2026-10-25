@@ -56,3 +56,18 @@ export function shapeProblems(out: ModelOutput, size = out.size): string[] {
   }
   return problems;
 }
+
+/** A request for one custom sequence: the cube size, what the user typed, and the marked pieces described in words. */
+export const MacroBodySchema = z.object({
+  size: z.number().int().min(MIN_SIZE).max(MAX_SIZE),
+  ask: z.string().trim().min(1).max(200),
+  marks: z.array(z.string().max(120)).max(30).default([]),
+});
+export type MacroBody = z.infer<typeof MacroBodySchema>;
+
+export const MacroOutputSchema = z.object({
+  name: z.string().describe("Button label, at most 2 characters"),
+  moves: z.string().describe("The sequence in the app's notation, moves separated by spaces; empty when impossible"),
+  error: z.string().nullable().describe("Why no sequence is given, one short sentence in the user's language; null when moves is set"),
+});
+export type MacroOutput = z.infer<typeof MacroOutputSchema>;

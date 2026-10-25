@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deltaTurn, keyToken, pushMove, readMoves, studyMove, tokenize, twistToken } from "../web/src/study.js";
+import { deltaTurn, describeMark, keyToken, pushMove, readMoves, scrambleTokens, studyMove, tokenize, twistToken } from "../web/src/study.js";
 import { applyAlgorithm, applyMove, fromNet, isSolved, layerValues, toNet, type Move } from "../web/src/cubeState.js";
 import type { Face } from "../web/src/api.js";
 
@@ -100,3 +100,28 @@ test("study: changing the last move turns by the difference", () => {
   }
 });
 
+
+test("scrambleTokens: the right length, all readable, no two turns about one axis in a row", () => {
+  let x = 7;
+  const rand = () => (x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  for (const [size, length] of [[2, 11], [3, 20], [4, 40], [7, 100]] as const) {
+    const tokens = scrambleTokens(size, rand);
+    assert.equal(tokens.length, length);
+    assert.equal(readMoves(tokens, size).bad, false);
+    const axes = tokens.map((t) => studyMove(t, size)!.axis);
+    assert.ok(axes.every((a, i) => i === 0 || a !== axes[i - 1]), `size ${size}: ${tokens.join(" ")}`);
+    assert.equal(pushMove(tokens.slice(0, -1), tokens.at(-1)!).length, tokens.length, "the last move does not merge");
+  }
+  assert.ok(scrambleTokens(5, rand).some((t) => t.includes("w")), "wide turns on big cubes");
+});
+
+test("describeMark names the piece and the dotted face; big cubes add row and column", () => {
+  const key = (p: number[], n: number[]) => `${p.join(",")}|${n.join(",")}`;
+  assert.equal(describeMark(key([2, 2, 2], [0, 0, 1]), 3), "corner UFR (dot on the F face)");
+  assert.equal(describeMark(key([0, 2, 2], [0, 1, 0]), 3), "edge UF (dot on the U face)");
+  assert.equal(describeMark(key([0, 0, 2], [0, 0, 1]), 3), "centre F (dot on the F face)");
+  // 4×4: the U-F edge wing nearer L, seen on F: top row, second column
+  assert.equal(describeMark(key([-1, 3, 3], [0, 0, 1]), 4), "edge UF (dot on the F face, row 1, column 2)");
+  // on U (B at the top), the sticker next to F and R is the bottom-right one
+  assert.equal(describeMark(key([3, 3, 3], [0, 1, 0]), 4), "corner UFR (dot on the U face, row 4, column 4)");
+});

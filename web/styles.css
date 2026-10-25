@@ -131,6 +131,9 @@ th{color:#607189;font-weight:600}
 .save .badge{font-size:12px;padding:3px 8px}
 .save .del{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;padding:0;font-size:12px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}
 .progress-badge{font-size:22px;padding:8px 16px}
+/* the pace button sits with the slider: both belong to playback, and fold away with it */
+.slider-row{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+.slider-row .slider{flex:1;min-width:0;margin:0}
 .slider{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0 0 6px;display:block;touch-action:pan-y}
 .slider::-webkit-slider-runnable-track{height:8px;border-radius:8px;background:linear-gradient(to right,#195ed6 var(--p,0%),#e7edf5 var(--p,0%))}
 .slider::-moz-range-track{height:8px;border-radius:8px;background:#e7edf5}
@@ -295,4 +298,29 @@ th{color:#607189;font-weight:600}
 .play-toggle{position:absolute;right:0;top:50%;transform:translateY(-50%);width:40px;height:40px;color:#607189}
 .play-toggle svg{transition:transform .2s}
 #solveView.study.compact .play-toggle svg{transform:rotate(180deg)}
-#solveView.study.compact #slider,#solveView.study.compact .play-row{display:none}
+#solveView.study.compact .slider-row,#solveView.study.compact .play-row{display:none}
+/* asking the model for a custom sequence: folded to one dashed button under the rows */
+.macro-ai{display:flex;flex-direction:column;gap:8px}
+.macro-ai-toggle{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border-radius:12px;border:1px dashed #9dbcf0;background:#f7faff;color:#195ed6;font-size:15px;font-weight:700}
+.macro-ai-chevron{display:none}
+.macro-ai-box{display:none;align-items:center;gap:6px}
+.macro-ai.open{border:1px solid #c9d9f3;background:#f2f6fd;border-radius:12px;padding:6px 8px 8px}
+.macro-ai.open .macro-ai-toggle{min-height:36px;border:0;background:none;justify-content:flex-start;padding:0 4px}
+.macro-ai.open .macro-ai-toggle span{flex:1;text-align:left}
+.macro-ai.open .macro-ai-chevron{display:block}
+.macro-ai.open .macro-ai-box{display:flex}
+.macro-ai-dots{flex:none;height:42px;min-width:48px;border-radius:21px;border:1px solid #cdd7e5;background:#fff;color:#607189;padding:0 10px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:4px}
+.macro-ai-dots[aria-pressed="true"]{border-color:#195ed6;background:#e9f0ff;color:#195ed6}
+.macro-ai-dots[aria-pressed="false"] svg{opacity:.35}
+.macro-ai-text{flex:1;min-width:0;height:42px;border:1px solid #cdd7e5;border-radius:21px;padding:0 14px;font:16px system-ui,"Noto Sans TC",sans-serif;color:#192a40;background:#fff}
+.macro-ai-text:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
+.macro-ai-send{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+.macro-ai-send:disabled{background:#b9c9e6}
+.macro-ai-send .spinner{display:none;width:18px;height:18px;border-width:3px;margin:0;flex:none;border-color:rgba(255,255,255,.4);border-top-color:#fff}
+.macro-ai-send.busy svg{display:none}
+.macro-ai-send.busy .spinner{display:block}
+/* the row the model just filled */
+.macro-line.ai-new{border-radius:12px;box-shadow:0 0 0 3px #fff,0 0 0 5px #195ed6}
+/* a long press on the view button scrambles in study mode: it sinks while held */
+.view-btn{transition:transform .6s ease,background-color .6s ease}
+#solveView.study .view-btn.holding{transform:scale(.85);background:#e3ecfb}

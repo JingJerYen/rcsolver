@@ -116,3 +116,31 @@ test("body limit scales with the image cap", () => {
   const { config } = mockApp({ MAX_IMAGE_BYTES: "300000" });
   assert.ok(bodyLimitBytes(config) > 6 * 300000);
 });
+
+async function postMacro(app: ReturnType<typeof mockApp>["app"], payload: unknown) {
+  return app.request("/api/macro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+}
+
+test("macro in mock mode returns a name and moves", async () => {
+  const { app } = mockApp();
+  const res = await postMacro(app, { size: 3, ask: "T-perm", marks: ["corner UFR"] });
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.mock, true);
+  assert.ok(j.moves.length > 0);
+  assert.equal(j.error, null);
+});
+
+test("macro in mock mode can say a request is impossible", async () => {
+  const { app } = mockApp();
+  const j = await (await postMacro(app, { size: 3, ask: "這個做不到吧" })).json();
+  assert.equal(j.moves, "");
+  assert.ok(j.error);
+});
+
+test("macro rejects an empty request and an unknown size", async () => {
+  const { app } = mockApp();
+  assert.equal((await postMacro(app, { size: 3, ask: "  " })).status, 400);
+  assert.equal((await postMacro(app, { size: 9, ask: "T-perm" })).status, 400);
+});

@@ -116,7 +116,10 @@
       <div class="angle" id="angle"></div>
       <button class="icon-btn small-btn play-toggle study-only" id="playToggle" aria-label="收起播放列" aria-expanded="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
-    <input type="range" class="slider" id="slider" min="0" max="0" value="0" step="1" aria-label="步驟">
+    <div class="slider-row" id="sliderRow">
+      <button class="icon-btn small-btn pace" id="pace" aria-label="每步停留時間"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="paceValue">3s</span></button>
+      <input type="range" class="slider" id="slider" min="0" max="0" value="0" step="1" aria-label="步驟">
+    </div>
     <div class="play-row">
       <button class="icon-btn" id="prev" aria-label="上一步"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="icon-btn play" id="play" aria-label="自動播放"><svg id="playIcon" viewBox="0 0 24 24" width="30" height="30"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg><svg id="pauseIcon" class="hidden" viewBox="0 0 24 24" width="30" height="30"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></button>
@@ -127,7 +130,6 @@
       <button class="primary go" id="restart" aria-label="再來一次"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
     <div class="sequence-row">
-      <button class="icon-btn small-btn pace" id="pace" aria-label="每步停留時間"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="paceValue">3s</span></button>
       <div class="sequence" id="sequence"></div>
       <button class="icon-btn small-btn" id="copySeq" aria-label="複製整段轉法"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
@@ -193,6 +195,15 @@
     <div class="macro-head"><p class="dialog-title" id="macroTitle">自訂公式</p><button type="button" class="icon-btn small-btn" id="macroClose" aria-label="取消"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>
     <p class="muted" id="macroNote"></p>
     <div class="macro-rows" id="macroRows"></div>
+    <div class="macro-ai" id="macroAi">
+      <button type="button" class="macro-ai-toggle" id="macroAiToggle" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" fill="currentColor"/></svg><span id="macroAiLabel">問 AI</span><svg class="macro-ai-chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="macro-ai-box" id="macroAiBox">
+        <button type="button" class="macro-ai-dots" id="macroAiDots" aria-pressed="true"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="#192a40"/></svg><span id="macroAiDotCount"></span></button>
+        <input class="macro-ai-text" id="macroAiText" type="text" autocomplete="off" enterkeyhint="send" maxlength="200">
+        <button type="button" class="macro-ai-send" id="macroAiSend" aria-label="送出"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 19V6M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="spinner"></span></button>
+      </div>
+      <p class="macro-error hidden" id="macroAiError" role="status"></p>
+    </div>
     <p class="macro-error hidden" id="macroError"></p>
     <button type="button" class="primary macro-save" id="macroSave">儲存</button>
   </div>

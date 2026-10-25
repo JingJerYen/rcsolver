@@ -6,6 +6,7 @@ export type ErrorCode =
   | "NO_CUBE"
   | "MODEL_OUTPUT_INVALID"
   | "UPSTREAM_ERROR"
+  | "AI_TIMEOUT"
   | "INTERNAL";
 
 export class AppError extends Error {

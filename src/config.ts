@@ -33,6 +33,10 @@ export interface Config {
   dailyLimit: number;
   /** Upper bound on one face image, in bytes of decoded JPEG/PNG/WebP. */
   maxImageBytes: number;
+  /** The model and effort that write custom sequences, and how long one may take. */
+  macroModel: string;
+  macroEffort: Effort;
+  macroTimeoutMs: number;
 }
 
 export function loadConfig(env: EnvMap): Config {
@@ -51,5 +55,8 @@ export function loadConfig(env: EnvMap): Config {
     rateLimitPerMin: intEnv(env, "RATE_LIMIT_PER_MIN", 6, 1, 1000),
     dailyLimit: intEnv(env, "DAILY_LIMIT", 100, 0, 1_000_000),
     maxImageBytes: intEnv(env, "MAX_IMAGE_BYTES", 400_000, 10_000, 5_000_000),
+    macroModel: env.MACRO_MODEL?.trim() || "claude-sonnet-5-5",
+    macroEffort: effortEnv(env, "MACRO_EFFORT", "medium"),
+    macroTimeoutMs: intEnv(env, "MACRO_TIMEOUT_MS", 60_000, 5_000, 300_000),
   };
 }

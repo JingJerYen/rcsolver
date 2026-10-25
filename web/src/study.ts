@@ -3,7 +3,7 @@
  * from wherever a solve had got to). This module is the part without the page: reading typed
  * moves, the tokens the keypad produces, and the keypad itself.
  */
-import { parseMove, type Move } from "./cubeState.js";
+import { FACE_AXES, FACE_ORDER, layerValues, parseMove, type Move, type Vec } from "./cubeState.js";
 import { tr } from "./i18n.js";
 
 export const FACE_KEYS = ["U", "D", "F", "B", "L", "R"] as const;
@@ -40,6 +40,29 @@ export function keyToken(face: string, depth: number, wide: boolean): string {
   if (depth <= 1) return face;
   if (wide) return `${depth === 2 ? "" : depth}${face}w`;
   return `${depth}${face}`;
+}
+
+/** Scramble lengths by cube size, roughly what competitions use. */
+const SCRAMBLE_LENGTH: Record<number, number> = { 2: 11, 3: 20, 4: 40, 5: 60, 6: 80, 7: 100 };
+
+/**
+ * A random scramble: outer turns, plus wide turns of up to half the cube on 4×4 and bigger. No
+ * two moves in a row turn about the same axis, so nothing merges or cancels.
+ */
+export function scrambleTokens(size: number, rand: () => number = Math.random): string[] {
+  const faces = ["U", "D", "R", "L", "F", "B"];
+  const axisOf = (f: string) => "UDRLFB".indexOf(f) >> 1;
+  const deepest = Math.floor(size / 2);
+  const out: string[] = [];
+  let lastAxis = -1;
+  while (out.length < (SCRAMBLE_LENGTH[size] ?? 20)) {
+    const face = faces[Math.floor(rand() * 6)]!;
+    if (axisOf(face) === lastAxis) continue;
+    lastAxis = axisOf(face);
+    const depth = size >= 4 ? 1 + Math.floor(rand() * deepest) : 1;
+    out.push(keyToken(face, depth, true) + ["", "'", "2"][Math.floor(rand() * 3)]);
+  }
+  return out;
 }
 
 /** Quarter turns clockwise in a move's suffix: R 1, R2 2, R' 3. */
@@ -117,4 +140,28 @@ export function keypadHtml(size: number, depth: number, wide: boolean): string {
       return `<button type="button" class="k ${prime ? "ccw" : "face"}" data-tok="${t}">${t.replace("'", "′")}</button>`;
     }).join("");
   return `${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>`;
+}
+
+/**
+ * A marked sticker in words for the custom-sequence helper: the piece it sits on, named by the
+ * faces that piece touches (corner UFR, edge UF, centre F), and the face carrying the dot. On
+ * cubes bigger than 3×3 several pieces share a name, so the sticker's row and column are added.
+ */
+export function describeMark(key: string, size: number): string {
+  const [p, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec);
+  const h = size - 1;
+  const touched = [
+    p![1] === h ? "U" : p![1] === -h ? "D" : "",
+    p![2] === h ? "F" : p![2] === -h ? "B" : "",
+    p![0] === h ? "R" : p![0] === -h ? "L" : "",
+  ].join("");
+  const kind = touched.length === 3 ? "corner" : touched.length === 2 ? "edge" : "centre";
+  const face = FACE_ORDER.find((f) => FACE_AXES[f].n.every((v, i) => v === n![i]))!;
+  if (size <= 3) return `${kind} ${touched} (dot on the ${face} face)`;
+  const ax = FACE_AXES[face];
+  const vals = layerValues(size);
+  const dot = (a: Vec) => a[0] * p![0] + a[1] * p![1] + a[2] * p![2];
+  const row = vals.indexOf(dot(ax.down)) + 1;
+  const col = vals.indexOf(dot(ax.right)) + 1;
+  return `${kind} ${touched} (dot on the ${face} face, row ${row}, column ${col})`;
 }
