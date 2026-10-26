@@ -38,10 +38,15 @@ export interface Demo extends Formula {
 }
 
 const FACE_NAMES: Record<string, [string, string]> = { R: ["右", "right"], L: ["左", "left"], U: ["上", "up"], D: ["下", "down"], F: ["前", "front"], B: ["後", "back"] };
-/** A turn's face in words, for the notation lesson: R → 右, R′ → 右・逆時針, R2 → 右・兩下. */
-export function turnName(move: string): string {
+/** A turn's face in a word, for the notation lesson: R → 右. */
+export const faceName = (move: string) => {
   const [zh, en] = FACE_NAMES[move[0]!] ?? [move, move];
-  return move.endsWith("'") ? tr(`${zh}・逆時針`, `${en}, anticlockwise`) : move.endsWith("2") ? tr(`${zh}・兩下`, `${en}, twice`) : tr(zh, en);
+  return tr(zh, en);
+};
+/** A turn in a few words, for the notation lesson: R → 右・順時針, R′ → 右・逆時針, R2 → 右・轉兩下. */
+function turnWords(move: string): string {
+  const [zh, en] = FACE_NAMES[move[0]!] ?? [move, move];
+  return move.endsWith("'") ? tr(`${zh}・逆時針`, `${en}, anticlockwise`) : move.endsWith("2") ? tr(`${zh}・轉兩下`, `${en}, twice`) : tr(`${zh}・順時針`, `${en}, clockwise`);
 }
 
 export interface Lesson {
@@ -243,21 +248,13 @@ const notation = (size: number): Lesson => ({
   icon: null,
   whiteDown: false,
   intro: tr(
-    "每一面用一個字母代表：R 右、L 左、U 上、D 下、F 前、B 後。R 是從右邊看順時針轉一下，R′ 是逆時針，R2 是轉兩下。",
-    "Each face has a letter: R right, L left, U up, D down, F front, B back. R turns the right face clockwise as you look at it, R′ anticlockwise, R2 twice.",
+    "每一面用一個字母代表，加 ′ 是反方向，加 2 是轉兩下。",
+    "Each face has a letter; ′ turns it the other way, 2 turns it twice.",
   ),
   task: tr("照著轉：", "Turn: "),
   formulas: [],
-  // each card: the letter, the face it names, and the turn in words
-  demos: ["R", "R'", "R2", "U", "U'", "F", "F'"].map((m) => {
-    const [zh, en] = FACE_NAMES[m[0]!]!;
-    const meaning = m.endsWith("'")
-      ? tr(`${zh}面逆時針轉一下`, `The ${en} face a quarter turn anticlockwise`)
-      : m.endsWith("2")
-        ? tr(`${zh}面轉兩下（半圈）`, `The ${en} face twice (half a turn)`)
-        : tr(`從${zh}邊看，${zh}面順時針轉一下`, `The ${en} face a quarter turn clockwise, as you look at it`);
-    return { name: m.replace("'", "′"), seq: m, case: tr(zh, en), meaning };
-  }),
+  // each card: the letter and the turn in a few words
+  demos: ["R", "R'", "R2", "U", "U'", "F", "F'"].map((m) => ({ name: m.replace("'", "′"), seq: m, meaning: turnWords(m) })),
   pieces: () => true,
   goal: (s) => isSolved(s),
   practice: [],

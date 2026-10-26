@@ -83,8 +83,8 @@ export class CubeView {
   }
 
   /**
-   * A small three-axis sign in the bottom-left corner (the learning mode): arrows along the cube's
-   * up, front and right as seen now, each with its letter and name ("U 上"), turning with the view.
+   * The learning mode's axis sign: an arrow out of the centre of the up, front and right faces,
+   * each with its letter and name at the tip ("U 上"), turning with the cube's view.
    */
   private axes: { U: string; F: string; R: string } | null = null;
 
@@ -243,8 +243,8 @@ export class CubeView {
 
   /** Pixels per cube unit. */
   private scale(): number {
-    // turned by hand the cube is drawn bigger, a little less so when the axis sign needs its corner
-    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.twisting ? (this.axes ? 1.12 : 1.3) : 1);
+    // turned by hand the cube is drawn bigger; with the axis arrows a little smaller, to leave them room round it
+    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.axes ? 0.92 : this.twisting ? 1.3 : 1);
   }
 
   /**
@@ -482,66 +482,88 @@ export class CubeView {
     }
     this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
     if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
-    if (this.axes) this.drawAxes(b);
+    if (this.axes) this.drawAxes(b, project);
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
     else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
   }
 
-  private drawAxes(b: { right: Vec; up: Vec; view: Vec }) {
-    const { ctx, w, h } = this;
+  private drawAxes(b: { right: Vec; up: Vec; view: Vec }, project: (p: Vec) => [number, number]) {
+    const { ctx, w, h, size } = this;
     const labels = this.axes!;
-    const o: [number, number] = [58, h - 48];
-    const len = 26;
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
-    const arms: { v: Vec; text: string }[] = [
-      { v: [0, 1, 0], text: labels.U },
-      { v: [0, 0, 1], text: labels.F },
-      { v: [1, 0, 0], text: labels.R },
+    const arms: { n: Vec; text: string }[] = [
+      { n: [0, 1, 0], text: labels.U },
+      { n: [0, 0, 1], text: labels.F },
+      { n: [1, 0, 0], text: labels.R },
     ];
-    // the arm pointing furthest away first, so the nearer ones draw over it
-    arms.sort((a, c) => dot(a.v, b.view) - dot(c.v, b.view));
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.font = '700 12px system-ui, "Noto Sans TC", sans-serif';
+    ctx.font = '700 13px system-ui, "Noto Sans TC", sans-serif';
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (const { v, text } of arms) {
-      const dx = dot(v, b.right), dy = -dot(v, b.up);
-      const tip: [number, number] = [o[0] + dx * len, o[1] + dy * len];
-      const along = Math.hypot(dx, dy) || 1;
-      const ux = dx / along, uy = dy / along;
-      ctx.strokeStyle = "#39536e";
-      ctx.fillStyle = "#39536e";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(o[0], o[1]);
-      ctx.lineTo(tip[0], tip[1]);
-      ctx.stroke();
-      if (along > 0.25) {
+    // the arm pointing furthest away first, so the nearer ones draw over it
+    for (const { n, text } of arms.sort((a, c) => dot(a.n, b.view) - dot(c.n, b.view))) {
+      // a face turned away has its arm behind the cube: leave it out
+      const facing = dot(n, b.view);
+      if (facing <= 0.05) continue;
+      // out of the face's centre, far enough that the tip clears the cube however steeply the face
+      // is seen, but short enough that the name past the tip still fits in the canvas
+      const pw = ctx.measureText(text).width + 14;
+      const base = project(n.map((v) => v * size) as Vec);
+      const fits = (x: number, y: number) => x - pw / 2 >= 2 && x + pw / 2 <= w - 2 && y - 11 >= 2 && y + 11 <= h - 2;
+      // the name goes past the tip, or else just below or above it
+      const at = (reach: number) => {
+        const tip = project(n.map((v) => v * size * reach) as Vec);
+        const along = Math.hypot(tip[0] - base[0], tip[1] - base[1]) || 1;
+        const ux = (tip[0] - base[0]) / along, uy = (tip[1] - base[1]) / along;
+        const gap = Math.abs(ux) * (pw / 2 + 5) + Math.abs(uy) * 16;
+        const spots: [number, number][] = [[tip[0] + ux * gap, tip[1] + uy * gap], [tip[0], tip[1] + 22], [tip[0], tip[1] - 22]];
+        const [lx, ly] = spots.find(([x, y]) => fits(x, y)) ?? spots[0]!;
+        return { tip, ux, uy, lx, ly };
+      };
+      let reach = Math.min(3.2, 1 + 1.2 / Math.sqrt(Math.max(0.05, 1 - facing * facing)));
+      let a = at(reach);
+      while (reach > 1.4 && !fits(a.lx, a.ly)) a = at((reach -= 0.05));
+      const { tip, ux, uy } = a;
+      const neck: [number, number] = [tip[0] - ux * 13, tip[1] - uy * 13];
+      // a white edge under the dark shaft, so it reads over any sticker
+      for (const [colour, width] of [["#fff", 8], ["#233b55", 4]] as const) {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = width;
         ctx.beginPath();
-        ctx.moveTo(tip[0] + ux * 5, tip[1] + uy * 5);
-        ctx.lineTo(tip[0] - ux * 3 - uy * 5, tip[1] - uy * 3 + ux * 5);
-        ctx.lineTo(tip[0] - ux * 3 + uy * 5, tip[1] - uy * 3 - ux * 5);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(base[0], base[1]);
+        ctx.lineTo(neck[0], neck[1]);
+        ctx.stroke();
       }
-      // the label just past the tip, on a white pill so it reads over anything
-      // kept inside the canvas whichever way the arm points
-      const pw = ctx.measureText(text).width + 10;
-      const lx = Math.max(pw / 2 + 2, Math.min(w - pw / 2 - 2, tip[0] + ux * 17));
-      const ly = Math.max(11, Math.min(h - 11, tip[1] + uy * 13));
-      ctx.fillStyle = "rgba(255,255,255,.92)";
       ctx.beginPath();
-      ctx.roundRect(lx - pw / 2, ly - 9, pw, 18, 9);
+      ctx.moveTo(tip[0], tip[1]);
+      ctx.lineTo(neck[0] - uy * 8, neck[1] + ux * 8);
+      ctx.lineTo(neck[0] + uy * 8, neck[1] - ux * 8);
+      ctx.closePath();
+      ctx.fillStyle = "#233b55";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
       ctx.fill();
+      ctx.stroke();
+      // where it comes out of the face
+      ctx.beginPath();
+      ctx.arc(base[0], base[1], 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // the name just past the tip, on a white pill (held inside the canvas should the arm be short)
+      const lx = Math.max(pw / 2 + 2, Math.min(w - pw / 2 - 2, a.lx));
+      const ly = Math.max(13, Math.min(h - 13, a.ly));
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#cdd7e5";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(lx - pw / 2, ly - 11, pw, 22, 11);
+      ctx.fill();
+      ctx.stroke();
       ctx.fillStyle = "#233b55";
       ctx.fillText(text, lx, ly + 0.5);
     }
-    ctx.beginPath();
-    ctx.arc(o[0], o[1], 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#39536e";
-    ctx.fill();
     ctx.restore();
   }
 
