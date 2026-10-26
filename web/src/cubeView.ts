@@ -7,6 +7,34 @@ import { FACE_AXES, applyMove, layerValues, rotateVec, type Move, type Sticker, 
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
 
+type Cam = { right: Vec; up: Vec; view: Vec };
+/** The camera turned `yaw` about the vertical and tipped `pitch` towards the top. */
+function camFrom(yaw: number, pitch: number): Cam {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], view: [sy * cp, sp, cy * cp] };
+}
+/** The camera turned by `angle` about `axis` (a unit vector), kept square so drift never builds up. */
+function turnCam(cam: Cam, axis: Vec, angle: number): Cam {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const turn = (v: Vec): Vec => {
+    const k = cross(axis, v);
+    const d = dot(axis, v) * (1 - c);
+    return [v[0] * c + k[0] * s + axis[0] * d, v[1] * c + k[1] * s + axis[1] * d, v[2] * c + k[2] * s + axis[2] * d];
+  };
+  const unit = (v: Vec): Vec => {
+    const l = Math.hypot(v[0], v[1], v[2]);
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const view = unit(turn(cam.view));
+  const r = turn(cam.right);
+  // right made square to view, up from the two: the three stay at right angles
+  const rv = dot(r, view);
+  const right = unit([r[0] - view[0] * rv, r[1] - view[1] * rv, r[2] - view[2] * rv]);
+  return { right, up: cross(view, right), view };
+}
+
 export class CubeView {
   private ctx: CanvasRenderingContext2D;
   private size = 3;
@@ -49,8 +77,8 @@ export class CubeView {
   onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number) => void) | null = null;
   private w = 300;
   private h = 300;
-  private yaw = DEFAULT_VIEW.yaw;
-  private pitch = DEFAULT_VIEW.pitch;
+  /** The camera: screen right, screen up and the direction towards the viewer, in cube coordinates. */
+  private cam = camFrom(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
   private anim: { move: Move; dir: 1 | -1; start: number; duration: number; f: number; resolve: () => void } | null = null;
   private raf = 0;
   private drag: { x: number; y: number } | null = null;
@@ -114,9 +142,10 @@ export class CubeView {
         return;
       }
       if (!this.drag) return;
-      // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
-      this.yaw -= (e.clientX - this.drag.x) * 0.009;
-      this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
+      // turn the camera about the screen's own axes, so the cube follows the finger any way round,
+      // over the top too: no angle stops it
+      const across = turnCam(this.cam, this.cam.up, -(e.clientX - this.drag.x) * 0.009);
+      this.cam = turnCam(across, across.right, -(e.clientY - this.drag.y) * 0.009);
       this.drag = { x: e.clientX, y: e.clientY };
       if (!this.anim) this.draw();
     });
@@ -317,8 +346,7 @@ export class CubeView {
 
   /** The usual camera: from the front right, or from the front left to see the left face. */
   resetView(side: "right" | "left" = "right") {
-    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
-    this.pitch = DEFAULT_VIEW.pitch;
+    this.cam = camFrom(side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
     this.draw();
   }
 
@@ -329,7 +357,7 @@ export class CubeView {
     if (!speed) return;
     const tick = () => {
       if (!this.orbitSpeed) return;
-      this.yaw += this.orbitSpeed;
+      this.cam = turnCam(this.cam, [0, 1, 0], this.orbitSpeed);
       if (!this.anim) this.draw();
       this.orbitRaf = requestAnimationFrame(tick);
     };
@@ -373,8 +401,7 @@ export class CubeView {
   }
 
   private basis() {
-    const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
-    return { right: [cy, 0, -sy] as Vec, up: [-sy * sp, cp, -cy * sp] as Vec, view: [sy * cp, sp, cy * cp] as Vec };
+    return this.cam;
   }
 
   draw(now = performance.now()) {

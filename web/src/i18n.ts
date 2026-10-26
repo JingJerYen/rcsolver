@@ -46,7 +46,7 @@ const LABELS_EN: Record<string, string> = {
   請稍候: "Please wait",
   手轉: "Turn layers by hand",
   收起播放列: "Hide the playback controls",
-  刪除最後一步: "Delete the last move",
+  "刪除最後一步（長按全部刪除）": "Delete the last move (hold to delete them all)",
   回到關卡地圖: "Back to the lessons",
   教學用的方塊: "The lesson cube",
   展開播放列: "Show the playback controls",

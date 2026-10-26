@@ -237,7 +237,9 @@ th{color:#607189;font-weight:600}
 .save .save-kind{position:absolute;left:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center}
 .k.small{height:36px;font:600 14px system-ui,"Noto Sans TC",sans-serif}
 .k.on{background:#e9f0ff;border-color:#195ed6;color:#195ed6}
-.study-del{color:#c92a2a}
+.study-del{color:#c92a2a;transition:transform .6s ease,background-color .6s ease}
+/* held: it sinks and reddens until, at 0.6 s, every move is deleted */
+.study-del.holding{transform:scale(.85);background:#fde8e8}
 .study-input .go{min-height:56px}
 /* Hint left of Go: where the cube is in the beginner's method, said above the row and ringed on the cube */
 .study-go-row{display:flex;gap:10px}
