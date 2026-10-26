@@ -33,6 +33,15 @@ export interface Demo extends Formula {
   case?: string;
   /** What finishes the stage after this card's press: the cube starts from these undone too. */
   rest?: string;
+  /** The notation lesson: the turn in words, shown in place of its moves. */
+  meaning?: string;
+}
+
+const FACE_NAMES: Record<string, [string, string]> = { R: ["右", "right"], L: ["左", "left"], U: ["上", "up"], D: ["下", "down"], F: ["前", "front"], B: ["後", "back"] };
+/** A turn's face in words, for the notation lesson: R → 右, R′ → 右・逆時針, R2 → 右・兩下. */
+export function turnName(move: string): string {
+  const [zh, en] = FACE_NAMES[move[0]!] ?? [move, move];
+  return move.endsWith("'") ? tr(`${zh}・逆時針`, `${en}, anticlockwise`) : move.endsWith("2") ? tr(`${zh}・兩下`, `${en}, twice`) : tr(zh, en);
 }
 
 export interface Lesson {
@@ -239,7 +248,16 @@ const notation = (size: number): Lesson => ({
   ),
   task: tr("照著轉：", "Turn: "),
   formulas: [],
-  demos: ["R", "R'", "U", "U'", "F", "F'"].map((m) => ({ name: m.replace("'", "′"), seq: m })),
+  // each card: the letter, the face it names, and the turn in words
+  demos: ["R", "R'", "R2", "U", "U'", "F", "F'"].map((m) => {
+    const [zh, en] = FACE_NAMES[m[0]!]!;
+    const meaning = m.endsWith("'")
+      ? tr(`${zh}面逆時針轉一下`, `The ${en} face a quarter turn anticlockwise`)
+      : m.endsWith("2")
+        ? tr(`${zh}面轉兩下（半圈）`, `The ${en} face twice (half a turn)`)
+        : tr(`從${zh}邊看，${zh}面順時針轉一下`, `The ${en} face a quarter turn clockwise, as you look at it`);
+    return { name: m.replace("'", "′"), seq: m, case: tr(zh, en), meaning };
+  }),
   pieces: () => true,
   goal: (s) => isSolved(s),
   practice: [],

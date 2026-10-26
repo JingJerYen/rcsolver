@@ -6,7 +6,7 @@
 import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, type LearnSize, type Lesson } from "./learn.js";
+import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, turnName, type LearnSize, type Lesson } from "./learn.js";
 import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
@@ -229,7 +229,7 @@ function renderDemos() {
       const title = d.case ? `${d.name}・${d.case}` : d.name;
       const label = done ? tr(`${title}：轉完了`, `${title}: all turned`) : tr(`${title}：下一步`, `${title}: next turn`);
       const when = active && d.when ? `<p class="lesson-demo-when">${esc(d.when)}</p>` : "";
-      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}${d.case ? `<small>${esc(d.case)}</small>` : ""}</span><code>${seq}</code>${when}${r.lesson.copy ? "" : `<button type="button" class="lesson-copy" data-copy="${i}" aria-label="${esc(tr(`複製${d.name}的轉法`, `Copy the moves of ${d.name}`))}">${COPY_ICON}</button>`}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
+      return `<div class="lesson-demo${active ? " active" : ""}"><span class="lesson-demo-name">${esc(d.name)}${d.case ? `<small>${esc(d.case)}</small>` : ""}</span>${d.meaning ? `<span class="lesson-demo-meaning">${esc(d.meaning)}</span>` : `<code>${seq}</code>`}${when}${r.lesson.copy ? "" : `<button type="button" class="lesson-copy" data-copy="${i}" aria-label="${esc(tr(`複製${d.name}的轉法`, `Copy the moves of ${d.name}`))}">${COPY_ICON}</button>`}<button type="button" class="lesson-play${done ? " finished" : ""}" data-demo="${i}" aria-label="${esc(label)}"${done ? " disabled" : ""}>${done ? DONE_ICON : PLAY_ICON}</button></div>`;
     })
     .join("");
   const finished = !r.lesson.copy && demoStep >= (r.lesson.demos[demoCard]?.seq.split(" ").length ?? Infinity);
@@ -267,7 +267,8 @@ function lightKey(seq: string | "undo" | null) {
 function renderCopy() {
   const r = run!;
   const moves = r.lesson.copy![r.puzzleNo]!;
-  $("lessonText").innerHTML = `${esc(r.lesson.task)}${moves.map((m, i) => `<span class="copy-move${i < r.copied ? " done" : i === r.copied ? " next" : ""}">${esc(pretty(m))}</span>`).join("")}`;
+  // each turn with its face in words under it: R / 右
+  $("lessonText").innerHTML = `${esc(r.lesson.task)}${moves.map((m, i) => `<span class="copy-move${i < r.copied ? " done" : i === r.copied ? " next" : ""}">${esc(pretty(m))}<small>${esc(turnName(m))}</small></span>`).join("")}`;
 }
 
 function renderKeys() {
@@ -394,6 +395,8 @@ function finish() {
 export function initLearn(showScreen: (id: Screen | "setup") => void) {
   show = showScreen;
   view = new CubeView($<HTMLCanvasElement>("learnCube"));
+  // which way is up, front and right, on every lesson's cube
+  view.setAxes({ U: tr("U 上", "U up"), F: tr("F 前", "F front"), R: tr("R 右", "R right") });
   view.canTwist = () => run?.phase === "practice" && !busy;
   view.onTwist = (axis, layer, quarters) => {
     if (!run || run.phase !== "practice") return;
