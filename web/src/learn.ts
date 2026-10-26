@@ -38,6 +38,9 @@ export interface Demo extends Formula {
 }
 
 const FACE_NAMES: Record<string, [string, string]> = { R: ["右", "right"], L: ["左", "left"], U: ["上", "up"], D: ["下", "down"], F: ["前", "front"], B: ["後", "back"] };
+/** Where to look from to see a turn's face: the left face from the left, the bottom from below, the back from behind. */
+export const sideOf = (move: string): "right" | "left" | "below" | "back" => ({ L: "left", D: "below", B: "back" })[move[0]!] as "left" | "below" | "back" ?? "right";
+
 /** A turn's face in a word, for the notation lesson: R → 右. */
 export const faceName = (move: string) => {
   const [zh, en] = FACE_NAMES[move[0]!] ?? [move, move];
@@ -253,8 +256,8 @@ const notation = (size: number): Lesson => ({
   ),
   task: tr("照著轉：", "Turn: "),
   formulas: [],
-  // each card: the letter and the turn in a few words
-  demos: ["R", "R'", "R2", "U", "U'", "F", "F'"].map((m) => ({ name: m.replace("'", "′"), seq: m, meaning: turnWords(m) })),
+  // each card: the letter and the turn in a few words; ′ and 2 shown once, on R, then every face
+  demos: ["R", "R'", "R2", "L", "U", "D", "F", "B"].map((m) => ({ name: m.replace("'", "′"), seq: m, meaning: turnWords(m) })),
   pieces: () => true,
   goal: (s) => isSolved(s),
   practice: [],
@@ -263,12 +266,12 @@ const notation = (size: number): Lesson => ({
       ? [
           ["R", "U", "R'"],
           ["U'", "F", "R2"],
-          ["F'", "U2", "R"],
+          ["L", "D'", "B"],
         ]
       : [
           ["R", "U", "R'"],
           ["U'", "F", "R2"],
-          ["L", "F'", "U2"],
+          ["L", "D'", "B"],
         ],
 });
 
