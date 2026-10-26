@@ -6,7 +6,7 @@
 import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, turnName, type LearnSize, type Lesson } from "./learn.js";
+import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, faceName, type LearnSize, type Lesson } from "./learn.js";
 import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
@@ -267,8 +267,8 @@ function lightKey(seq: string | "undo" | null) {
 function renderCopy() {
   const r = run!;
   const moves = r.lesson.copy![r.puzzleNo]!;
-  // each turn with its face in words under it: R / 右
-  $("lessonText").innerHTML = `${esc(r.lesson.task)}${moves.map((m, i) => `<span class="copy-move${i < r.copied ? " done" : i === r.copied ? " next" : ""}">${esc(pretty(m))}<small>${esc(turnName(m))}</small></span>`).join("")}`;
+  // each turn with its face in a word under it: R / 右
+  $("lessonText").innerHTML = `${esc(r.lesson.task)}${moves.map((m, i) => `<span class="copy-move${i < r.copied ? " done" : i === r.copied ? " next" : ""}">${esc(pretty(m))}<small>${esc(faceName(m))}</small></span>`).join("")}`;
 }
 
 function renderKeys() {
