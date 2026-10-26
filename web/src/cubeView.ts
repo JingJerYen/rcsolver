@@ -3,7 +3,8 @@
  * "照片換角解法" lesson page. Orthographic projection, painter's algorithm, drag to orbit.
  */
 import { hexOf } from "./net.js";
-import { FACE_AXES, applyMove, layerValues, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
+import type { Face } from "./api.js";
+import { FACE_AXES, FACE_ORDER, applyMove, layerValues, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
 
@@ -83,12 +84,12 @@ export class CubeView {
   }
 
   /**
-   * The learning mode's axis sign: an arrow out of the centre of the up, front and right faces,
-   * each with its letter and name at the tip ("U 上"), turning with the cube's view.
+   * The learning mode's axis sign: an arrow out of the centre of each face the camera sees (up,
+   * front and right as usual), its letter and name at the tip ("U 上"), turning with the view.
    */
-  private axes: { U: string; F: string; R: string } | null = null;
+  private axes: Record<Face, string> | null = null;
 
-  setAxes(labels: { U: string; F: string; R: string } | null) {
+  setAxes(labels: Record<Face, string> | null) {
     this.axes = labels;
     if (!this.anim) this.draw();
   }
@@ -327,11 +328,20 @@ export class CubeView {
     return this.anim !== null || this.twist !== null;
   }
 
-  /** The usual camera: from the front right, or from the front left to see the left face. */
-  resetView(side: "right" | "left" = "right") {
-    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
-    this.pitch = DEFAULT_VIEW.pitch;
+  /**
+   * The usual camera: from the front right, above. The others show a face it hides: the left
+   * face (from the front left), the bottom (from below) or the back (from behind, on the right).
+   */
+  resetView(side: "right" | "left" | "below" | "back" = "right") {
+    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : side === "back" ? Math.PI - DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
+    this.pitch = side === "below" ? -DEFAULT_VIEW.pitch : DEFAULT_VIEW.pitch;
     this.draw();
+  }
+
+  /** Whether the face with this outward normal is turned towards the camera, enough to see. */
+  sees(n: Vec): boolean {
+    const v = this.basis().view;
+    return n[0] * v[0] + n[1] * v[1] + n[2] * v[2] > 0.2;
   }
 
   /** Keep the camera drifting around the cube (radians per frame); 0 stops it. */
@@ -491,11 +501,7 @@ export class CubeView {
     const { ctx, w, h, size } = this;
     const labels = this.axes!;
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
-    const arms: { n: Vec; text: string }[] = [
-      { n: [0, 1, 0], text: labels.U },
-      { n: [0, 0, 1], text: labels.F },
-      { n: [1, 0, 0], text: labels.R },
-    ];
+    const arms = FACE_ORDER.map((f) => ({ n: FACE_AXES[f].n, text: labels[f] }));
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
