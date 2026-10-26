@@ -975,11 +975,43 @@ for (const pad of keyPads) {
 // ⌫ beside the text drops the last move (with the slider partway: the moves after it, then that
 // one); it stays while turning by hand, to take back a turn
 $("studyDel").onclick = () => {
+  // the click that ends a long press is not a tap
+  if (delHeld) return void (delHeld = false);
   if (!net || !cutAtCursor() || !studyTokens.length) return;
   const next = studyTokens.slice(0, -1);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next);
 };
+// a long press on ⌫ deletes every move: the cube goes back to where the study started, at once
+const DELETE_HOLD_MS = 600;
+let delTimer = 0;
+let delHeld = false;
+function deleteAllMoves() {
+  if (!net || !studying || cubeView.animating || !studyTokens.length) return;
+  stopPlaying();
+  studyTokens = [];
+  $<HTMLInputElement>("studyText").value = "";
+  $("studyText").classList.remove("bad");
+  moves = [];
+  jumpTo(0, 0);
+  navigator.vibrate?.(30);
+}
+function endDeleteHold() {
+  clearTimeout(delTimer);
+  $("studyDel").classList.remove("holding");
+}
+$("studyDel").addEventListener("pointerdown", () => {
+  delHeld = false;
+  if (!studyTokens.length) return;
+  $("studyDel").classList.add("holding");
+  delTimer = window.setTimeout(() => {
+    endDeleteHold();
+    delHeld = true;
+    deleteAllMoves();
+  }, DELETE_HOLD_MS);
+});
+for (const type of ["pointerup", "pointercancel", "pointerleave"]) $("studyDel").addEventListener(type, endDeleteHold);
+$("studyDel").addEventListener("contextmenu", (e) => e.preventDefault());
 $("studyText").oninput = (e) => setStudyTokens(tokenize((e.target as HTMLInputElement).value));
 $("studyText").onkeydown = (e) => {
   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -1324,8 +1356,8 @@ function studyTour() {
       targets: [$("studyTextRow")],
       title: tr("轉法文字框", "The moves"),
       body: tr(
-        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。右邊 ⌫ 刪掉最後一步，再右邊複製整段轉法。",
-        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the right, delete the last move, then copy the whole sequence.",
+        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。右邊 ⌫ 刪掉最後一步（長按全部刪除），再右邊複製整段轉法。",
+        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the right, delete the last move (hold to delete them all), then copy the whole sequence.",
       ),
     },
     {
