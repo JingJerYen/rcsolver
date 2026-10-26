@@ -368,7 +368,8 @@ th{color:#607189;font-weight:600}
 .learn-steps i{flex:1;height:6px;border-radius:3px;background:#d3dae4}
 .learn-steps i.on{background:#195ed6}
 .lesson-text{margin:12px 0;font-size:16px;line-height:1.6}
-.copy-move{display:inline-block;margin:0 0 0 6px;padding:2px 10px;border-radius:8px;background:#f4f7fb;font:800 18px ui-monospace,monospace;color:#8593a5}
+.copy-move{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 0 4px 6px;padding:2px 10px;border-radius:8px;background:#f4f7fb;font:800 18px ui-monospace,monospace;color:#8593a5}
+.copy-move small{font:600 11px system-ui,"Noto Sans TC",sans-serif;opacity:.9}
 .copy-move.done{background:#e3f4ea;color:#1b6b43}
 .copy-move.next{background:#195ed6;color:#fff}
 #learnView .cube{touch-action:none}
@@ -388,6 +389,7 @@ th{color:#607189;font-weight:600}
 .lesson-demo{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:#fff7df;border:1px solid #e0a21c}
 .lesson-demo-name{flex:none;font-size:14px;font-weight:700;color:#6b4b00;min-width:34px}
 .lesson-demo-name small{display:block;font-size:12px;font-weight:600;color:#8a6d1e;white-space:nowrap}
+.lesson-demo-meaning{flex:1;min-width:0;font-size:14px;line-height:1.5;color:#192a40}
 .lesson-demo code{flex:1;min-width:0;font:700 15px/1.4 ui-monospace,monospace;color:#192a40}
 .lesson-demo code span.is-done{color:#a6b1bf}
 .lesson-demo code span.is-next{background:#195ed6;color:#fff;border-radius:5px;padding:0 4px}

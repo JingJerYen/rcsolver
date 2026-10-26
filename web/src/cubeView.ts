@@ -7,34 +7,6 @@ import { FACE_AXES, applyMove, layerValues, rotateVec, type Move, type Sticker, 
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
 
-type Cam = { right: Vec; up: Vec; view: Vec };
-/** The camera turned `yaw` about the vertical and tipped `pitch` towards the top. */
-function camFrom(yaw: number, pitch: number): Cam {
-  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], view: [sy * cp, sp, cy * cp] };
-}
-/** The camera turned by `angle` about `axis` (a unit vector), kept square so drift never builds up. */
-function turnCam(cam: Cam, axis: Vec, angle: number): Cam {
-  const c = Math.cos(angle), s = Math.sin(angle);
-  const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-  const turn = (v: Vec): Vec => {
-    const k = cross(axis, v);
-    const d = dot(axis, v) * (1 - c);
-    return [v[0] * c + k[0] * s + axis[0] * d, v[1] * c + k[1] * s + axis[1] * d, v[2] * c + k[2] * s + axis[2] * d];
-  };
-  const unit = (v: Vec): Vec => {
-    const l = Math.hypot(v[0], v[1], v[2]);
-    return [v[0] / l, v[1] / l, v[2] / l];
-  };
-  const view = unit(turn(cam.view));
-  const r = turn(cam.right);
-  // right made square to view, up from the two: the three stay at right angles
-  const rv = dot(r, view);
-  const right = unit([r[0] - view[0] * rv, r[1] - view[1] * rv, r[2] - view[2] * rv]);
-  return { right, up: cross(view, right), view };
-}
-
 export class CubeView {
   private ctx: CanvasRenderingContext2D;
   private size = 3;
@@ -77,8 +49,8 @@ export class CubeView {
   onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number) => void) | null = null;
   private w = 300;
   private h = 300;
-  /** The camera: screen right, screen up and the direction towards the viewer, in cube coordinates. */
-  private cam = camFrom(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
+  private yaw = DEFAULT_VIEW.yaw;
+  private pitch = DEFAULT_VIEW.pitch;
   private anim: { move: Move; dir: 1 | -1; start: number; duration: number; f: number; resolve: () => void } | null = null;
   private raf = 0;
   private drag: { x: number; y: number } | null = null;
@@ -107,6 +79,17 @@ export class CubeView {
 
   setGuides(guides: { arrows: [Vec, Vec][]; rings: Set<string> } | null) {
     this.guides = guides;
+    if (!this.anim) this.draw();
+  }
+
+  /**
+   * A small three-axis sign in the bottom-left corner (the learning mode): arrows along the cube's
+   * up, front and right as seen now, each with its letter and name ("U 上"), turning with the view.
+   */
+  private axes: { U: string; F: string; R: string } | null = null;
+
+  setAxes(labels: { U: string; F: string; R: string } | null) {
+    this.axes = labels;
     if (!this.anim) this.draw();
   }
 
@@ -142,10 +125,9 @@ export class CubeView {
         return;
       }
       if (!this.drag) return;
-      // turn the camera about the screen's own axes, so the cube follows the finger any way round,
-      // over the top too: no angle stops it
-      const across = turnCam(this.cam, this.cam.up, -(e.clientX - this.drag.x) * 0.009);
-      this.cam = turnCam(across, across.right, -(e.clientY - this.drag.y) * 0.009);
+      // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
+      this.yaw -= (e.clientX - this.drag.x) * 0.009;
+      this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
       this.drag = { x: e.clientX, y: e.clientY };
       if (!this.anim) this.draw();
     });
@@ -261,7 +243,8 @@ export class CubeView {
 
   /** Pixels per cube unit. */
   private scale(): number {
-    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.twisting ? 1.3 : 1);
+    // turned by hand the cube is drawn bigger, a little less so when the axis sign needs its corner
+    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.twisting ? (this.axes ? 1.12 : 1.3) : 1);
   }
 
   /**
@@ -346,7 +329,8 @@ export class CubeView {
 
   /** The usual camera: from the front right, or from the front left to see the left face. */
   resetView(side: "right" | "left" = "right") {
-    this.cam = camFrom(side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
+    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
+    this.pitch = DEFAULT_VIEW.pitch;
     this.draw();
   }
 
@@ -357,7 +341,7 @@ export class CubeView {
     if (!speed) return;
     const tick = () => {
       if (!this.orbitSpeed) return;
-      this.cam = turnCam(this.cam, [0, 1, 0], this.orbitSpeed);
+      this.yaw += this.orbitSpeed;
       if (!this.anim) this.draw();
       this.orbitRaf = requestAnimationFrame(tick);
     };
@@ -401,7 +385,8 @@ export class CubeView {
   }
 
   private basis() {
-    return this.cam;
+    const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    return { right: [cy, 0, -sy] as Vec, up: [-sy * sp, cp, -cy * sp] as Vec, view: [sy * cp, sp, cy * cp] as Vec };
   }
 
   draw(now = performance.now()) {
@@ -497,8 +482,67 @@ export class CubeView {
     }
     this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
     if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
+    if (this.axes) this.drawAxes(b);
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
     else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
+  }
+
+  private drawAxes(b: { right: Vec; up: Vec; view: Vec }) {
+    const { ctx, w, h } = this;
+    const labels = this.axes!;
+    const o: [number, number] = [58, h - 48];
+    const len = 26;
+    const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+    const arms: { v: Vec; text: string }[] = [
+      { v: [0, 1, 0], text: labels.U },
+      { v: [0, 0, 1], text: labels.F },
+      { v: [1, 0, 0], text: labels.R },
+    ];
+    // the arm pointing furthest away first, so the nearer ones draw over it
+    arms.sort((a, c) => dot(a.v, b.view) - dot(c.v, b.view));
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.font = '700 12px system-ui, "Noto Sans TC", sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const { v, text } of arms) {
+      const dx = dot(v, b.right), dy = -dot(v, b.up);
+      const tip: [number, number] = [o[0] + dx * len, o[1] + dy * len];
+      const along = Math.hypot(dx, dy) || 1;
+      const ux = dx / along, uy = dy / along;
+      ctx.strokeStyle = "#39536e";
+      ctx.fillStyle = "#39536e";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(o[0], o[1]);
+      ctx.lineTo(tip[0], tip[1]);
+      ctx.stroke();
+      if (along > 0.25) {
+        ctx.beginPath();
+        ctx.moveTo(tip[0] + ux * 5, tip[1] + uy * 5);
+        ctx.lineTo(tip[0] - ux * 3 - uy * 5, tip[1] - uy * 3 + ux * 5);
+        ctx.lineTo(tip[0] - ux * 3 + uy * 5, tip[1] - uy * 3 - ux * 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // the label just past the tip, on a white pill so it reads over anything
+      // kept inside the canvas whichever way the arm points
+      const pw = ctx.measureText(text).width + 10;
+      const lx = Math.max(pw / 2 + 2, Math.min(w - pw / 2 - 2, tip[0] + ux * 17));
+      const ly = Math.max(11, Math.min(h - 11, tip[1] + uy * 13));
+      ctx.fillStyle = "rgba(255,255,255,.92)";
+      ctx.beginPath();
+      ctx.roundRect(lx - pw / 2, ly - 9, pw, 18, 9);
+      ctx.fill();
+      ctx.fillStyle = "#233b55";
+      ctx.fillText(text, lx, ly + 0.5);
+    }
+    ctx.beginPath();
+    ctx.arc(o[0], o[1], 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#39536e";
+    ctx.fill();
+    ctx.restore();
   }
 
   /**
