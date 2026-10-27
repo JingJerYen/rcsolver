@@ -38,9 +38,6 @@ export interface Demo extends Formula {
 }
 
 const FACE_NAMES: Record<string, [string, string]> = { R: ["右", "right"], L: ["左", "left"], U: ["上", "up"], D: ["下", "down"], F: ["前", "front"], B: ["後", "back"] };
-/** Where to look from to see a turn's face: the left face from the left, the bottom from below, the back from behind. */
-export const sideOf = (move: string): "right" | "left" | "below" | "back" => ({ L: "left", D: "below", B: "back" })[move[0]!] as "left" | "below" | "back" ?? "right";
-
 /** A turn's face in a word, for the notation lesson: R → 右. */
 export const faceName = (move: string) => {
   const [zh, en] = FACE_NAMES[move[0]!] ?? [move, move];
