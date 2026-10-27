@@ -170,3 +170,39 @@ test("learn: the no-fish card rings the front-left corner's yellow facing left, 
     assert.ok(none!.rings.has(`${-h},${h},${h}|-1,0,0`), `${size}: yellow facing left`);
   }
 });
+
+test("learn: the stuck cards start stuck the way they say", () => {
+  type St = ReturnType<typeof solvedFor>;
+  const pieceAt = (s: St, p: number[]) => s.filter((st) => st.p.join() === p.join());
+  const lesson = (size: LearnSize, i: number) => LESSONS[size][i]!;
+  const start = (size: LearnSize, i: number, card: number) => demoStart(size, i, lesson(size, i).demos[card]!);
+  // the one white edge out of the cross (not on top, white up, side matching its centre), and where it is
+  const whiteEdgeOut = (s: St) => {
+    const centre = (n: number[]) => s.find((st) => st.n.join() === n.join() && st.p.join() === n.map((v) => v * 2).join())!.c;
+    const edges = new Map<string, St>();
+    for (const st of s) if (st.p.filter((v) => Math.abs(v) === 2).length === 2) edges.set(st.p.join(), [...(edges.get(st.p.join()) ?? []), st]);
+    const out = [...edges.values()].filter((pc) => pc.some((st) => st.c === "W") && !pc.every((st) => st.c === centre(st.n)));
+    assert.equal(out.length, 1, `${out.length} white edges out`);
+    return out[0]!.find((st) => st.c === "W")!;
+  };
+  const flipped = whiteEdgeOut(start(3, 1, 1));
+  assert.ok(flipped.p[1] === -2 && flipped.n[1] === 0, "flipped: bottom layer, white to the side");
+  assert.ok(whiteEdgeOut(start(3, 1, 2)).p[1] === 0, "in the middle layer");
+  assert.equal(whiteEdgeOut(start(3, 1, 3)).p[1], 2, "on top");
+  // a white corner on top at front right, white facing a side
+  for (const size of [3, 2] as LearnSize[]) {
+    const h = size - 1;
+    const card = lesson(size, size === 3 ? 2 : 1).demos.findIndex((d) => d.rest);
+    const corner = pieceAt(start(size, size === 3 ? 2 : 1, card), [h, h, h]);
+    assert.ok(corner.some((st) => st.c === "W" && st.n[1] === 0), `${size}: white corner on top, white to the side`);
+  }
+  // the front-right middle edge in its slot the wrong way round
+  const edge = pieceAt(start(3, 3, 2), [2, 0, 2]);
+  assert.deepEqual(edge.map((st) => `${st.n.join()}:${st.c}`).sort(), ["0,0,1:O", "1,0,0:G"]);
+});
+
+test("learn: a practice step written as several turns is hinted one turn at a time", () => {
+  const cube = puzzle(3, 1, 1).start;
+  assert.deepEqual(hintFor(3, 1, 1, cube), { turn: "D" });
+  assert.deepEqual(hintFor(3, 1, 1, applyAlgorithm(cube, parseAlgorithm("D", 3))), { turn: "R" });
+});

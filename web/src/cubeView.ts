@@ -350,6 +350,16 @@ export class CubeView {
   }
 
   /** Animate `move` (or its inverse when dir is -1), then commit it to the state. */
+  /** Drop a turn part way, without applying it (its promise still settles). */
+  cancelAnimation() {
+    if (!this.anim) return;
+    cancelAnimationFrame(this.raf);
+    const done = this.anim.resolve;
+    this.anim = null;
+    this.draw();
+    done();
+  }
+
   animate(move: Move, dir: 1 | -1, duration: number): Promise<void> {
     if (this.anim) return Promise.resolve();
     return new Promise((resolve) => {
