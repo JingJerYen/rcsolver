@@ -328,20 +328,11 @@ export class CubeView {
     return this.anim !== null || this.twist !== null;
   }
 
-  /**
-   * The usual camera: from the front right, above. The others show a face it hides: the left
-   * face (from the front left), the bottom (from below) or the back (from behind, on the right).
-   */
-  resetView(side: "right" | "left" | "below" | "back" = "right") {
-    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : side === "back" ? Math.PI - DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
-    this.pitch = side === "below" ? -DEFAULT_VIEW.pitch : DEFAULT_VIEW.pitch;
+  /** The usual camera: from the front right, or from the front left to see the left face. */
+  resetView(side: "right" | "left" = "right") {
+    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
+    this.pitch = DEFAULT_VIEW.pitch;
     this.draw();
-  }
-
-  /** Whether the face with this outward normal is turned towards the camera, enough to see. */
-  sees(n: Vec): boolean {
-    const v = this.basis().view;
-    return n[0] * v[0] + n[1] * v[1] + n[2] * v[2] > 0.2;
   }
 
   /** Keep the camera drifting around the cube (radians per frame); 0 stops it. */

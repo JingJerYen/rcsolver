@@ -4,10 +4,10 @@
  * a lesson opens once the one before it has a star.
  */
 import { CubeView } from "./cubeView.js";
-import { FACE_AXES, applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
+import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
-import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, faceName, sideOf, type LearnSize, type Lesson } from "./learn.js";
-import type { Color, Face } from "./api.js";
+import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, faceName, type LearnSize, type Lesson } from "./learn.js";
+import type { Color } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
 
@@ -267,9 +267,6 @@ function lightKey(seq: string | "undo" | null) {
 function renderCopy() {
   const r = run!;
   const moves = r.lesson.copy![r.puzzleNo]!;
-  // the next turn's face out of sight (L, D, B): turn the view round to it
-  const next = moves[r.copied];
-  if (next && !view.sees(FACE_AXES[next[0] as Face].n)) view.resetView(sideOf(next));
   // each turn with its face in a word under it: R / 右
   $("lessonText").innerHTML = `${esc(r.lesson.task)}${moves.map((m, i) => `<span class="copy-move${i < r.copied ? " done" : i === r.copied ? " next" : ""}">${esc(pretty(m))}<small>${esc(faceName(m))}</small></span>`).join("")}`;
 }
@@ -317,8 +314,6 @@ function startPuzzle(k: number) {
   view.setPreview(null);
   view.setState(r.size, r.start);
   view.resetView();
-  // the notation lesson again, now the view is back: a first turn on a hidden face turns it round
-  if (r.lesson.copy) renderCopy();
   focusLesson(false);
 }
 
@@ -452,9 +447,8 @@ export function initLearn(showScreen: (id: Screen | "setup") => void) {
     const r = run;
     const i = Number(b.dataset.demo);
     const demo = r.lesson.demos[i]!;
-    // the notation lesson: that one turn, on the cube as it is, seen from where its face shows
+    // the notation lesson: that one turn, on the cube as it is
     if (r.lesson.copy) {
-      view.resetView(sideOf(demo.seq));
       busy = true;
       await play(demo.seq, DEMO_MS);
       busy = false;
