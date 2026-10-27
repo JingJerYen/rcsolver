@@ -19,6 +19,8 @@ const PUZZLES = 3;
 const DEMO_MS = 450;
 /** A formula key turns at a pace you can follow; a whole-cube turn slower still, so it reads as the cube turning. */
 const KEY_MS = 380;
+/** Opening a white-down lesson, the cube rolls over from white up: slow enough to follow. */
+const FLIP_MS = 1300;
 const ROTATE_MS = 600;
 
 /* ---------- progress ---------- */
@@ -191,6 +193,8 @@ export function openLessonFrom(size: LearnSize, index: number, back: () => void)
 
 function openLesson(size: LearnSize, index: number) {
   backTo = null;
+  // a lesson left while its cube was still rolling over: stop that roll
+  view.cancelAnimation();
   const lesson = LESSONS[size][index]!;
   run = { size, index, lesson, phase: "watch", puzzleNo: 0, start: [], par: 0, history: [], copied: 0, moves: 0, totalMoves: 0, totalPar: 0, hints: 0 };
   $("lessonTitle").textContent = lessonName(index, lesson);
@@ -204,11 +208,35 @@ function openLesson(size: LearnSize, index: number) {
   renderDemos();
   // the notation lesson starts from the solved cube; a formula's card from the cube it fixes
   const first = lesson.demos[0];
-  view.setState(size, first && !lesson.copy ? demoStart(size, index, first) : solvedFor(size, lesson.whiteDown));
+  const start = first && !lesson.copy ? demoStart(size, index, first) : solvedFor(size, lesson.whiteDown);
   view.resetView();
-  renderDemos();
   focusLesson(true);
   show("learnView");
+  if (!lesson.whiteDown) {
+    view.setState(size, start);
+    renderDemos();
+    return;
+  }
+  // white down from here on: the cube starts as the lessons before held it, white up, and rolls
+  // over (z2) before the cards come; the same pieces, just turned
+  view.setState(size, applyAlgorithm(start, parseAlgorithm("z2", size)));
+  view.setGuides(null);
+  $("lessonDemos").classList.add("hidden");
+  $("lessonGo").classList.add("hidden");
+  const flip = $("learnFlip");
+  flip.textContent = tr("翻過來：白色朝下", "Turn it over: white down");
+  flip.classList.remove("hidden");
+  const r = run;
+  busy = true;
+  void view.animate(parseMove("z2", size), 1, FLIP_MS).then(() => {
+    // left during the roll: the lesson opened since owns the cube, the label and busy
+    if (run !== r) return;
+    flip.classList.add("hidden");
+    busy = false;
+    $("lessonDemos").classList.remove("hidden");
+    $("lessonGo").classList.remove("hidden");
+    renderDemos();
+  });
 }
 
 const PLAY_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>';

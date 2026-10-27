@@ -166,6 +166,8 @@ const INSERT_CORNER = "R' D' R D";
 const RIGHT = "U R U' R' U' F' U F";
 const LEFT = "U' L' U L U F U' F'";
 const CROSS = "F R U R' U' F'";
+// a white edge in the bottom layer, white to the side, at the front: up into the cross without moving the rest
+const CROSS_FLIP = "D R F' R'";
 const SUNE = "R U R' U R U2 R'";
 // a corner 3-cycle that leaves every piece facing the same way, so the yellow face stays
 const CORNERS3 = "R' F R' B2 R F' R' B2 R2";
@@ -178,6 +180,13 @@ const F_INSERT: Formula = {
   when: tr("白角在它的位置正下方（右前下）就按，白色朝上為止可能要按好幾次。", "With the white corner right below its place (front right, bottom). It may take a few presses until white is on top."),
   look: "moves",
 };
+// a white corner on top but wrong (twisted or in another's place): one Insert takes it down
+const INSERT_STUCK: Demo = {
+  ...F_INSERT,
+  case: tr("卡在上面", "Stuck on top"),
+  rest: INSERT_CORNER,
+  when: tr("白角在上面但位置或方向不對：把它轉到右前上，按一次插角把它換下來，再照平常。", "A white corner on top but wrong (twisted, or in another's place): turn it to front right, top, press Insert once to take it down, then as usual."),
+};
 const F_RIGHT: Formula = {
   name: tr("往右", "Right"),
   seq: RIGHT,
@@ -189,6 +198,13 @@ const F_LEFT: Formula = {
   seq: LEFT,
   when: tr("頂層的邊前面顏色對到前面中心，上面顏色是左邊中心的顏色。", "The top edge's front colour matches the front centre, and its top colour is the left centre's."),
   look: "moves",
+};
+// a middle edge in the wrong slot or the wrong way round: one Right takes it out to the top
+const RIGHT_STUCK: Demo = {
+  ...F_RIGHT,
+  case: tr("卡在中層", "Stuck"),
+  rest: `U2 ${RIGHT}`,
+  when: tr("中層的邊位置錯或翻反了：把它轉到右前，按一次「往右」把它換到上面，再照平常放回去。", "A middle edge in the wrong slot or the wrong way round: turn it to front right, press Right once to bring it up, then put it in as usual."),
 };
 const F_CROSS: Formula = {
   name: tr("十字", "Cross"),
@@ -281,10 +297,17 @@ const LESSONS_3: Lesson[] = [
     intro: tr("白色中心朝上。把四個白色邊塊轉到上面，而且每塊側面的顏色要和旁邊的中心一樣。", "White centre on top. Bring the four white edges up, each with its side colour matching the centre beside it."),
     task: tr("做出白色十字", "Make the white cross"),
     formulas: [],
-    demos: [{ name: tr("翻上來", "Bring up"), seq: "F2", when: tr("白色邊塊在底層：轉到它側面顏色的中心下方，再把那一面轉兩下。", "A white edge in the bottom layer: turn it under the centre of its side colour, then turn that face twice."), look: "moves" }],
+    // the usual case, then where a white edge gets stuck: flipped, in the middle layer, on top but wrong
+    demos: [
+      { name: tr("翻上來", "Bring up"), case: tr("白色朝下", "White down"), seq: "F2", when: tr("白色邊塊在底層：轉到它側面顏色的中心下方，再把那一面轉兩下。", "A white edge in the bottom layer: turn it under the centre of its side colour, then turn that face twice."), look: "moves" },
+      { name: tr("翻反了", "Flipped"), case: tr("白色朝側面", "White to the side"), seq: CROSS_FLIP, when: tr("白邊在底層但白色朝側面：轉到前面下方，照這四步翻上來。", "A white edge in the bottom layer, white to the side: bring it to the front, bottom, and turn these four."), look: "moves" },
+      { name: tr("卡在中層", "In the middle"), seq: "R' D' R", rest: CROSS_FLIP, when: tr("白邊卡在中層：先轉 R′ D′ R 把它放到底層，就變成「翻反了」，再照那張做。", "A white edge stuck in the middle layer: R′ D′ R drops it into the bottom layer, flipped; then do Flipped."), look: "moves" },
+      { name: tr("在上面但不對", "On top, wrong"), seq: "F2", rest: CROSS_FLIP, when: tr("白邊在上面但翻反或放錯：先轉兩下把它放到底層，再照「翻反了」。", "A white edge on top but flipped or in the wrong place: turn that face twice to drop it, then do Flipped."), look: "moves" },
+    ],
     pieces: sig(2, "W"),
     goal: (s) => crossDone(s),
-    practice: [["F2"], ["R2"], ["L2", "F2"]],
+    // white side down, flipped, stuck in the middle layer
+    practice: [["F2"], [CROSS_FLIP], ["R' D' R", CROSS_FLIP]],
   },
   {
     title: tr("底層", "First layer"),
@@ -293,7 +316,7 @@ const LESSONS_3: Lesson[] = [
     intro: tr("把白色角塊轉到它要去的位置正下方，重複「插角」直到它歸位、白色朝上。", "Turn a white corner to just below where it belongs, then repeat Insert until it is in, white side up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
     formulas: [F_INSERT],
-    demos: [F_INSERT],
+    demos: [F_INSERT, INSERT_STUCK],
     pieces: sig(3, "W"),
     goal: (s) => layerDone(s, 3, "U"),
     keep: (s) => crossDone(s),
@@ -306,11 +329,12 @@ const LESSONS_3: Lesson[] = [
     intro: tr("翻過來，白色朝下。頂層的邊轉到和側面中心同色的位置，看它要往右還是往左，用對應的公式放進中層。", "Turn it over, white down. Line a top edge up with its side centre, see whether it goes right or left, and use that formula."),
     task: tr("把中層四個邊放好", "Fill the middle layer"),
     formulas: [F_RIGHT, F_LEFT],
-    demos: [F_RIGHT, F_LEFT],
+    demos: [F_RIGHT, F_LEFT, RIGHT_STUCK],
     pieces: sig(2, undefined, ["W", "Y"]),
     goal: (s) => f2l(s),
     keep: (s) => layerDone(s, 3, "D"),
-    practice: [[0], [1], ["U'", 0]],
+    // right, left, and one stuck the wrong way round in the middle layer
+    practice: [[0], [1], [0, "U2", 0]],
   },
   {
     title: tr("黃色十字", "Yellow cross"),
@@ -376,7 +400,7 @@ const LESSONS_2: Lesson[] = [
     intro: tr("把四個白色角塊轉到上面，而且每一側上排的兩格要同色。角塊在右前下方時用「插角」把它送上去。", "Bring the four white corners to the top, with the two stickers of each side's top row matching. With a corner at front right, bottom, Insert sends it up."),
     task: tr("把白色那一層完成", "Finish the white layer"),
     formulas: [F_INSERT],
-    demos: [F_INSERT],
+    demos: [F_INSERT, INSERT_STUCK],
     pieces: sig(3, "W"),
     goal: (s, size) => layerDone(s, size, "U"),
     practice: [[0], [0, 0], ["D'", 0]],
@@ -436,7 +460,8 @@ export function hintFor(size: LearnSize, index: number, i: number, cube: Sticker
   const now = key(cube);
   let s = puzzle(size, index, i).start;
   for (const step of lesson.practice[i]!) {
-    if (key(s) === now) return typeof step === "number" ? { formula: step } : { turn: step };
+    // a step written as turns ("D R F' R'") is hinted one turn at a time
+    if (key(s) === now) return typeof step === "number" ? { formula: step } : { turn: step.split(" ")[0]! };
     const moves = stepMoves(lesson, step).split(" ");
     for (let j = 0; j < moves.length; j++) {
       s = applyAlgorithm(s, parseAlgorithm(moves[j]!, size));
