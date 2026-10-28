@@ -93,10 +93,10 @@ function render() {
   const note = $("speedNote");
   if (phase === "idle") {
     big.textContent = clock(0);
-    note.textContent = tr("按「打亂」開始", "Tap Scramble to start");
+    note.textContent = "";
   } else if (phase === "inspect") {
     big.textContent = String(Math.max(0, Math.ceil((INSPECT_MS - (now - inspectAt)) / 1000)));
-    note.textContent = tr("觀察中・轉第一下就開始計時", "Inspect · the clock starts on your first turn");
+    note.textContent = tr("觀察・轉第一下開始計時", "Inspect · first turn starts the clock");
   } else if (phase === "solving") {
     big.textContent = clock(now - startAt);
     note.textContent = tr(`${moves} 步`, `${moves} ${moves === 1 ? "move" : "moves"}`);
@@ -244,14 +244,9 @@ export function initSpeed() {
   $("speedScramble").onclick = () => scramble();
   $("speedAgain").onclick = () => scramble();
   $("speedSize").onclick = () => reset(SIZES[(SIZES.indexOf(size) + 1) % SIZES.length]!);
-  $("speedHome").onclick = () => view?.resetView();
-  $("speedTitle").textContent = tr("速轉", "Speed");
   $("speedScramble").textContent = tr("打亂", "Scramble");
   $("speedAgain").textContent = tr("再來一次", "Again");
-  $("speedHomeLabel").textContent = tr("回正", "Reset view");
-  $("speedPadTitle").textContent = tr("左手拖這裡轉視角", "Drag here to turn the view");
-  $("speedPadSub").textContent = tr("360° 不限角度・雙指可旋轉", "Any angle · twist with two fingers");
-  $("speedHand").textContent = tr("右手拖貼紙轉一層", "Drag a sticker to turn its layer");
+  $("speedPadTitle").textContent = tr("拖這裡轉視角", "Drag here to turn the view");
   $("speedRotateTitle").textContent = tr("把手機轉成橫向", "Turn your phone sideways");
   $("speedRotateSub").textContent = tr("左手轉視角，右手轉方塊", "Left hand turns the view, right hand turns the cube");
   renderSpeedCard();
