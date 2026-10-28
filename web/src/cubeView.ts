@@ -8,6 +8,26 @@ import { FACE_AXES, FACE_ORDER, applyMove, layerValues, rotateVec, type Move, ty
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
 
+/** `v` turned by `angle` about the unit axis `k` (right-hand rule). */
+function turnAbout(v: Vec, k: Vec, angle: number): Vec {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const kv = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+  const x: Vec = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]];
+  return [0, 1, 2].map((i) => v[i]! * c + x[i]! * s + k[i]! * kv * (1 - c)) as Vec;
+}
+
+/** A camera from its right and up directions, squared up again so rounding never skews it. */
+function orthonormal(right: Vec, up: Vec): { right: Vec; up: Vec; view: Vec } {
+  const unit = (v: Vec): Vec => {
+    const l = Math.hypot(...v) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const r = unit(right);
+  const d = r[0] * up[0] + r[1] * up[1] + r[2] * up[2];
+  const u = unit([up[0] - r[0] * d, up[1] - r[1] * d, up[2] - r[2] * d]);
+  return { right: r, up: u, view: [r[1] * u[2] - r[2] * u[1], r[2] * u[0] - r[0] * u[2], r[0] * u[1] - r[1] * u[0]] };
+}
+
 export class CubeView {
   private ctx: CanvasRenderingContext2D;
   private size = 3;
@@ -52,6 +72,18 @@ export class CubeView {
   private h = 300;
   private yaw = DEFAULT_VIEW.yaw;
   private pitch = DEFAULT_VIEW.pitch;
+  /**
+   * The speed mode's camera: the screen's right, up and towards-you directions in cube space, turned
+   * by each drag about the screen's own axes, so it goes all the way round with no angle limits.
+   * Null for the usual yaw and pitch camera.
+   */
+  private free: { right: Vec; up: Vec; view: Vec } | null = null;
+  /** False: a drag that misses the stickers does nothing, instead of turning the view. */
+  viewDrag = true;
+  /** The one finger the canvas follows; others that land meanwhile are ignored. */
+  private pointer: number | null = null;
+  /** Ends a hand turn's settling at once, so the next turn can start straight away. */
+  private settling: (() => void) | null = null;
   private anim: { move: Move; dir: 1 | -1; start: number; duration: number; f: number; resolve: () => void } | null = null;
   private raf = 0;
   private drag: { x: number; y: number } | null = null;
@@ -107,9 +139,12 @@ export class CubeView {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas);
     canvas.addEventListener("pointerdown", (e) => {
+      if (this.pointer !== null) return;
+      this.pointer = e.pointerId;
       this.press = { x: e.clientX, y: e.clientY, moved: false };
       canvas.setPointerCapture(e.pointerId);
       const r = canvas.getBoundingClientRect();
+      if (this.twisting) this.settling?.();
       const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
       if (key && this.canTwist()) {
         const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
@@ -117,23 +152,25 @@ export class CubeView {
         this.drag = null;
         return;
       }
-      this.drag = { x: e.clientX, y: e.clientY };
+      this.drag = this.viewDrag ? { x: e.clientX, y: e.clientY } : null;
     });
     canvas.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== this.pointer) return;
       if (this.press && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 6) this.press.moved = true;
       if (this.grab) {
         this.turnByHand(e.clientX, e.clientY);
         return;
       }
       if (!this.drag) return;
-      // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
-      this.yaw -= (e.clientX - this.drag.x) * 0.009;
-      this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + (e.clientY - this.drag.y) * 0.009));
+      this.turnView(e.clientX - this.drag.x, e.clientY - this.drag.y);
       this.drag = { x: e.clientX, y: e.clientY };
-      if (!this.anim) this.draw();
     });
-    const up = () => (this.drag = null);
+    const up = () => {
+      this.drag = null;
+      this.pointer = null;
+    };
     canvas.addEventListener("pointerup", (e) => {
+      if (e.pointerId !== this.pointer) return;
       up();
       if (this.grab) {
         const turned = this.grab.turn !== null;
@@ -151,7 +188,8 @@ export class CubeView {
       const r = canvas.getBoundingClientRect();
       this.toggleMarkAt(e.clientX - r.left, e.clientY - r.top);
     });
-    canvas.addEventListener("pointercancel", () => {
+    canvas.addEventListener("pointercancel", (e) => {
+      if (e.pointerId !== this.pointer) return;
       up();
       this.press = null;
       if (this.grab?.turn) this.settleTwist(true);
@@ -244,6 +282,8 @@ export class CubeView {
 
   /** Pixels per cube unit. */
   private scale(): number {
+    // turned freely any corner can point at the screen's edge: fit the whole sphere round the cube
+    if (this.free) return (Math.min(this.w, this.h) * 0.48) / (this.size * Math.sqrt(3));
     // turned by hand the cube is drawn bigger; with the axis arrows a little smaller, to leave them room round it
     return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.axes ? 0.92 : this.twisting ? 1.3 : 1);
   }
@@ -303,6 +343,15 @@ export class CubeView {
     const to = q * quarter;
     const start = performance.now();
     const ms = 90 + 120 * Math.min(1, Math.abs(to - from) / quarter);
+    const finish = () => {
+      cancelAnimationFrame(this.raf);
+      this.settling = null;
+      this.twist = null;
+      if (q % 4 !== 0) {
+        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: to } as Move));
+        this.onTwist?.(tw.axis, tw.layers[0]!, q);
+      } else this.draw();
+    };
     const tick = (now: number) => {
       const f = Math.min(1, (now - start) / ms);
       tw.angle = from + (to - from) * (1 - (1 - f) * (1 - f));
@@ -311,12 +360,9 @@ export class CubeView {
         this.raf = requestAnimationFrame(tick);
         return;
       }
-      this.twist = null;
-      if (q % 4 !== 0) {
-        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: to } as Move));
-        this.onTwist?.(tw.axis, tw.layers[0]!, q);
-      } else this.draw();
+      finish();
     };
+    this.settling = finish;
     this.raf = requestAnimationFrame(tick);
   }
 
@@ -332,7 +378,42 @@ export class CubeView {
   resetView(side: "right" | "left" = "right") {
     this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
     this.pitch = DEFAULT_VIEW.pitch;
-    this.draw();
+    if (this.free) this.free = this.yawPitchBasis();
+    if (!this.anim) this.draw();
+  }
+
+  /** The speed mode's camera with no angle limits (see `free`); off goes back to the usual one. */
+  setFreeView(on: boolean) {
+    this.free = on ? this.yawPitchBasis() : null;
+    if (!this.anim) this.draw();
+  }
+
+  /**
+   * Turn the cube with a drag of (dx, dy) pixels so it follows the finger: across about the screen's
+   * up axis, down about its right axis. The usual camera keeps its pitch limits; the free one has none.
+   */
+  turnView(dx: number, dy: number) {
+    const k = 0.009;
+    if (!this.free) {
+      // yaw moves the camera, so the cube turns the other way: subtract to make it follow the finger
+      this.yaw -= dx * k;
+      this.pitch = Math.max(-1.2, Math.min(1.4, this.pitch + dy * k));
+    } else {
+      // the same turns, but about the screen's axes as they are now
+      let { right, up, view } = this.free;
+      [right, view] = [turnAbout(right, up, -dx * k), turnAbout(view, up, -dx * k)];
+      [up, view] = [turnAbout(up, right, -dy * k), turnAbout(view, right, -dy * k)];
+      this.free = orthonormal(right, up);
+    }
+    if (!this.anim) this.draw();
+  }
+
+  /** Turn the free camera's picture clockwise on the screen (radians), as two fingers twisting. */
+  rollView(angle: number) {
+    if (!this.free) return;
+    const { right, up, view } = this.free;
+    this.free = orthonormal(turnAbout(right, view, angle), turnAbout(up, view, angle));
+    if (!this.anim) this.draw();
   }
 
   /** Keep the camera drifting around the cube (radians per frame); 0 stops it. */
@@ -396,6 +477,10 @@ export class CubeView {
   }
 
   private basis() {
+    return this.free ?? this.yawPitchBasis();
+  }
+
+  private yawPitchBasis() {
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     return { right: [cy, 0, -sy] as Vec, up: [-sy * sp, cp, -cy * sp] as Vec, view: [sy * cp, sp, cy * cp] as Vec };
   }
