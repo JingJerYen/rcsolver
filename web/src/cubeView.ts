@@ -7,6 +7,10 @@ import type { Face } from "./api.js";
 import { FACE_AXES, FACE_ORDER, applyMove, layerValues, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
+/** Speed mode's round centres, in cube units (a sticker's cell is 2): drawn, its dark rim, and where a press counts. */
+const CENTRE_R = 1;
+const CENTRE_RIM = 1.2;
+const CENTRE_PRESS = 1.45;
 
 /** `v` turned by `angle` about the unit axis `k` (right-hand rule). */
 function turnAbout(v: Vec, k: Vec, angle: number): Vec {
@@ -45,8 +49,11 @@ export class CubeView {
   private markedOnly = false;
   /** Told whenever the marks change, with how many there are. */
   onMarks: ((count: number) => void) | null = null;
-  /** Where each visible sticker was last drawn, front last, for finding the one under a tap. */
-  private hits: { poly: [number, number][]; key: string }[] = [];
+  /**
+   * Where each visible sticker was last drawn, front last, for finding the one under a tap. A round
+   * centre's is its wider press area, found before any sticker it overlaps.
+   */
+  private hits: { poly: [number, number][]; key: string; round?: boolean }[] = [];
   private press: { x: number; y: number; moved: boolean } | null = null;
   /**
    * Turning layers by hand (study mode's switch): a drag that starts on a sticker turns its layer,
@@ -66,7 +73,10 @@ export class CubeView {
   } | null = null;
   /** The layer being turned by hand and how far, in radians; `spin` for a whole face turned round its middle. */
   private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean } | null = null;
-  /** Speed mode: a drag that starts on a face's centre turns that whole face, following the finger round. */
+  /**
+   * Speed mode: an odd cube's centres are drawn round, and a drag that starts on one (or a little
+   * round it) turns that whole face, following the finger round.
+   */
   centreSpin = false;
   /** Asked before a hand turn starts; false leaves the drag to turn the view. */
   canTwist: () => boolean = () => true;
@@ -257,7 +267,8 @@ export class CubeView {
       }
       return hit;
     };
-    for (let i = this.hits.length - 1; i >= 0; i--) if (inside(this.hits[i]!.poly)) return this.hits[i]!.key;
+    for (const round of [true, false])
+      for (let i = this.hits.length - 1; i >= 0; i--) if (!!this.hits[i]!.round === round && inside(this.hits[i]!.poly)) return this.hits[i]!.key;
     return null;
   }
 
@@ -273,7 +284,7 @@ export class CubeView {
   pointOf(key: string): [number, number] | null {
     const hit = this.hits.find((h) => h.key === key);
     if (!hit) return null;
-    return [hit.poly.reduce((a, p) => a + p[0], 0) / 4, hit.poly.reduce((a, p) => a + p[1], 0) / 4];
+    return [hit.poly.reduce((a, p) => a + p[0], 0) / hit.poly.length, hit.poly.reduce((a, p) => a + p[1], 0) / hit.poly.length];
   }
 
   /**
@@ -348,10 +359,16 @@ export class CubeView {
    * enough that a circle round it reads clearly. A 2×2 has no centres: every sticker turns a layer.
    */
   private spinsFrom(c: Vec, n: Vec): boolean {
-    if (!this.centreSpin || this.size < 3) return false;
-    const ax = n.findIndex((v) => v !== 0);
+    if (!this.roundCentre(c, n)) return false;
     const b = this.basis();
-    return [0, 1, 2].every((i) => i === ax || Math.abs(c[i]!) <= 1) && n[0] * b.view[0] + n[1] * b.view[1] + n[2] * b.view[2] > 0.3;
+    return n[0] * b.view[0] + n[1] * b.view[1] + n[2] * b.view[2] > 0.3;
+  }
+
+  /** A face's middle sticker on an odd cube, drawn round in speed mode. */
+  private roundCentre(c: Vec, n: Vec): boolean {
+    if (!this.centreSpin || this.size % 2 === 0) return false;
+    const ax = n.findIndex((v) => v !== 0);
+    return [0, 1, 2].every((i) => i === ax || c[i] === 0);
   }
 
   /** Where a point of the cube is drawn, in canvas pixels. */
@@ -368,7 +385,7 @@ export class CubeView {
   private spinByHand(x: number, y: number) {
     const g = this.grab!;
     const sp = g.spin!;
-    if (!g.turn && Math.hypot(x - g.x, y - g.y) < 8) return;
+    if (!g.turn && Math.hypot(x - g.x, y - g.y) < 6) return;
     const ax = g.n.findIndex((v) => v !== 0) as 0 | 1 | 2;
     const a = (ax + 1) % 3, b = (ax + 2) % 3;
     const mid: Vec = [0, 0, 0];
@@ -384,10 +401,16 @@ export class CubeView {
     const det = sa[0]! * sb[1]! - sa[1]! * sb[0]!;
     const r = this.canvas.getBoundingClientRect();
     const dx = x - r.left - o[0], dy = y - r.top - o[1];
-    // too close to the middle the angle jumps about: wait for the finger to come out
-    if (Math.abs(det) < 1e-6 || Math.hypot(dx, dy) < 6) return;
+    if (Math.abs(det) < 1e-6) return;
+    // the finger on the face's plane, in cube units from its middle
+    const u = (dx * sb[1]! - dy * sb[0]!) / det, v = (sa[0]! * dy - sa[1]! * dx) / det;
     // a and b then the face's normal make a right-handed set, so this angle grows with a positive turn
-    const angle = Math.atan2((sa[0]! * dy - sa[1]! * dx) / det, (dx * sb[1]! - dy * sb[0]!) / det);
+    const angle = Math.atan2(v, u);
+    // inside the round centre the angle jumps about: the face holds still until the finger comes out
+    if (Math.hypot(u, v) < CENTRE_R) {
+      if (sp.last !== null) sp.last = angle;
+      return;
+    }
     if (!g.turn) {
       g.turn = { axis: ax, layer: g.c[ax]!, dir: [0, 0], pxPerRad: 1 };
       this.twist = { axis: ax, layers: [g.c[ax]!], angle: 0, spin: true };
@@ -589,7 +612,18 @@ export class CubeView {
 
     // the pieces (by where they are now) that carry a mark, for the marked-only view
     const litPieces = this.markedOnly ? new Set([...this.marks].map((i) => this.stickers[i]!.p.join(","))) : null;
-    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; key: string; marked: boolean };
+    type FaceDraw = {
+      poly: [number, number][];
+      st: [number, number][];
+      /** A round centre's dark rim and press area. */
+      round: { rim: [number, number][]; press: [number, number][] } | null;
+      col: string | undefined;
+      active: boolean;
+      depth: number;
+      light: number;
+      key: string;
+      marked: boolean;
+    };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
     for (const x of vals) for (const y of vals) for (const z of vals) {
@@ -625,6 +659,16 @@ export class CubeView {
             p[v] += vv * half;
             return project(rot(p, active));
           });
+        const disc = (r: number): [number, number][] =>
+          Array.from({ length: 32 }, (_, i) => {
+            const t = (i / 32) * 2 * Math.PI;
+            const p: Vec = [...c] as Vec;
+            p[ax] += sign * 0.975;
+            p[a] += r * Math.cos(t);
+            p[v] += r * Math.sin(t);
+            return project(rot(p, active));
+          });
+        const round = this.roundCentre(c, n);
         const key = `${c.join(",")}|${n.join(",")}`;
         const raw = this.lookup.get(key);
         const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted));
@@ -632,7 +676,8 @@ export class CubeView {
         centre[ax] += sign;
         faces.push({
           poly: polygon(0.975),
-          st: polygon(0.8),
+          st: round ? disc(CENTRE_R) : polygon(0.8),
+          round: round ? { rim: disc(CENTRE_RIM), press: disc(CENTRE_PRESS) } : null,
           col: raw ? (muted ? GREY : hexOf(raw)) : undefined,
           active,
           key,
@@ -652,6 +697,10 @@ export class CubeView {
       path(f.poly);
       ctx.fillStyle = "#172336";
       ctx.fill();
+      if (f.round) {
+        path(f.round.rim);
+        ctx.fill();
+      }
       if (f.col) {
         path(f.st);
         ctx.fillStyle = f.col;
@@ -664,7 +713,7 @@ export class CubeView {
         if (f.marked) this.drawMark(f.st);
       }
     }
-    this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
+    this.hits = faces.map((f) => (f.round ? { poly: f.round.press, key: f.key, round: true } : { poly: f.poly, key: f.key }));
     if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
     if (this.axes) this.drawAxes(b, project);
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
