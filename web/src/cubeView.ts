@@ -49,9 +49,13 @@ export class CubeView {
     n: Vec;
     /** Fixed after the first few pixels: turn axis, layer, screen direction of a positive turn and pixels per radian. */
     turn: { axis: 0 | 1 | 2; layer: number; dir: [number, number]; pxPerRad: number } | null;
+    /** Started on a face's centre with `centreSpin` on: the finger's last angle round that face's middle. */
+    spin: { last: number | null } | null;
   } | null = null;
-  /** The layer being turned by hand and how far, in radians. */
-  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number } | null = null;
+  /** The layer being turned by hand and how far, in radians; `spin` for a whole face turned round its middle. */
+  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean } | null = null;
+  /** Speed mode: a drag that starts on a face's centre turns that whole face, following the finger round. */
+  centreSpin = false;
   /** Asked before a hand turn starts; false leaves the drag to turn the view. */
   canTwist: () => boolean = () => true;
   /** A hand turn that landed: its axis, layer and quarter turns (right-hand rule), already applied. */
@@ -138,7 +142,7 @@ export class CubeView {
       const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
       if (key && this.canTwist()) {
         const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
-        this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null };
+        this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null, spin: this.spinsFrom(c, n) ? { last: null } : null };
         this.drag = null;
         return;
       }
@@ -286,6 +290,10 @@ export class CubeView {
    */
   private turnByHand(x: number, y: number) {
     const g = this.grab!;
+    if (g.spin) {
+      this.spinByHand(x, y);
+      return;
+    }
     const dx = x - g.x;
     const dy = y - g.y;
     if (!g.turn) {
@@ -323,12 +331,73 @@ export class CubeView {
     this.draw();
   }
 
+  /**
+   * A face's centre (the middle sticker, or the middle four of an even cube) seen from in front
+   * enough that a circle round it reads clearly. A 2×2 has no centres: every sticker turns a layer.
+   */
+  private spinsFrom(c: Vec, n: Vec): boolean {
+    if (!this.centreSpin || this.size < 3) return false;
+    const ax = n.findIndex((v) => v !== 0);
+    const b = this.basis();
+    return [0, 1, 2].every((i) => i === ax || Math.abs(c[i]!) <= 1) && n[0] * b.view[0] + n[1] * b.view[1] + n[2] * b.view[2] > 0.3;
+  }
+
+  /** Where a point of the cube is drawn, in canvas pixels. */
+  private toScreen(p: Vec): [number, number] {
+    const b = this.basis();
+    const s = this.scale();
+    return [this.w / 2 + (p[0] * b.right[0] + p[1] * b.right[1] + p[2] * b.right[2]) * s, this.h / 2 - (p[0] * b.up[0] + p[1] * b.up[1] + p[2] * b.up[2]) * s];
+  }
+
+  /**
+   * Turn the face the finger circles. The finger is read back onto the face's own plane, so the
+   * angle is the face's, however slanted it is drawn, and the sticker under the finger stays there.
+   */
+  private spinByHand(x: number, y: number) {
+    const g = this.grab!;
+    const sp = g.spin!;
+    if (!g.turn && Math.hypot(x - g.x, y - g.y) < 8) return;
+    const ax = g.n.findIndex((v) => v !== 0) as 0 | 1 | 2;
+    const a = (ax + 1) % 3, b = (ax + 2) % 3;
+    const mid: Vec = [0, 0, 0];
+    mid[ax] = g.n[ax]! * this.size;
+    const along = (i: number): Vec => {
+      const p: Vec = [...mid] as Vec;
+      p[i] += 1;
+      return p;
+    };
+    const o = this.toScreen(mid);
+    const pa = this.toScreen(along(a)), pb = this.toScreen(along(b));
+    const sa = [pa[0] - o[0], pa[1] - o[1]], sb = [pb[0] - o[0], pb[1] - o[1]];
+    const det = sa[0]! * sb[1]! - sa[1]! * sb[0]!;
+    const r = this.canvas.getBoundingClientRect();
+    const dx = x - r.left - o[0], dy = y - r.top - o[1];
+    // too close to the middle the angle jumps about: wait for the finger to come out
+    if (Math.abs(det) < 1e-6 || Math.hypot(dx, dy) < 6) return;
+    // a and b then the face's normal make a right-handed set, so this angle grows with a positive turn
+    const angle = Math.atan2((sa[0]! * dy - sa[1]! * dx) / det, (dx * sb[1]! - dy * sb[0]!) / det);
+    if (!g.turn) {
+      g.turn = { axis: ax, layer: g.c[ax]!, dir: [0, 0], pxPerRad: 1 };
+      this.twist = { axis: ax, layers: [g.c[ax]!], angle: 0, spin: true };
+      sp.last = angle;
+    }
+    let d = angle - sp.last!;
+    if (d > Math.PI) d -= 2 * Math.PI;
+    if (d < -Math.PI) d += 2 * Math.PI;
+    sp.last = angle;
+    this.twist!.angle += d;
+    this.draw();
+  }
+
   /** Let go: settle on the nearest quarter turn (or back to where it was) and report it. */
   private settleTwist(back = false) {
     const tw = this.twist;
     if (!tw) return;
     const quarter = Math.PI / 2;
-    const q = back ? 0 : Math.max(-2, Math.min(2, Math.round(tw.angle / quarter)));
+    const near = Math.round(tw.angle / quarter);
+    // a face spun round can go past a half turn: settle where it is, report it as the shortest turn
+    const q = back ? 0 : tw.spin ? near : Math.max(-2, Math.min(2, near));
+    const turns = (((q % 4) + 4) % 4 === 3 ? -1 : ((q % 4) + 4) % 4) as -1 | 0 | 1 | 2;
     const from = tw.angle;
     const to = q * quarter;
     const start = performance.now();
@@ -337,9 +406,9 @@ export class CubeView {
       cancelAnimationFrame(this.raf);
       this.settling = null;
       this.twist = null;
-      if (q % 4 !== 0) {
-        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: to } as Move));
-        this.onTwist?.(tw.axis, tw.layers[0]!, q);
+      if (turns !== 0) {
+        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: turns * quarter } as Move));
+        this.onTwist?.(tw.axis, tw.layers[0]!, tw.spin ? turns : q);
       } else this.draw();
     };
     const tick = (now: number) => {
