@@ -426,15 +426,17 @@ th{color:#607189;font-weight:600}
 #speedCardSub{font-size:13px;color:#5d6b7d}
 html.speed-open,html.speed-open body{overflow:hidden}
 .speed{position:fixed;inset:0;z-index:50;background:#eff3f8;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none;padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
-.speed-main{display:flex;gap:12px;height:100%}
-.speed-left{flex:0 0 34%;max-width:320px;display:flex;flex-direction:column;gap:8px;min-height:0}
-.speed-head{display:flex;align-items:center;gap:8px}
-.speed-head b{font-size:16px}
-.speed-close{width:44px;height:44px}
-.speed-pad{position:relative;flex:1;min-height:0;border-radius:18px;background:#e2e9f3;border:2px dashed #b8c6d9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 8px 56px;text-align:center;color:#5d7290;touch-action:none}
-.speed-pad b{font-size:15px;color:#39536e}
-.speed-pad span{font-size:13px;color:#5d6b7d}
-.speed-home{position:absolute;left:10px;bottom:10px;height:40px;padding:0 14px;border-radius:20px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.speed-main{display:flex;gap:10px;height:100%}
+.speed-left{flex:0 0 30%;max-width:280px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.speed-head{display:flex;align-items:center;gap:10px;min-height:44px}
+.speed-close{width:40px;height:40px}
+.speed-clock{display:flex;flex-direction:column;min-width:0;pointer-events:none}
+#speedTime{font:800 22px/1.1 ui-monospace,monospace;color:#192a40}
+#speedNote{font-size:11px;font-weight:700;color:#5d6b7d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#speedNote:empty{display:none}
+.speed[data-phase="inspect"] #speedTime{color:#b85c00}
+.speed[data-phase="inspect"] #speedNote{color:#8a5a1e}
+.speed-pad{flex:1;min-height:0;border-radius:18px;background:#e3e9f2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center;color:#8395ad;font-size:13px;font-weight:600;touch-action:none}
 .speed-records{display:none;flex:1;min-height:0;flex-direction:column;gap:4px;background:#fff;border:1px solid #dde5ef;border-radius:18px;padding:10px 14px;overflow:auto}
 .speed-records>b{font-size:14px;color:#39536e}
 .speed-records ol{list-style:none;margin:0;padding:0}
@@ -442,27 +444,20 @@ html.speed-open,html.speed-open body{overflow:hidden}
 .speed-records li b{font:700 15px ui-monospace,monospace;color:#192a40}
 .speed-records li b.best{color:#11683f}
 .speed-records p{display:flex;justify-content:space-between;gap:8px;margin:auto 0 0;font-size:13px;color:#39536e}
-.speed-panel{position:relative;flex:1;min-width:0;border-radius:18px;background:#fff;border:1px solid #dde5ef;overflow:hidden}
-#speedCube{position:absolute;left:0;right:0;top:58px;bottom:0;width:100%;height:calc(100% - 58px);display:block;touch-action:none}
-.speed-clock{position:absolute;top:6px;left:14px;right:170px;display:flex;flex-direction:column;align-items:flex-start;pointer-events:none}
-#speedTime{font:800 32px/1.15 ui-monospace,monospace;color:#192a40}
-#speedNote{font-size:12px;font-weight:700;line-height:1.3;color:#5d6b7d}
-.speed[data-phase="inspect"] #speedTime{color:#b85c00}
-.speed[data-phase="inspect"] #speedNote{color:#8a5a1e}
-.speed-tools{position:absolute;top:8px;right:8px;display:flex;gap:6px}
-.speed-tools button{height:40px;padding:0 12px;border-radius:20px;font-size:14px;font-weight:700}
-.speed-hand{position:absolute;right:12px;bottom:8px;font-size:13px;font-weight:600;color:#5d6b7d;pointer-events:none}
-.speed-result{display:none;position:absolute;top:0;bottom:0;right:0;width:52%;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px;padding:0 12px 0 0}
+.speed-panel{position:relative;flex:1;min-width:0}
+#speedCube{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.speed-tools{position:absolute;top:0;right:0;display:flex;gap:6px}
+.speed-tools button{height:36px;padding:0 12px;border-radius:18px;font-size:14px;font-weight:700}
+.speed-result{display:none;position:absolute;top:0;bottom:0;right:0;width:50%;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px}
 .speed-badge{padding:4px 10px;border-radius:12px;background:#e6f6ee;color:#11683f;font-size:13px;font-weight:700}
 #speedResultTime{font:800 40px/1.1 ui-monospace,monospace}
 #speedResultMoves{font-size:14px;color:#39536e}
 #speedAgain{height:44px;padding:0 18px;border-radius:22px;font-size:15px;font-weight:700;margin-top:6px}
 .speed[data-phase="solving"] .speed-tools{display:none}
-.speed[data-phase="solving"] .speed-clock{right:14px}
-.speed[data-phase="done"] .speed-pad,.speed[data-phase="done"] .speed-clock,.speed[data-phase="done"] .speed-tools,.speed[data-phase="done"] .speed-hand{display:none}
+.speed[data-phase="done"] .speed-pad,.speed[data-phase="done"] .speed-tools,.speed[data-phase="done"] .speed-clock{display:none}
 .speed[data-phase="done"] .speed-records{display:flex}
 .speed[data-phase="done"] .speed-result{display:flex}
-.speed[data-phase="done"] #speedCube{top:0;height:100%;width:48%}
+.speed[data-phase="done"] #speedCube{width:50%}
 .speed-rotate{display:none;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;position:relative}
 .speed-rotate .speed-close{position:absolute;top:0;left:0}
 .speed-rotate b{font-size:20px}
