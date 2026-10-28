@@ -1,5 +1,5 @@
 /**
- * Speed mode (2×2 and 3×3): the phone held sideways, both hands on the screen. The left side only turns the view
+ * Speed mode: the phone held sideways, both hands on the screen. The left side only turns the view
  * (all the way round, no angle limits); the right side only turns layers, by dragging a sticker.
  * Scramble → 15 s to look → the clock starts on the first turn and stops when the cube is solved.
  */
@@ -11,7 +11,7 @@ import { scrambleTokens } from "./study.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const SIZES = [2, 3];
+const SIZES = [2, 3, 4, 5];
 const INSPECT_MS = 15000;
 const SIZE_KEY = "rcsolver.speedSize";
 const recordsKey = (n: number) => `rcsolver.speed.${n}`;
