@@ -206,6 +206,7 @@ export function openSpeed() {
     view.setFreeView(true);
     view.setTwisting(true);
     view.viewDrag = false;
+    view.centreSpin = true;
     view.showArrows = false;
     view.canTwist = () => {
       if (phase === "done") return false;
