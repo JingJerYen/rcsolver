@@ -16,6 +16,18 @@ function turnAbout(v: Vec, k: Vec, angle: number): Vec {
   return [0, 1, 2].map((i) => v[i]! * c + x[i]! * s + k[i]! * kv * (1 - c)) as Vec;
 }
 
+/** A camera squared up again, so rounding never skews it over many drags. */
+function squared(b: { right: Vec; up: Vec }): { right: Vec; up: Vec; view: Vec } {
+  const unit = (v: Vec): Vec => {
+    const l = Math.hypot(...v) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const r = unit(b.right);
+  const d = r[0] * b.up[0] + r[1] * b.up[1] + r[2] * b.up[2];
+  const u = unit([b.up[0] - r[0] * d, b.up[1] - r[1] * d, b.up[2] - r[2] * d]);
+  return { right: r, up: u, view: [r[1] * u[2] - r[2] * u[1], r[2] * u[0] - r[0] * u[2], r[0] * u[1] - r[1] * u[0]] };
+}
+
 export class CubeView {
   private ctx: CanvasRenderingContext2D;
   private size = 3;
@@ -65,12 +77,12 @@ export class CubeView {
   private yaw = DEFAULT_VIEW.yaw;
   private pitch = DEFAULT_VIEW.pitch;
   /**
-   * The speed mode's camera: yaw and pitch as usual but with no pitch limits, so it rolls over the
-   * top all the way round, plus a twist of the picture on the screen (radians, clockwise). Angles,
-   * not a running rotation, so a drag that comes back to where it started leaves the cube as it was.
+   * The speed mode's camera. Within one drag it is yaw and pitch as usual (no pitch limits), so a
+   * drag that comes back to where it started leaves the cube as it was; but yaw turns about whatever
+   * was the screen's up when the finger came down (`base`, the camera at yaw and pitch 0), so however
+   * the cube lies a drag across always turns it across. Null for the usual camera.
    */
-  private free = false;
-  private roll = 0;
+  private free: { right: Vec; up: Vec; view: Vec } | null = null;
   private drawQueued = 0;
   /** False: a drag that misses the stickers does nothing, instead of turning the view. */
   viewDrag = true;
@@ -437,14 +449,21 @@ export class CubeView {
   resetView(side: "right" | "left" = "right") {
     this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
     this.pitch = DEFAULT_VIEW.pitch;
-    this.roll = 0;
+    if (this.free) this.free = { right: [1, 0, 0], up: [0, 1, 0], view: [0, 0, 1] };
     if (!this.anim) this.draw();
   }
 
   /** The speed mode's camera with no angle limits (see `free`); off goes back to the usual one. */
   setFreeView(on: boolean) {
-    this.free = on;
+    this.free = on ? { right: [1, 0, 0], up: [0, 1, 0], view: [0, 0, 1] } : null;
     this.resetView();
+  }
+
+  /** A finger came down on the free camera's pad: drags now turn about the screen's axes as they are. */
+  beginViewDrag() {
+    if (!this.free) return;
+    this.free = squared(this.basis());
+    this.yaw = this.pitch = 0;
   }
 
   /**
@@ -461,18 +480,17 @@ export class CubeView {
       if (!this.anim) this.draw();
       return;
     }
-    // the drag as it would be on the picture before its twist
-    const c = Math.cos(this.roll), s = Math.sin(this.roll);
-    const [x, y] = [dx * c + dy * s, -dx * s + dy * c];
-    this.yaw -= x * k * (Math.cos(this.pitch) < 0 ? -1 : 1);
-    this.pitch += y * k;
+    this.yaw -= dx * k * (Math.cos(this.pitch) < 0 ? -1 : 1);
+    this.pitch += dy * k;
     this.queueDraw();
   }
 
   /** Twist the free camera's picture clockwise on the screen (radians), as two fingers do. */
   rollView(angle: number) {
     if (!this.free) return;
-    this.roll += angle;
+    const b = this.basis();
+    this.free = squared({ right: turnAbout(b.right, b.view, angle), up: turnAbout(b.up, b.view, angle), view: b.view });
+    this.yaw = this.pitch = 0;
     this.queueDraw();
   }
 
@@ -548,8 +566,11 @@ export class CubeView {
   private basis() {
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const right: Vec = [cy, 0, -sy], up: Vec = [-sy * sp, cp, -cy * sp], view: Vec = [sy * cp, sp, cy * cp];
-    if (!this.roll) return { right, up, view };
-    return { right: turnAbout(right, view, this.roll), up: turnAbout(up, view, this.roll), view };
+    const f = this.free;
+    if (!f) return { right, up, view };
+    // the same camera, taking the free camera's base as the axes
+    const at = (v: Vec): Vec => [0, 1, 2].map((i) => v[0] * f.right[i]! + v[1] * f.up[i]! + v[2] * f.view[i]!) as Vec;
+    return { right: at(right), up: at(up), view: at(view) };
   }
 
   draw(now = performance.now()) {

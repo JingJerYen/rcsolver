@@ -176,6 +176,7 @@ function bindPad(pad: HTMLElement) {
     if ((e.target as HTMLElement).closest("button") || fingers.size >= 2) return;
     pad.setPointerCapture(e.pointerId);
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    view!.beginViewDrag();
   });
   pad.addEventListener("pointermove", (e) => {
     const was = fingers.get(e.pointerId);
@@ -192,7 +193,10 @@ function bindPad(pad: HTMLElement) {
     if (d < -Math.PI) d += 2 * Math.PI;
     view!.rollView(d);
   });
-  const lift = (e: PointerEvent) => fingers.delete(e.pointerId);
+  const lift = (e: PointerEvent) => {
+    // a finger left of two: the one still down goes on from the cube as it now lies
+    if (fingers.delete(e.pointerId) && fingers.size === 1) view!.beginViewDrag();
+  };
   pad.addEventListener("pointerup", lift);
   pad.addEventListener("pointercancel", lift);
 }
