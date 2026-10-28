@@ -16,6 +16,7 @@ import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
 import { studyHint } from "./hint.js";
+import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 localizePage(document);
@@ -295,7 +296,10 @@ function showScreen(id: (typeof SCREENS)[number]) {
   $("homeIcon").classList.remove("hidden");
   $("homeX").classList.add("hidden");
   setHero(id === "setup" && loadSaves().length === 0);
-  if (id === "setup") renderLearnCard();
+  if (id === "setup") {
+    renderLearnCard();
+    renderSpeedCard();
+  }
 }
 
 /* ---------- capture flow ---------- */
@@ -1814,9 +1818,11 @@ if ("serviceWorker" in navigator) {
 
 /** Hooks for the end-to-end test: feed a recognised net without the camera. */
 initLearn(showScreen);
+initSpeed();
 
 (window as unknown as { rcsolverTest: unknown }).rcsolverTest = {
   learn: learnTest,
+  speed: speedTest,
   showNet(s: number, r: RecognizeResponse["recognition"]) {
     response = { ok: true, size: s, sizeMismatch: null, recognition: r, warnings: [], model: "test", mock: true, ms: 0, usage: null };
     showResult();
