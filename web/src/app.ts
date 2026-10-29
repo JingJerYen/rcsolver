@@ -1794,6 +1794,8 @@ $("previewHome").onclick = () => previewView.resetView();
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
 const importDialog = $<HTMLDialogElement>("importDialog");
 const importText = $<HTMLTextAreaElement>("importText");
+// an example of what to paste: a link to this site, as the share button makes them
+importText.placeholder = `${location.origin}${location.pathname}#z=…`;
 $("import").onclick = async () => {
   $("importError").classList.add("hidden");
   importText.value = "";
