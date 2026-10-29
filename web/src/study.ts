@@ -138,7 +138,7 @@ export function deltaTurn(before: string, after: string, size: number): { move: 
   return { move: studyMove(`${base}2`, size)!, dir: a.q > 0 ? -1 : 1 };
 }
 
-/** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then x y z and delete. A half turn is the same key twice. */
+/** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then x y z and x′ y′ z′ and delete. A half turn is the same key twice. */
 export function keypadHtml(size: number, depth: number, wide: boolean): string {
   const deepest = Math.floor(size / 2);
   const layers =
