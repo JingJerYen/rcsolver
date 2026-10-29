@@ -1364,78 +1364,67 @@ function studyTour() {
     {
       targets: [$("cube")],
       title: tr("3D 方塊", "The cube"),
-      body: tr("點任何一格會加上圓點，轉到哪都跟著，再點一次取消。", "Tap a sticker to put a dot on it that follows it wherever it goes; tap again to remove it."),
+      body: tr("點一格加圓點，再點一次取消。", "Tap a sticker to dot it; tap again to clear it."),
     },
     {
       targets: [$("studyFocusBtn")],
       title: tr("只看圓點", "Dots only"),
-      body: tr("只讓有圓點的塊保留顏色，其他變灰，方便看它們怎麼移動。", "Keeps only the dotted pieces in colour, so you can follow where they go."),
+      body: tr("只留有圓點的塊的顏色。", "Only the dotted pieces keep their colours."),
     },
     {
       targets: [$("twistBtn")],
       title: tr("手轉", "Turn by hand"),
-      body: tr("打開時用手指拖某一層就轉那一層；關掉時拖曳轉視角，並出現轉動鍵盤。", "On, drag a layer to turn it. Off, dragging turns the view and the move keys appear."),
+      body: tr("開：拖一層就轉那層。關：拖曳轉視角。", "On: drag a layer to turn it. Off: drag to turn the view."),
     },
     {
       targets: [$("viewHome")],
       title: tr("轉回正面", "Front view"),
-      body: tr(
-        "點一下把現在朝向你的那面當正面、轉回平常的角度，轉法最後會加上對應的 x y z；長按會隨機打亂方塊。",
-        "Tap to make the face turned towards you the front and go back to the usual angle; the matching x y z go on the end of the moves. Hold to scramble the cube.",
-      ),
+      body: tr("點：朝向你的面變正面。長按：打亂。", "Tap: the face towards you becomes the front. Hold: scramble."),
     },
     {
       targets: [$("instantBtn")],
       title: tr("無動畫", "No animation"),
-      body: tr("打開時按鍵、x y z 和自訂公式都立刻生效，不在方塊上轉；想看轉動就用播放。", "On, keys, x y z and your sequences take effect at once without turning on screen; use play to watch the turns."),
+      body: tr("開：按鍵立刻生效。", "On: keys take effect at once."),
     },
     {
       targets: [$("studyKeys")],
       title: tr("轉動鍵盤", "Move keys"),
-      body:
-        tr(
-          "點一下就轉一層；藍色是順時針，淺藍是逆時針。按住不放，方塊上會先標出要轉哪幾層。連按同一顆會自動合併：L L → L2，L L′ 會抵消。",
-          "Tap to turn a layer: dark blue clockwise, light blue anticlockwise. Hold a key to see which layers it turns first. Pressing the same key again merges: L L → L2, and L L′ cancel out.",
-        ) + (big ? tr("最上面一排先選第幾層，或「多層」一次轉好幾層。", " The top row picks the layer, or Wide to turn several at once.") : ""),
+      body: tr("深藍順時針，淺藍逆時針；按住先看會轉哪層。", "Dark blue clockwise, light blue anticlockwise; hold a key to see what it turns.") + (big ? tr("最上排選層。", " The top row picks the layer.") : ""),
     },
     {
-      targets: [$("studyMacros"), $("studyTurns")],
+      targets: [$("studyTurns")],
+      title: tr("整顆翻轉", "Whole cube"),
+      body: tr("x y z 翻轉整顆方塊。", "x y z turn the whole cube over."),
+    },
+    {
+      targets: [$("studyMacros")],
       title: tr("自訂公式", "Your own sequences"),
-      body: tr(
-        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改（也能用「問 AI」直接說想要什麼），最多 5 組，名字最多 2 個字。上面那排 x y z（和反方向的 x′ y′ z′）把整顆方塊翻個方向，不轉任何一層。",
-        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them (or use Ask AI to describe what you want): up to 5, names of up to 2 characters. Above them, x y z (and x′ y′ z′ the other way) turn the whole cube over without turning any layer.",
-      ),
+      body: tr("按一下加入整串；✎ 新增或修改。", "Tap to add the whole sequence; the pencil adds or edits."),
     },
     {
       targets: [$("studyTextRow")],
-      title: tr("轉法文字框", "The moves"),
-      body: tr(
-        "可以直接打字或貼上一串公式，看不懂的記號會跳過、框變紅。右邊 ⌫ 刪掉最後一步（長按全部刪除），再右邊複製整段轉法。",
-        "Type or paste a sequence here; anything that is not a move is skipped and the box turns red. On the right, delete the last move (hold to delete them all), then copy the whole sequence.",
-      ),
+      title: tr("轉法", "The moves"),
+      body: tr("可以直接打字。⌫ 刪一步，長按全刪；右邊複製。", "Type here. ⌫ deletes a move, hold to delete all; copy on the right."),
     },
     {
       targets: [$("sliderRow"), $("prev").parentElement!],
       title: tr("播放", "Playback"),
-      body: tr("上一步、下一步一次走一步，播放鍵自動播完；拉桿可以跳到任何一步，從那裡再輸入新動作，後面的步驟會被換掉。拉桿左邊調整每步停留的時間。", "Previous and next go one move at a time and play runs to the end. The slider jumps to any move; a new move from there replaces the ones after it. The button left of it sets how long each move stays during playback."),
+      body: tr("一步一步看或自動播；拉桿跳到任一步。", "Step through or play; the slider jumps to any move."),
     },
     {
       targets: [$("studyHint")],
       title: tr("提示", "Hint"),
-      body: tr(
-        "照入門解法說方塊現在做到哪一步，並在方塊上圈出還要處理的塊；2×2、3×3 還能直接跳到學習模式的那一關。",
-        "Says which step of the beginner's method the cube is at and rings the pieces still to do; on a 2×2 or 3×3 it can take you to that lesson.",
-      ),
+      body: tr("告訴你現在做到哪一步。", "Tells you which step you are at."),
     },
     {
       targets: [$("studyGo")],
       title: tr("求解", "Solve"),
-      body: tr("Go 會把畫面上的方塊交給求解器，接著照解法一步一步教你轉回去。", "Go hands the cube on screen to the solver and then walks you through solving it, move by move."),
+      body: tr("交給求解器，一步步教你解。", "Hands the cube to the solver, move by move."),
     },
     {
       targets: [$("save")],
       title: tr("存檔", "Save"),
-      body: tr("把這次的研究存在首頁，之後點回來繼續。", "Keeps this study on the home page so you can come back to it."),
+      body: tr("存到首頁，之後接著玩。", "Keeps it on the home page for later."),
     },
   ]);
 }
