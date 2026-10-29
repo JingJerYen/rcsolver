@@ -16,6 +16,53 @@ function turnAbout(v: Vec, k: Vec, angle: number): Vec {
   return [0, 1, 2].map((i) => v[i]! * c + x[i]! * s + k[i]! * kv * (1 - c)) as Vec;
 }
 
+type Quat = [number, number, number, number];
+
+/** A camera (its right, up and towards-you directions as the rows of a rotation) as a unit quaternion. */
+function quatOf(b: { right: Vec; up: Vec; view: Vec }): Quat {
+  const m = [b.right, b.up, b.view];
+  const t = m[0]![0] + m[1]![1] + m[2]![2];
+  let q: Quat;
+  if (t > 0) {
+    const s = Math.sqrt(t + 1) * 2;
+    q = [s / 4, (m[2]![1] - m[1]![2]) / s, (m[0]![2] - m[2]![0]) / s, (m[1]![0] - m[0]![1]) / s];
+  } else if (m[0]![0] > m[1]![1] && m[0]![0] > m[2]![2]) {
+    const s = Math.sqrt(1 + m[0]![0] - m[1]![1] - m[2]![2]) * 2;
+    q = [(m[2]![1] - m[1]![2]) / s, s / 4, (m[0]![1] + m[1]![0]) / s, (m[0]![2] + m[2]![0]) / s];
+  } else if (m[1]![1] > m[2]![2]) {
+    const s = Math.sqrt(1 + m[1]![1] - m[0]![0] - m[2]![2]) * 2;
+    q = [(m[0]![2] - m[2]![0]) / s, (m[0]![1] + m[1]![0]) / s, s / 4, (m[1]![2] + m[2]![1]) / s];
+  } else {
+    const s = Math.sqrt(1 + m[2]![2] - m[0]![0] - m[1]![1]) * 2;
+    q = [(m[1]![0] - m[0]![1]) / s, (m[0]![2] + m[2]![0]) / s, (m[1]![2] + m[2]![1]) / s, s / 4];
+  }
+  return q;
+}
+
+function basisOf([w, x, y, z]: Quat): { right: Vec; up: Vec; view: Vec } {
+  return {
+    right: [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+    up: [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+    view: [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+  };
+}
+
+/** The shorter way round from a to b, a fraction t of it. */
+function slerp(a: Quat, b: Quat, t: number): Quat {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  const c = d < 0 ? (b.map((v) => -v) as Quat) : b;
+  d = Math.abs(d);
+  if (d > 0.9995) {
+    const q = a.map((v, i) => v + (c[i]! - v) * t) as Quat;
+    const l = Math.hypot(...q);
+    return q.map((v) => v / l) as Quat;
+  }
+  const th = Math.acos(d);
+  const s = Math.sin(th);
+  const ka = Math.sin((1 - t) * th) / s, kb = Math.sin(t * th) / s;
+  return a.map((v, i) => v * ka + c[i]! * kb) as Quat;
+}
+
 /** A camera squared up again, so rounding never skews it over many drags. */
 function squared(b: { right: Vec; up: Vec }): { right: Vec; up: Vec; view: Vec } {
   const unit = (v: Vec): Vec => {
@@ -84,6 +131,9 @@ export class CubeView {
    */
   private free: { right: Vec; up: Vec; view: Vec } | null = null;
   private drawQueued = 0;
+  /** The camera while it glides back home (`homeFrom`), overriding yaw and pitch. */
+  private homing: { right: Vec; up: Vec; view: Vec } | null = null;
+  private homeRaf = 0;
   /** False: a drag that misses the stickers does nothing, instead of turning the view. */
   viewDrag = true;
   /** The one finger the canvas follows; others that land meanwhile are ignored. */
@@ -442,7 +492,51 @@ export class CubeView {
   }
 
   get animating() {
-    return this.anim !== null || this.twist !== null;
+    return this.anim !== null || this.twist !== null || this.homing !== null;
+  }
+
+  /** The face normals pointing most towards the viewer, and most up the screen of the four around it. */
+  facing(): { front: Vec; up: Vec } {
+    const b = this.basis();
+    const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+    const normals = FACE_ORDER.map((f) => FACE_AXES[f].n);
+    const front = normals.reduce((a, n) => (dot(n, b.view) > dot(a, b.view) ? n : a));
+    const up = normals.filter((n) => dot(n, front) === 0).reduce((a, n) => (dot(n, b.up) > dot(a, b.up) ? n : a));
+    return { front, up };
+  }
+
+  /**
+   * The cube was just turned whole by `turn` (x, y, z moves already in the stickers): start from
+   * the camera turned the same way, so the picture has not moved, and glide back to the usual angle.
+   */
+  homeFrom(turn: (v: Vec) => Vec, ms: number) {
+    cancelAnimationFrame(this.homeRaf);
+    const b = this.basis();
+    const from = { right: turn(b.right), up: turn(b.up), view: turn(b.view) };
+    this.yaw = DEFAULT_VIEW.yaw;
+    this.pitch = DEFAULT_VIEW.pitch;
+    const to = this.basis();
+    if (ms <= 0) {
+      this.homing = null;
+      this.draw();
+      return;
+    }
+    const q0 = quatOf(from), q1 = quatOf(to);
+    const start = performance.now();
+    const tick = (now: number) => {
+      const f = Math.min(1, (now - start) / ms);
+      if (f >= 1) {
+        this.homing = null;
+        this.draw(now);
+        return;
+      }
+      this.homing = basisOf(slerp(q0, q1, f * f * (3 - 2 * f)));
+      this.draw(now);
+      this.homeRaf = requestAnimationFrame(tick);
+    };
+    this.homing = from;
+    this.draw();
+    this.homeRaf = requestAnimationFrame(tick);
   }
 
   /** The usual camera: from the front right, or from the front left to see the left face. */
@@ -564,6 +658,7 @@ export class CubeView {
   }
 
   private basis() {
+    if (this.homing) return this.homing;
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const right: Vec = [cy, 0, -sy], up: Vec = [-sy * sp, cp, -cy * sp], view: Vec = [sy * cp, sp, cy * cp];
     const f = this.free;

@@ -11,7 +11,7 @@ import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, toNet, type Move, type Sticker } from "./cubeState.js";
+import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, rotateVec, toNet, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
@@ -670,6 +670,7 @@ function renderSolve() {
   $("pauseIcon").classList.toggle("hidden", !playing);
   // a study sequence may end anywhere; only a solution that does not solve is a "?"
   if (done && !studying && !isSolved(cubeView.getState())) $("move").textContent = "?";
+  renderDelTag();
 }
 
 const CHIP_ICONS: Record<Segment["kind"], string> = {
@@ -758,6 +759,31 @@ let studyDepth = 1;
 let studyWide = false;
 /** An edit arrived while a turn was animating: jump to the new end once it finishes. */
 let studyDirty = false;
+/**
+ * Custom sequences added at the end, newest last. One counts only while its tokens are still where
+ * they were put; the one that ends the moves is what ⌫ deletes whole, and a key after it does not
+ * merge into its last move.
+ */
+let macroRuns: { name: string; start: number; tokens: string[] }[] = [];
+
+/** The custom sequence that ends the moves, if any (dropping any no longer intact). */
+function lastRun() {
+  macroRuns = macroRuns.filter((r) => r.tokens.every((t, i) => studyTokens[r.start + i] === t));
+  const r = macroRuns[macroRuns.length - 1];
+  return r && r.start + r.tokens.length === studyTokens.length ? r : null;
+}
+
+/** A key or hand turn added at the end: merged into the last move, unless that ends a custom sequence. */
+function addToken(token: string): string[] {
+  return lastRun() ? [...studyTokens, token] : pushMove(studyTokens, token);
+}
+
+/** ⌫'s tag: the custom sequence it would delete whole. */
+function renderDelTag() {
+  const run = studying ? lastRun() : null;
+  $("studyDelTag").textContent = run?.name ?? "";
+  $("studyDelTag").classList.toggle("hidden", !run);
+}
 /** Study mode's eye: only the pieces carrying a mark in colour. Separate from guide mode's switch. */
 let markedOnly = false;
 function setMarkedOnly(on: boolean) {
@@ -811,6 +837,7 @@ function startStudy(n: number, start: Sticker[]) {
   shownIndex = 0;
   segments = null;
   studyTokens = [];
+  macroRuns = [];
   studyDepth = 1;
   studyWide = false;
   studyFrom = null;
@@ -873,6 +900,10 @@ function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
     studyDirty = true;
     return;
   }
+  if (studyInstant) {
+    jumpTo(moves.length, Math.max(0, moves.length - 1));
+    return;
+  }
   if (pressed && moves.length === before + 1) {
     jumpTo(before, before);
     void step(1);
@@ -908,6 +939,7 @@ function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
 function openStudy(sv: Save) {
   startStudy(sv.size, fromNet(sv.size, sv.faces));
   studyTokens = sv.moves;
+  macroRuns = [];
   $<HTMLInputElement>("studyText").value = sv.moves.join(" ");
   const read = readMoves(sv.moves, sv.size);
   $("studyText").classList.toggle("bad", read.bad);
@@ -965,7 +997,7 @@ function keyTap(e: MouseEvent) {
     return;
   }
   if (!k.dataset.tok || !cutAtCursor()) return;
-  const next = pushMove(studyTokens, k.dataset.tok);
+  const next = addToken(k.dataset.tok);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, k.dataset.tok);
 }
@@ -982,7 +1014,10 @@ $("studyDel").onclick = () => {
   // the click that ends a long press is not a tap
   if (delHeld) return void (delHeld = false);
   if (!net || !cutAtCursor() || !studyTokens.length) return;
-  const next = studyTokens.slice(0, -1);
+  // a custom sequence at the end goes whole
+  const run = lastRun();
+  if (run) macroRuns.pop();
+  const next = studyTokens.slice(0, run ? run.start : -1);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next);
 };
@@ -994,6 +1029,7 @@ function deleteAllMoves() {
   if (!net || !studying || cubeView.animating || !studyTokens.length) return;
   stopPlaying();
   studyTokens = [];
+  macroRuns = [];
   $<HTMLInputElement>("studyText").value = "";
   $("studyText").classList.remove("bad");
   moves = [];
@@ -1115,11 +1151,17 @@ async function runMacro(i: number) {
   const add = readMoves(tokenize(m.seq), net.size);
   if (add.bad || !add.moves.length) return;
   if (!cutAtCursor()) return;
-  studyTokens = [...studyTokens, ...add.moves.map((mv) => mv.token)];
+  const tokens = add.moves.map((mv) => mv.token);
+  macroRuns.push({ name: m.name, start: studyTokens.length, tokens });
+  studyTokens = [...studyTokens, ...tokens];
   $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
   const read = readMoves(studyTokens, net.size);
   $("studyText").classList.toggle("bad", read.bad);
   moves = read.moves;
+  if (studyInstant) {
+    jumpTo(moves.length, Math.max(0, moves.length - 1));
+    return;
+  }
   while (moveIndex < moves.length) {
     const at = moveIndex;
     await step(1, true);
@@ -1299,7 +1341,7 @@ cubeView.onTwist = (axis, layer, quarters) => {
   if (!net) return;
   const token = twistToken(net.size, axis, layer, quarters);
   if (!token) return;
-  const next = pushMove(studyTokens, token);
+  const next = addToken(token);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, undefined, true);
 };
@@ -1337,7 +1379,15 @@ function studyTour() {
     {
       targets: [$("viewHome")],
       title: tr("轉回正面", "Front view"),
-      body: tr("點一下轉回正面；長按會隨機打亂方塊。", "Tap to turn the view back to the front; hold to scramble the cube."),
+      body: tr(
+        "點一下把現在朝向你的那面當正面、轉回平常的角度，轉法最後會加上對應的 x y z；長按會隨機打亂方塊。",
+        "Tap to make the face turned towards you the front and go back to the usual angle; the matching x y z go on the end of the moves. Hold to scramble the cube.",
+      ),
+    },
+    {
+      targets: [$("instantBtn")],
+      title: tr("無動畫", "No animation"),
+      body: tr("打開時按鍵、x y z 和自訂公式都立刻生效，不在方塊上轉；想看轉動就用播放。", "On, keys, x y z and your sequences take effect at once without turning on screen; use play to watch the turns."),
     },
     {
       targets: [$("studyKeys")],
@@ -1651,7 +1701,69 @@ $("viewHome").addEventListener("contextmenu", (e) => e.preventDefault());
 $("viewHome").onclick = () => {
   // the click that ends a long press is not a tap
   if (scrambledByHold) scrambledByHold = false;
+  else if (studying) smartHome();
   else cubeView.resetView();
+};
+
+const WHOLE_TURNS = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
+/**
+ * Study mode's front view: the face turned most towards you becomes the front, the one most up the
+ * screen the top. The whole-cube turns that make it so (one or two of x y z) go on the end of the
+ * moves, and the view glides back to the usual angle with the picture never jumping.
+ */
+function smartHome() {
+  if (!net || cubeView.animating) return;
+  const n = net.size;
+  const { front, up } = cubeView.facing();
+  const turnBy = (v: Vec, toks: string[]) => toks.reduce((p, t) => { const m = parseMove(t, n); return rotateVec(p, m.axis, m.angle); }, v);
+  const near = (v: Vec, w: Vec) => v.every((c, i) => Math.abs(c - w[i]!) < 1e-6);
+  const options = [[], ...WHOLE_TURNS.map((t) => [t]), ...WHOLE_TURNS.flatMap((a) => WHOLE_TURNS.map((b) => [a, b]))];
+  const turns = options.find((toks) => near(turnBy(front, toks), [0, 0, 1]) && near(turnBy(up, toks), [0, 1, 0]))!;
+  const ms = studyInstant ? 0 : 450;
+  if (turns.length) {
+    if (!cutAtCursor()) return;
+    let next = studyTokens;
+    for (const t of turns) {
+      studyTokens = next;
+      next = addToken(t);
+    }
+    $<HTMLInputElement>("studyText").value = next.join(" ");
+    setStudyTokens(next, undefined, true);
+  }
+  cubeView.homeFrom((v) => turnBy(v, turns), ms);
+}
+
+/* Study mode's ⚡: keys, x y z and custom sequences take effect at once, without turning on screen. */
+const INSTANT_KEY = "rcsolver.instant";
+let studyInstant = false;
+try {
+  studyInstant = localStorage.getItem(INSTANT_KEY) === "1";
+} catch {
+  /* storage unavailable: animated */
+}
+let noteTimer = 0;
+/** A word over the move for a second (the ⚡ switch saying what it now does). */
+function noteMove(text: string) {
+  $("moveNote").textContent = text;
+  $("moveNote").parentElement!.classList.add("noting");
+  clearTimeout(noteTimer);
+  noteTimer = window.setTimeout(() => $("moveNote").parentElement!.classList.remove("noting"), 1000);
+}
+function setInstant(on: boolean) {
+  studyInstant = on;
+  const btn = $("instantBtn");
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", String(on));
+}
+setInstant(studyInstant);
+$("instantBtn").onclick = () => {
+  setInstant(!studyInstant);
+  noteMove(studyInstant ? tr("無動畫", "No animation") : tr("有動畫", "Animated"));
+  try {
+    localStorage.setItem(INSTANT_KEY, studyInstant ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
 };
 $("previewHome").onclick = () => previewView.resetView();
 /** The import dialog takes a facelet string or a shared link; the clipboard is offered as a starting point. */
