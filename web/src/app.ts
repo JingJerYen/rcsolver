@@ -11,7 +11,7 @@ import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
-import { applyAlgorithm, fromNet, isSolved, parseAlgorithm, parseMove, rotateVec, toNet, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateVec, toNet, withCentreTurns, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
@@ -45,6 +45,8 @@ interface Save {
   teach?: boolean;
   /** Name the user gave it; without one the card shows when it was saved. */
   title?: string;
+  /** A study of the 3×3 whose centres have arrows: where each centre's arrow pointed at the start (centreTurns). */
+  centres?: number[];
   /** A study: `faces` is where it started, `moves` everything typed (kept as typed), `index` the step shown. */
   study?: boolean;
 }
@@ -179,7 +181,8 @@ function renderSaves() {
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
     miniViews.push(view);
-    const start = fromNet(sv.size, sv.faces);
+    const plain = fromNet(sv.size, sv.faces);
+    const start = sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain;
     view.setState(sv.size, applyAlgorithm(start, done.slice(0, sv.index)));
     view.resetView();
     el.onclick = (e) => {
@@ -229,7 +232,7 @@ $("titleCancel").onclick = () => titleDialog.close();
 function saveCurrent() {
   if (!net) return;
   const entry: Save = studying
-    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true }
+    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}) }
     : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
@@ -248,7 +251,7 @@ function openSave(i: number) {
 let savedKey = "";
 function progressKey(): string {
   if (!net) return "";
-  return JSON.stringify([studying, net.size, toNet(net.size, startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
+  return JSON.stringify([studying, net.size, toNet(net.size, startState), studyArrows && centreTurns(net.size, startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
 }
 /** The same for the result screen: a saved cube opened before it was solved, as long as it is unchanged. */
 function resultKey(): string {
@@ -828,8 +831,17 @@ function renderKeys() {
 }
 
 /** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
-function startStudy(n: number, start: Sticker[]) {
+/** The study is of the 3×3 whose centres have arrows: no hint, solver or share, and solved means the arrows too. */
+let studyArrows = false;
+/** A solved cube for the study kind now open: arrows on its centres when the study has them. */
+function studySolved(n: number): Sticker[] {
+  return studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
+}
+
+function startStudy(n: number, start: Sticker[], arrows = false) {
   stopPlaying();
+  studyArrows = arrows;
+  $("solveView").classList.toggle("arrows", arrows);
   net = netFor(n, start);
   startState = start;
   moves = [];
@@ -852,7 +864,8 @@ function startStudy(n: number, start: Sticker[]) {
   cubeView.resetView();
   // a dot on the front face's centre to start with, so it is easy to see where the front went;
   // an even cube has no single centre, so the top-left of the middle four
-  cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
+  // (the arrow on a 3×3 with arrows already shows it, and a dot would hide it)
+  if (!arrows) cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
   showScreen("solveView");
   renderSolve();
   firstStudyTour();
@@ -937,7 +950,8 @@ function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
 
 /** Open a saved study as it was left: same start, same text, same step. */
 function openStudy(sv: Save) {
-  startStudy(sv.size, fromNet(sv.size, sv.faces));
+  const plain = fromNet(sv.size, sv.faces);
+  startStudy(sv.size, sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain, !!sv.centres);
   studyTokens = sv.moves;
   macroRuns = [];
   $<HTMLInputElement>("studyText").value = sv.moves.join(" ");
@@ -1537,13 +1551,17 @@ function openSizePicker(purpose: "study" | "manual") {
   sizePurpose = purpose;
   $("aiFailHead").classList.toggle("hidden", purpose !== "manual");
   $("aiRetry").classList.toggle("hidden", purpose !== "manual");
+  $("sizeGrid").classList.toggle("manual", purpose === "manual");
   sizeDialog.showModal();
   if (sizeViews.length) return;
-  $("sizeGrid").innerHTML = SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("");
+  // the sizes, then the 3×3 whose centres have arrows (study only)
+  $("sizeGrid").innerHTML =
+    SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("") +
+    `<button type="button" data-n="3" data-arrows class="size-arrows"><canvas></canvas>${tr("3×3 ▲ 中心", "3×3 ▲ centres")}</button>`;
   sizeViews = Array.from($("sizeGrid").querySelectorAll("canvas"), (c, i) => {
-    const n = SOLVABLE[i]!;
+    const n = SOLVABLE[i] ?? 3;
     const v = new CubeView(c);
-    v.setState(n, solvedState(n));
+    v.setState(n, i < SOLVABLE.length ? solvedState(n) : pointCentres(3, solvedState(3)));
     v.resetView();
     return v;
   });
@@ -1555,6 +1573,7 @@ $("sizeGrid").onclick = (e) => {
   sizeDialog.close();
   const n = Number(b.dataset.n);
   if (sizePurpose === "manual") startManual(n);
+  else if (b.dataset.arrows !== undefined) startStudy(3, pointCentres(3, solvedState(3)), true);
   else startStudy(n, solvedState(n));
 };
 $("aiRetry").onclick = () => {
@@ -1668,7 +1687,7 @@ let scrambledByHold = false;
 function scrambleStudy() {
   if (!net || !studying || cubeView.animating) return;
   const n = net.size;
-  startStudy(n, applyAlgorithm(solvedState(n), parseAlgorithm(scrambleTokens(n).join(" "), n)));
+  startStudy(n, applyAlgorithm(studySolved(n), parseAlgorithm(scrambleTokens(n).join(" "), n)), studyArrows);
   navigator.vibrate?.(30);
 }
 function endScrambleHold() {

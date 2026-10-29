@@ -10,6 +10,8 @@ export interface Sticker {
   p: Vec; // cubie position
   n: Vec; // outward normal of this sticker
   c: Color;
+  /** The way its picture points, on a cube whose centres have a direction; turns with the sticker. */
+  d?: Vec;
 }
 
 /** Face geometry: outward normal, image-right and image-down directions (same convention as the net). */
@@ -176,7 +178,12 @@ export function rotateVec(v: Vec, axis: 0 | 1 | 2, angle: number): Vec {
 export function applyMove(stickers: Sticker[], mv: Move): Sticker[] {
   return stickers.map((s) =>
     mv.layers.includes(s.p[mv.axis])
-      ? { p: rotateVec(s.p, mv.axis, mv.angle).map(Math.round) as Vec, n: rotateVec(s.n, mv.axis, mv.angle).map(Math.round) as Vec, c: s.c }
+      ? {
+          p: rotateVec(s.p, mv.axis, mv.angle).map(Math.round) as Vec,
+          n: rotateVec(s.n, mv.axis, mv.angle).map(Math.round) as Vec,
+          c: s.c,
+          ...(s.d ? { d: rotateVec(s.d, mv.axis, mv.angle).map(Math.round) as Vec } : {}),
+        }
       : s,
   );
 }
@@ -195,4 +202,50 @@ export function isSolved(stickers: Sticker[]): boolean {
     else if (c !== s.c) return false;
   }
   return true;
+}
+
+/*
+ * Centres with a direction (study mode's "3×3 with arrows"): each odd cube's centre sticker carries a
+ * triangle, pointing up the face as the net reads it when solved; the puzzle is solved only when the
+ * faces are one colour and every triangle points the way it did. The turns carry the arrows along.
+ */
+
+/** The face whose outward normal is `n`. */
+function faceAt(n: Vec): Face {
+  return FACE_ORDER.find((f) => FACE_AXES[f].n.every((v, i) => v === n[i]))!;
+}
+
+/** Up the face as the net reads it: away from its image-down direction. */
+function upOf(f: Face): Vec {
+  return FACE_AXES[f].down.map((v) => -v) as Vec;
+}
+
+const isCentre = (size: number, s: Sticker) => size % 2 === 1 && s.p.every((v, i) => (s.n[i] ? true : v === 0));
+
+/** The centres pointing up their faces (a solved cube's arrows). */
+export function pointCentres(size: number, stickers: Sticker[]): Sticker[] {
+  return stickers.map((s) => (isCentre(size, s) ? { ...s, d: upOf(faceAt(s.n)) } : s));
+}
+
+/** Each face's centre arrow (net order) as quarter turns from pointing up that face, for saving. */
+export function centreTurns(size: number, stickers: Sticker[]): number[] {
+  return FACE_ORDER.map((f) => {
+    const s = stickers.find((t) => isCentre(size, t) && faceAt(t.n) === f);
+    const ax = FACE_AXES[f].n.findIndex((v) => v !== 0) as 0 | 1 | 2;
+    let v = upOf(f);
+    for (let k = 0; k < 4; k++, v = rotateVec(v, ax, Math.PI / 2).map(Math.round) as Vec) if (s?.d && v.every((c, i) => c === s.d![i])) return k;
+    return 0;
+  });
+}
+
+/** The arrows put back from `centreTurns`. */
+export function withCentreTurns(size: number, stickers: Sticker[], turns: number[]): Sticker[] {
+  return stickers.map((s) => {
+    if (!isCentre(size, s)) return s;
+    const f = faceAt(s.n);
+    const ax = s.n.findIndex((v) => v !== 0) as 0 | 1 | 2;
+    let d = upOf(f);
+    for (let k = 0; k < (turns[FACE_ORDER.indexOf(f)] ?? 0); k++) d = rotateVec(d, ax, Math.PI / 2).map(Math.round) as Vec;
+    return { ...s, d };
+  });
 }

@@ -471,3 +471,6 @@ html.speed-open,html.speed-open body{overflow:hidden}
 .move-row.noting .move-note{display:block}
 .study-del{position:relative}
 .del-tag{position:absolute;right:-6px;top:-6px;padding:1px 6px;border-radius:9px;background:#fff7df;border:1px solid #e0a21c;color:#6b4b00;font-size:12px;font-weight:800;line-height:16px;pointer-events:none}
+/* the 3×3 with arrows on its centres: a study only, without hint, solver or share */
+.size-grid.manual .size-arrows{display:none}
+#solveView.arrows #studyHint,#solveView.arrows #studyGo,#solveView.arrows #shareSolve{display:none}
