@@ -53,6 +53,7 @@ const LABELS_EN: Record<string, string> = {
   自訂公式: "Your own sequences",
   設定自訂公式: "Edit your own sequences",
   刪除這一組: "Delete this one",
+  "無動畫：按鍵立刻生效": "No animation: keys take effect at once",
   離開速轉模式: "Leave speed mode",
   速轉用的方塊: "The cube; drag a sticker to turn its layer",
   換方塊大小: "Change the cube size",
