@@ -956,7 +956,7 @@ function openStudy(sv: Save) {
 const HOLD_MS = 350;
 let holdTimer = 0;
 let held = false;
-// the move keys and the x y z row below the yellow keys behave alike
+// the move keys and the x y z row above the yellow keys behave alike
 const keyPads = [$("studyKeys"), $("studyTurns")];
 function endHold() {
   clearTimeout(holdTimer);
@@ -1402,8 +1402,8 @@ function studyTour() {
       targets: [$("studyMacros"), $("studyTurns")],
       title: tr("自訂公式", "Your own sequences"),
       body: tr(
-        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改（也能用「問 AI」直接說想要什麼），最多 5 組，名字最多 2 個字。下面的 x y z（和反方向的 x′ y′ z′）把整顆方塊翻個方向，不轉任何一層。",
-        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them (or use Ask AI to describe what you want): up to 5, names of up to 2 characters. Below them, x y z (and x′ y′ z′ the other way) turn the whole cube over without turning any layer.",
+        "黃色鍵是自己存的公式，按一下就把整串轉法加進去並快速轉完；✎ 可以新增或修改（也能用「問 AI」直接說想要什麼），最多 5 組，名字最多 2 個字。上面那排 x y z（和反方向的 x′ y′ z′）把整顆方塊翻個方向，不轉任何一層。",
+        "The yellow keys are sequences you saved: a tap adds the whole sequence and turns through it quickly. The pencil adds or edits them (or use Ask AI to describe what you want): up to 5, names of up to 2 characters. Above them, x y z (and x′ y′ z′ the other way) turn the whole cube over without turning any layer.",
       ),
     },
     {
