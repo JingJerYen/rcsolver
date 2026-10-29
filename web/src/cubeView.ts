@@ -207,6 +207,13 @@ export class CubeView {
       this.pointer = e.pointerId;
       this.press = { x: e.clientX, y: e.clientY, moved: false };
       canvas.setPointerCapture(e.pointerId);
+      // on a computer the right button always turns the view, wherever it starts
+      if (e.pointerType === "mouse" && e.button === 2) {
+        this.press = null;
+        this.beginViewDrag();
+        this.drag = { x: e.clientX, y: e.clientY };
+        return;
+      }
       const r = canvas.getBoundingClientRect();
       if (this.twisting) this.settling?.();
       const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
@@ -252,6 +259,8 @@ export class CubeView {
       const r = canvas.getBoundingClientRect();
       this.toggleMarkAt(e.clientX - r.left, e.clientY - r.top);
     });
+    // the right button turns the view, so it opens no menu
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("pointercancel", (e) => {
       if (e.pointerId !== this.pointer) return;
       up();
