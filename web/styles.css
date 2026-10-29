@@ -1,7 +1,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:#eff3f8;color:#192a40;font-family:system-ui,"Noto Sans TC",sans-serif;-webkit-text-size-adjust:100%}
 main{max-width:720px;margin:auto;padding:14px 12px 40px}
-main:has(#setup:not(.hidden)),main:has(#review:not(.hidden)){padding-bottom:140px}
+main:has(#setup:not(.hidden)),main:has(#review:not(.hidden)){padding-bottom:166px}
 h1{font-size:22px;margin:0 0 4px}
 h2{font-size:17px;margin:0 0 8px}
 p{line-height:1.6;margin:6px 0}
@@ -122,12 +122,14 @@ th{color:#607189;font-weight:600}
 .token.next{background:#195ed6;color:#fff;outline:2px solid #a2c2ff}
 .small-btn{width:44px;height:44px;flex:none}
 .icon-btn.ok{background:#e3f4e9;color:#197948;border-color:#2d7251}
-.saves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:4px}
-.save{position:relative;min-width:0;background:#f4f7fb;border:1px solid #dde5ef;border-radius:12px;padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.saves{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+/* each save a full-width row: the cube, its name and step, then delete */
+.save{position:relative;min-width:0;background:#fff;border:1px solid #dde5ef;border-radius:16px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:12px}
 .save:active{transform:scale(.97)}
-.save .mini{width:100%;aspect-ratio:1/1;display:block;touch-action:auto;pointer-events:none}
+.save .mini{flex:none;width:64px;height:64px;display:block;touch-action:auto;pointer-events:none}
+.save-text{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .save .badge{font-size:12px;padding:3px 8px}
-.save .del{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;padding:0;font-size:12px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}
+.save .del{flex:none;width:36px;height:36px;border-radius:50%;padding:0;font-size:14px;line-height:1;background:#fff;color:#607189;border:1px solid #cdd7e5}
 .progress-badge{font-size:22px;padding:8px 16px}
 /* the pace button sits with the slider: both belong to playback, and fold away with it */
 .slider-row{display:flex;align-items:center;gap:10px;margin:0 0 6px}
@@ -142,8 +144,11 @@ th{color:#607189;font-weight:600}
 .bottom-bar button{pointer-events:auto}
 .shutter-main{width:96px;height:96px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(25,94,214,.35)}
 .shutter-main:active{transform:scale(.95)}
-.hero{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 340px);gap:6px}
+.hero{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 380px);gap:6px}
 .hero-cube{width:min(78vw,340px);aspect-ratio:1/1;display:block;pointer-events:none}
+/* the turning cube opens study mode: tap it or the hint under it */
+.hero{cursor:pointer}
+.hero-hint{display:inline-flex;align-items:center;gap:6px;margin-top:4px;padding:6px 14px;border-radius:16px;border:0;background:#e3ecfb;color:#195ed6;font-size:14px;font-weight:700}
 .tagline{font-size:26px;font-weight:700;color:#39536e;letter-spacing:.3px;margin:0}
 .thumb.bad{border-color:#e03131;animation:badpulse 1s ease-in-out infinite}
 .thumb.bad::after{content:"⚠";position:absolute;right:3px;bottom:1px;font-size:14px;color:#fff;text-shadow:0 1px 2px #000}
@@ -200,17 +205,21 @@ th{color:#607189;font-weight:600}
 .fill-count{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-size:14px;color:#475a72}
 .fill-count b{color:#192a40}
 .fill-count.filled,.fill-count.filled b{color:#1f7a52}
-.save .save-title{width:100%;min-width:0;padding:2px 4px;border:none;border-radius:6px;background:none;font-size:13px;font-weight:700;color:#233b55;display:flex;align-items:center;justify-content:center;gap:3px}
+.save .save-title{max-width:100%;min-width:0;padding:2px 0;border:none;border-radius:6px;background:none;font-size:15px;font-weight:700;color:#233b55;display:flex;align-items:center;justify-content:flex-start;gap:4px}
 .save .save-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .save .save-title::after{content:"✎";flex:none;font-size:11px;color:#8a97a8}
 .title-input{font:inherit;font-size:17px;border:1px solid #cdd7e5;border-radius:10px;padding:12px;width:100%}
 .title-input:focus{outline:2px solid #a2c2ff;border-color:#195ed6}
 .nowrap{white-space:nowrap}
 /* paste on the left, study on the right, the camera button stays in the middle */
-.bottom-bar .side-btn{position:absolute;top:32px;width:60px;height:60px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#195ed6;border:2px solid #195ed6;box-shadow:0 4px 12px rgba(25,94,214,.2)}
+/* each key with its name under it, the names on one line */
+.bb-item{display:flex;flex-direction:column;align-items:center;gap:6px}
+.bb-left,.bb-right{position:absolute;top:32px;gap:24px}
+.bb-left{right:calc(50% + 66px)}
+.bb-right{left:calc(50% + 66px)}
+.bb-label{font-size:13px;font-weight:700;color:#39536e;white-space:nowrap;line-height:16px}
+.bottom-bar .side-btn{width:60px;height:60px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#195ed6;border:2px solid #195ed6;box-shadow:0 4px 12px rgba(25,94,214,.2)}
 .bottom-bar .side-btn:active{transform:scale(.95)}
-.bottom-bar .import-btn{right:calc(50% + 66px)}
-.bottom-bar .study-btn{left:calc(50% + 66px)}
 .size-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .size-grid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:14px;background:#f4f7fb;border-color:#dde5ef;font-weight:700;color:#233b55}
 .size-grid canvas{width:72px;height:72px;pointer-events:none}
@@ -234,7 +243,7 @@ th{color:#607189;font-weight:600}
 .k.ccw{background:#e3ecfb;color:#195ed6;border-color:#9dbcf0;font-size:17px}
 .krow.three{grid-template-columns:repeat(3,1fr)}
 .back-solve{color:#195ed6;border-color:#195ed6;background:#e9f0ff}
-.save .save-kind{position:absolute;left:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center}
+.save .save-kind{position:absolute;left:6px;top:6px;width:24px;height:24px;border-radius:50%;background:#195ed6;color:#fff;display:flex;align-items:center;justify-content:center}
 .k.small{height:36px;font:600 14px system-ui,"Noto Sans TC",sans-serif}
 .k.on{background:#e9f0ff;border-color:#195ed6;color:#195ed6}
 .study-del{color:#c92a2a;transition:transform .6s ease,background-color .6s ease}

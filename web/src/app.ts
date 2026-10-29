@@ -178,7 +178,7 @@ function renderSaves() {
     el.className = "save";
     const done = readMoves(sv.moves, sv.size).moves;
     // sharing happens inside a save, so the card only opens, renames and deletes
-    el.innerHTML = `<canvas class="mini"></canvas><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${done.length}</span><button class="del" aria-label="刪除">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 3h6M10 3v6l-5.5 9.2A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.8L14 9V3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
+    el.innerHTML = `<canvas class="mini"></canvas><div class="save-text"><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${done.length}</span></div><button class="del" aria-label="${tr("刪除", "Delete")}">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 6l7 3.8v7.6L12 21l-7-3.6V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M5 9.8l7 3.7 7-3.7M12 13.5V21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
     el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
@@ -1569,6 +1569,12 @@ function openSizePicker(purpose: "study" | "manual") {
   });
 }
 $("study").onclick = () => openSizePicker("study");
+// the turning cube on an empty home page opens the same picker
+$("hero").onclick = () => openSizePicker("study");
+$("importLabel").textContent = tr("貼上", "Paste");
+$("startLabel").textContent = tr("拍照解", "Photo solve");
+$("studyLabel").textContent = tr("自己轉", "Free turn");
+$("heroPlayText").textContent = tr("點方塊，自己轉轉看", "Tap the cube to turn it yourself");
 $("sizeGrid").onclick = (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>("[data-n]");
   if (!b) return;

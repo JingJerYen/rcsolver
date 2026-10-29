@@ -36,6 +36,8 @@ const LABELS_EN: Record<string, string> = {
   下一步: "Next move",
   上一步: "Previous move",
   研究模式: "Study mode",
+  自己轉: "Free turn",
+  自己轉這顆: "Turn this cube yourself",
   求解: "Solve",
   轉法: "Moves",
   選方塊大小: "Choose a cube size",
