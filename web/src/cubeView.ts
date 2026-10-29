@@ -86,6 +86,8 @@ export class CubeView {
   private size = 3;
   private stickers: Sticker[] = [];
   private lookup = new Map<string, string>();
+  /** Sticker key → the way its arrow points, for the centres that have one. */
+  private dirAt = new Map<string, Vec>();
   /** Sticker position key → index in `stickers`; the index is the sticker itself, since turns keep the order. */
   private indexAt = new Map<string, number>();
   /**
@@ -264,6 +266,7 @@ export class CubeView {
     this.size = size;
     this.stickers = stickers;
     this.lookup = new Map(stickers.map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s.c]));
+    this.dirAt = new Map(stickers.filter((s) => s.d).map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s.d!]));
     this.indexAt = new Map(stickers.map((s, i) => [`${s.p.join(",")}|${s.n.join(",")}`, i]));
     this.draw();
   }
@@ -695,7 +698,18 @@ export class CubeView {
 
     // the pieces (by where they are now) that carry a mark, for the marked-only view
     const litPieces = this.markedOnly ? new Set([...this.marks].map((i) => this.stickers[i]!.p.join(","))) : null;
-    type FaceDraw = { poly: [number, number][]; st: [number, number][]; col: string | undefined; active: boolean; depth: number; light: number; key: string; marked: boolean };
+    type FaceDraw = {
+      poly: [number, number][];
+      st: [number, number][];
+      /** A centre with a direction: its arrow, in its colour on a dark sticker. */
+      arrow: [number, number][] | null;
+      col: string | undefined;
+      active: boolean;
+      depth: number;
+      light: number;
+      key: string;
+      marked: boolean;
+    };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
     for (const x of vals) for (const y of vals) for (const z of vals) {
@@ -733,12 +747,23 @@ export class CubeView {
           });
         const key = `${c.join(",")}|${n.join(",")}`;
         const raw = this.lookup.get(key);
+        const dir = this.dirAt.get(key);
+        // the arrow: a triangle on the face, its tip the way the centre points
+        const side: Vec | null = dir ? [n[1] * dir[2] - n[2] * dir[1], n[2] * dir[0] - n[0] * dir[2], n[0] * dir[1] - n[1] * dir[0]] : null;
+        const arrow =
+          dir && side
+            ? ([[0.62, 0], [-0.48, 0.6], [-0.48, -0.6]] as const).map(([along, across]) => {
+                const p: Vec = [0, 1, 2].map((i) => c[i]! + n[i]! * 0.975 + dir[i]! * along + side[i]! * across) as Vec;
+                return project(rot(p, active));
+              })
+            : null;
         const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted));
         const centre: Vec = [...c] as Vec;
         centre[ax] += sign;
         faces.push({
           poly: polygon(0.975),
           st: polygon(0.8),
+          arrow,
           col: raw ? (muted ? GREY : hexOf(raw)) : undefined,
           active,
           key,
@@ -760,13 +785,21 @@ export class CubeView {
       ctx.fill();
       if (f.col) {
         path(f.st);
-        ctx.fillStyle = f.col;
+        // a centre with an arrow: a dark sticker, the colour only in the arrow
+        ctx.fillStyle = f.arrow ? "#2c3646" : f.col;
         ctx.fill();
         ctx.fillStyle = `rgba(0,0,0,${(1 - f.light) * 0.35})`;
         ctx.fill();
         ctx.strokeStyle = f.active ? "#fff1a8" : "rgba(255,255,255,.18)";
         ctx.lineWidth = f.active ? 2 : 1;
         ctx.stroke();
+        if (f.arrow) {
+          path(f.arrow);
+          ctx.fillStyle = f.col;
+          ctx.fill();
+          ctx.fillStyle = `rgba(0,0,0,${(1 - f.light) * 0.35})`;
+          ctx.fill();
+        }
         if (f.marked) this.drawMark(f.st);
       }
     }
