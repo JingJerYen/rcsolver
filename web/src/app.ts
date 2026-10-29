@@ -1696,18 +1696,27 @@ $("viewHome").onclick = () => {
 
 const WHOLE_TURNS = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
 /**
- * Study mode's front view: the face turned most towards you becomes the front, the one most up the
- * screen the top. The whole-cube turns that make it so (one or two of x y z) go on the end of the
- * moves, and the view glides back to the usual angle with the picture never jumping.
+ * Study mode's front view: the corner nearest you goes to the front top right, so the three faces in
+ * sight stay in sight; of the three ways to hold it so, the one nearest the view now, so they are only
+ * squared up. The whole-cube turns that make it so (none,
+ * or one or two of x y z) go on the end of the moves, and the view glides back to the usual angle
+ * with the picture never jumping.
  */
 function smartHome() {
   if (!net || cubeView.animating) return;
   const n = net.size;
-  const { front, up } = cubeView.facing();
   const turnBy = (v: Vec, toks: string[]) => toks.reduce((p, t) => { const m = parseMove(t, n); return rotateVec(p, m.axis, m.angle); }, v);
-  const near = (v: Vec, w: Vec) => v.every((c, i) => Math.abs(c - w[i]!) < 1e-6);
   const options = [[], ...WHOLE_TURNS.map((t) => [t]), ...WHOLE_TURNS.flatMap((a) => WHOLE_TURNS.map((b) => [a, b]))];
-  const turns = options.find((toks) => near(turnBy(front, toks), [0, 0, 1]) && near(turnBy(up, toks), [0, 1, 0]))!;
+  const corner = cubeView.nearestCorner();
+  const near = (v: Vec, w: Vec) => v.every((c, i) => Math.abs(c - w[i]!) < 1e-6);
+  // the nearest; among ways to the same hold, the fewest turns (listed first)
+  let turns: string[] = [];
+  let best = -Infinity;
+  for (const toks of options) {
+    if (!near(turnBy(corner, toks), [1, 1, 1])) continue;
+    const c = cubeView.homeCloseness((v) => turnBy(v, toks));
+    if (c > best + 1e-9) [best, turns] = [c, toks];
+  }
   const ms = studyInstant ? 0 : 450;
   if (turns.length) {
     if (!cutAtCursor()) return;

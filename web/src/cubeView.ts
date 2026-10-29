@@ -16,6 +16,12 @@ function turnAbout(v: Vec, k: Vec, angle: number): Vec {
   return [0, 1, 2].map((i) => v[i]! * c + x[i]! * s + k[i]! * kv * (1 - c)) as Vec;
 }
 
+/** The camera's right, up and towards-you directions for a yaw and pitch. */
+function cameraAt(yaw: number, pitch: number): { right: Vec; up: Vec; view: Vec } {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], view: [sy * cp, sp, cy * cp] };
+}
+
 type Quat = [number, number, number, number];
 
 /** A camera (its right, up and towards-you directions as the rows of a rotation) as a unit quaternion. */
@@ -495,14 +501,20 @@ export class CubeView {
     return this.anim !== null || this.twist !== null || this.homing !== null;
   }
 
-  /** The face normals pointing most towards the viewer, and most up the screen of the four around it. */
-  facing(): { front: Vec; up: Vec } {
+  /** The corner nearest the viewer (each coordinate ±1): the three faces in sight are its faces. */
+  nearestCorner(): Vec {
+    return this.basis().view.map((v) => (v >= 0 ? 1 : -1)) as Vec;
+  }
+
+  /**
+   * How near the camera, with the cube turned whole by `turn`, already is to the usual angle: 3 when
+   * it is there, less the further it would glide (the cosines between their three directions).
+   */
+  homeCloseness(turn: (v: Vec) => Vec): number {
     const b = this.basis();
+    const d = cameraAt(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
-    const normals = FACE_ORDER.map((f) => FACE_AXES[f].n);
-    const front = normals.reduce((a, n) => (dot(n, b.view) > dot(a, b.view) ? n : a));
-    const up = normals.filter((n) => dot(n, front) === 0).reduce((a, n) => (dot(n, b.up) > dot(a, b.up) ? n : a));
-    return { front, up };
+    return dot(turn(b.right), d.right) + dot(turn(b.up), d.up) + dot(turn(b.view), d.view);
   }
 
   /**
@@ -659,8 +671,7 @@ export class CubeView {
 
   private basis() {
     if (this.homing) return this.homing;
-    const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
-    const right: Vec = [cy, 0, -sy], up: Vec = [-sy * sp, cp, -cy * sp], view: Vec = [sy * cp, sp, cy * cp];
+    const { right, up, view } = cameraAt(this.yaw, this.pitch);
     const f = this.free;
     if (!f) return { right, up, view };
     // the same camera, taking the free camera's base as the axes
