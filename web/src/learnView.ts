@@ -420,18 +420,23 @@ function finish() {
   show("learnDone");
 }
 
-export function initLearn(showScreen: (id: Screen | "setup") => void) {
-  show = showScreen;
-  view = new CubeView($<HTMLCanvasElement>("learnCube"));
-  // which way is up, front and right, on every lesson's cube
-  view.setAxes({
+/** The axis arrows' names: letter and face ("U 上"). */
+export function axisLabels(): Record<Face, string> {
+  return {
     U: tr("U 上", "U up"),
     D: tr("D 下", "D down"),
     F: tr("F 前", "F front"),
     B: tr("B 後", "B back"),
     R: tr("R 右", "R right"),
     L: tr("L 左", "L left"),
-  });
+  };
+}
+
+export function initLearn(showScreen: (id: Screen | "setup") => void) {
+  show = showScreen;
+  view = new CubeView($<HTMLCanvasElement>("learnCube"));
+  // which way is up, front and right, on every lesson's cube
+  view.setAxes(axisLabels());
   view.canTwist = () => run?.phase === "practice" && !busy;
   view.onTwist = (axis, layer, quarters) => {
     if (!run || run.phase !== "practice") return;

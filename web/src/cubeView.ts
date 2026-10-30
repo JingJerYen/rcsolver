@@ -190,6 +190,23 @@ export class CubeView {
     if (!this.anim) this.draw();
   }
 
+  /** The same arrows for a moment (study's front view), fading out at the end; the cube keeps its size. */
+  private flash: { labels: Record<Face, string>; until: number; fade: number } | null = null;
+  private flashRaf = 0;
+
+  flashAxes(labels: Record<Face, string>, ms: number, fade = 500) {
+    this.flash = { labels, until: performance.now() + ms, fade };
+    cancelAnimationFrame(this.flashRaf);
+    const tick = (now: number) => {
+      if (!this.flash) return;
+      if (now >= this.flash.until) this.flash = null;
+      // a turn or the glide home draws every frame already
+      if (!this.anim && !this.homing) this.draw(now);
+      if (this.flash) this.flashRaf = requestAnimationFrame(tick);
+    };
+    this.flashRaf = requestAnimationFrame(tick);
+  }
+
   /** A move shown without turning: its layers outlined and its arrow drawn, as at the start of a turn. */
   private preview: Move | null = null;
 
@@ -814,14 +831,19 @@ export class CubeView {
     }
     this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
     if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
-    if (this.axes) this.drawAxes(b, project);
+    if (this.axes) this.drawAxes(b, project, this.axes);
+    else if (this.flash && now < this.flash.until) {
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.min(1, (this.flash.until - now) / this.flash.fade);
+      this.drawAxes(b, project, this.flash.labels);
+      this.ctx.restore();
+    }
     if (anim && this.showArrows) this.drawArrow(anim.move, anim.dir, project, b.view, now);
     else if (this.preview && this.showArrows) this.drawArrow(this.preview, 1, project, b.view, now);
   }
 
-  private drawAxes(b: { right: Vec; up: Vec; view: Vec }, project: (p: Vec) => [number, number]) {
+  private drawAxes(b: { right: Vec; up: Vec; view: Vec }, project: (p: Vec) => [number, number], labels: Record<Face, string>) {
     const { ctx, w, h, size } = this;
-    const labels = this.axes!;
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
     const arms = FACE_ORDER.map((f) => ({ n: FACE_AXES[f].n, text: labels[f] }));
     ctx.save();
