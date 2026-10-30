@@ -148,8 +148,15 @@ export class CubeView {
   private homeRaf = 0;
   /** False: a drag that misses the stickers does nothing, instead of turning the view. */
   viewDrag = true;
-  /** The one finger the canvas follows; others that land meanwhile are ignored. */
+  /** The one finger the canvas follows; others that land meanwhile are ignored, but for a second one turning the view. */
   private pointer: number | null = null;
+  /** Every finger on the canvas now, for the two-finger view turn. */
+  private touches = new Map<number, { x: number; y: number }>();
+  /**
+   * Two fingers down: their midpoint turns the view, wherever they are, so a cube drawn big for
+   * turning by hand needs no free margin to look round it. Lasts until every finger is up.
+   */
+  private pinch: { x: number; y: number } | null = null;
   /** Ends a hand turn's settling at once, so the next turn can start straight away. */
   private settling: (() => void) | null = null;
   private anim: { move: Move; dir: 1 | -1; start: number; duration: number; f: number; resolve: () => void } | null = null;
@@ -223,8 +230,23 @@ export class CubeView {
     this.ctx = canvas.getContext("2d")!;
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas);
+    const midpoint = () => {
+      const [a, b] = [...this.touches.values()];
+      return { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
+    };
     canvas.addEventListener("pointerdown", (e) => {
-      if (this.pointer !== null) return;
+      if (e.pointerType !== "mouse") this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // a second finger turns the view, unless a layer is already turning under the first
+      if (this.pointer !== null && this.viewDrag && this.touches.size === 2 && !this.grab?.turn) {
+        canvas.setPointerCapture(e.pointerId);
+        this.grab = null;
+        this.press = null;
+        this.drag = null;
+        this.beginViewDrag();
+        this.pinch = midpoint();
+        return;
+      }
+      if (this.pointer !== null || this.pinch) return;
       this.pointer = e.pointerId;
       this.press = { x: e.clientX, y: e.clientY, moved: false };
       canvas.setPointerCapture(e.pointerId);
@@ -249,6 +271,14 @@ export class CubeView {
       this.drag = this.viewDrag ? { x: e.clientX, y: e.clientY } : null;
     });
     canvas.addEventListener("pointermove", (e) => {
+      if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pinch) {
+        if (this.touches.size < 2) return;
+        const m = midpoint();
+        this.turnView(m.x - this.pinch.x, m.y - this.pinch.y);
+        this.pinch = m;
+        return;
+      }
       if (e.pointerId !== this.pointer) return;
       if (this.press && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 6) this.press.moved = true;
       if (this.grab) {
@@ -263,7 +293,18 @@ export class CubeView {
       this.drag = null;
       this.pointer = null;
     };
+    // fingers lifted during a two-finger turn do nothing else; the turn ends with the last one
+    const lift = (e: PointerEvent) => {
+      this.touches.delete(e.pointerId);
+      if (!this.pinch) return false;
+      if (this.touches.size === 0) {
+        this.pinch = null;
+        up();
+      } else if (this.touches.size === 2) this.pinch = midpoint();
+      return true;
+    };
     canvas.addEventListener("pointerup", (e) => {
+      if (lift(e)) return;
       if (e.pointerId !== this.pointer) return;
       up();
       if (this.grab) {
@@ -285,6 +326,7 @@ export class CubeView {
     // the right button turns the view, so it opens no menu
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("pointercancel", (e) => {
+      if (lift(e)) return;
       if (e.pointerId !== this.pointer) return;
       up();
       this.press = null;
@@ -385,7 +427,7 @@ export class CubeView {
     // turned freely any corner can point at the screen's edge: fit the whole sphere round the cube
     if (this.free) return (Math.min(this.w, this.h) * 0.49) / (this.size * Math.sqrt(3));
     // turned by hand the cube is drawn bigger; with the axis arrows a little smaller, to leave them room round it
-    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.axes ? 0.92 : this.twisting ? 1.3 : 1);
+    return ((Math.min(this.w, this.h) * 0.42) / (this.size * 1.75)) * (this.axes ? 0.92 : this.twisting ? 1.2 : 1);
   }
 
   /**
