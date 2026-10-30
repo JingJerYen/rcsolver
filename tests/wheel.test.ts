@@ -168,26 +168,56 @@ test("eight wedges a wheel, and wheels turning only with the layers, are setting
   assert.ok(offset.moves.has("r"));
 });
 
-test("the study screen's sticker model turns exactly like the geometric one", async () => {
-  const { applyAlgorithm, fromNet, isSolved, withWheels } = await import("../web/src/cubeState.js");
-  const { setWheelStudy, studyMove, wheelScrambleTokens } = await import("../web/src/study.js");
+test("the study screen's sticker model turns exactly like the geometric one, four wedges or eight", async () => {
+  const { applyAlgorithm, fromNet, isSolved, wheelColours, withWheels } = await import("../web/src/cubeState.js");
+  const { setWheelStudy, studyMove } = await import("../web/src/study.js");
   const COLOUR: Record<WheelFace, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
-  const solvedCube = withWheels(2, fromNet(2, Object.fromEntries(WHEEL_FACES.map((f) => [f, ["", ""].map(() => COLOUR[f].repeat(2))])) as never));
-  setWheelStudy(true);
-  try {
-    for (let trial = 0; trial < 30; trial++) {
-      const tokens = wheelScrambleTokens(rand, 30).concat(["x", "y'", "z2"]);
-      const cube = applyAlgorithm(solvedCube, tokens.map((t) => studyMove(t, 2)!));
-      const model = run(tokens.join(" "));
-      pz.slots.forEach((s, slot) => {
-        const { n, u, v } = FACE_BASIS[s.face];
-        const a = Math.PI / 4 + (s.index * Math.PI) / 2;
-        const p = [0, 1, 2].map((i) => n[i]! + Math.sign(Math.cos(a)) * u[i]! + Math.sign(Math.sin(a)) * v[i]!);
-        const sticker = cube.find((t) => !!t.w === (s.kind === "wedge") && t.p.every((x, i) => x === p[i]) && t.n.every((x, i) => x === n[i]));
-        assert.equal(sticker?.c, COLOUR[colourOf(pz, model[slot]!)], `${tokens.join(" ")}: ${s.face} ${s.kind} ${s.index}`);
-      });
-      assert.equal(isSolved(cube), isWheelSolved(pz, model));
+  const corners = fromNet(2, Object.fromEntries(WHEEL_FACES.map((f) => [f, ["", ""].map(() => COLOUR[f].repeat(2))])) as never);
+  for (const wedges of [4, 8]) {
+    const model = buildWheelPuzzle({ ...DEFAULT_WHEEL_CONFIG, wedges });
+    const solvedCube = withWheels(2, corners, wedges);
+    setWheelStudy(true, wedges);
+    try {
+      for (let trial = 0; trial < 30; trial++) {
+        // moves both models write the same way: layers, x y z, and wheel turns of one or two wedges
+        const tokens = Array.from({ length: 30 }, () => {
+          const f = "UDRLFB"[Math.floor(rand() * 6)]!;
+          return (rand() < 0.5 ? f : f.toLowerCase()) + ["", "'", "2"][Math.floor(rand() * 3)];
+        }).concat(["x", "y'", "z2"]);
+        const cube = applyAlgorithm(solvedCube, tokens.map((t) => studyMove(t, 2)!));
+        const state = applyWheelMoves(solvedWheel(model), parseWheelMoves(model, tokens.join(" ")).moves);
+        const wheels = wheelColours(cube);
+        model.slots.forEach((s, slot) => {
+          const want = COLOUR[colourOf(model, state[slot]!)];
+          if (s.kind === "wedge") return assert.equal(wheels[s.face][s.index], want, `${wedges}: ${tokens.join(" ")}: ${s.face} wedge ${s.index}`);
+          const { n, u, v } = FACE_BASIS[s.face];
+          const a = Math.PI / 4 + (s.index * Math.PI) / 2;
+          const p = [0, 1, 2].map((i) => n[i]! + Math.sign(Math.cos(a)) * u[i]! + Math.sign(Math.sin(a)) * v[i]!);
+          const sticker = cube.find((t) => !t.w && t.p.every((x, i) => x === p[i]) && t.n.every((x, i) => x === n[i]));
+          assert.equal(sticker?.c, want, `${wedges}: ${tokens.join(" ")}: ${s.face} corner ${s.index}`);
+        });
+        assert.equal(isSolved(cube), isWheelSolved(model, state));
+      }
+    } finally {
+      setWheelStudy(false);
     }
+  }
+});
+
+test("wheel turns add up in wedges, round four or eight", async () => {
+  const { setWheelStudy, pushMove } = await import("../web/src/study.js");
+  const { wheelToken } = await import("../web/src/cubeState.js");
+  setWheelStudy(true, 8);
+  try {
+    let t: string[] = [];
+    for (let i = 0; i < 3; i++) t = pushMove(t, "u");
+    assert.deepEqual(t, ["u3"]);
+    t = pushMove(t, "u");
+    assert.deepEqual(t, ["u4"]);
+    t = pushMove(pushMove(t, "u2"), "u2");
+    assert.deepEqual(t, []);
+    assert.equal(wheelToken("U", 7, 8), "u'");
+    assert.equal(wheelToken("U", -3, 4), "u");
   } finally {
     setWheelStudy(false);
   }

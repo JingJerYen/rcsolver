@@ -13,10 +13,11 @@ export interface Sticker {
   /** The way its picture points, on a cube whose centres have a direction; turns with the sticker. */
   d?: Vec;
   /**
-   * A wedge of the 2×2 Magic Wheel: the quarter of a face's wheel in the quadrant of the corner sticker
-   * at the same p and n. Layer turns carry it like that sticker; a wheel turn spins only the wedges.
+   * A wedge of the 2×2 Magic Wheel: the unit direction from its face's centre to its middle. Its p is
+   * the corner cubie of the quadrant it lies in, so layer turns carry it with that corner; a wheel
+   * turn spins only the wedges, round the face.
    */
-  w?: true;
+  w?: Vec;
 }
 
 /** Face geometry: outward normal, image-right and image-down directions (same convention as the net). */
@@ -87,7 +88,7 @@ export interface Move {
   q: 1 | 2 | -1;
   /** Signed rotation angle about the axis, in radians. */
   angle: number;
-  /** The Magic Wheel's wheel turn (u d r l f b): only that face's wedges turn. */
+  /** The Magic Wheel's wheel turn (u d r l f b): only that face's wedges turn, by `angle`. */
   wheel?: true;
 }
 
@@ -186,12 +187,14 @@ export function rotateVec(v: Vec, axis: 0 | 1 | 2, angle: number): Vec {
 export function applyMove(stickers: Sticker[], mv: Move): Sticker[] {
   return stickers.map((s) =>
     mv.layers.includes(s.p[mv.axis]) && (!mv.wheel || (s.w && s.n[mv.axis] !== 0))
-      ? {
+      ? mv.wheel
+        ? spinWedge(s, mv)
+        : {
           p: rotateVec(s.p, mv.axis, mv.angle).map(Math.round) as Vec,
           n: rotateVec(s.n, mv.axis, mv.angle).map(Math.round) as Vec,
           c: s.c,
           ...(s.d ? { d: rotateVec(s.d, mv.axis, mv.angle).map(Math.round) as Vec } : {}),
-          ...(s.w ? { w: true as const } : {}),
+          ...(s.w ? { w: snapDir(rotateVec(s.w, mv.axis, mv.angle)) } : {}),
         }
       : s,
   );
@@ -261,23 +264,82 @@ export function withCentreTurns(size: number, stickers: Sticker[], turns: number
 
 /* The 2×2 Magic Wheel: wedges as stickers alongside the corner ones, and wheel turns. */
 
-/** A wheel turn: lowercase u d r l f b (with ' or 2), each wedge a quarter on; null if not one. */
-export function parseWheelMove(token: string, size: number): Move | null {
-  const m = /^([udrlfb])(['2]?)$/.exec(token.trim());
-  if (!m) return null;
-  return { ...parseMove(`${m[1]!.toUpperCase()}${m[2]}`, size), token, wheel: true };
+/** A wedge's direction with the rounding of repeated turns taken off (and no -0), so it stays a stable key. */
+function snapDir(v: Vec): Vec {
+  return v.map((x) => Math.round(x * 1e6) / 1e6 + 0) as Vec;
 }
 
-/** The wedges' colours as a net (the same cells as the corner stickers they sit beside). */
-export function wedgeNet(size: number, stickers: Sticker[]): Record<Face, string[]> {
-  return toNet(size, stickers.filter((s) => s.w).map(({ w: _w, ...s }) => s));
+/** A wedge spun round its face: its direction turns, and it lands in the quadrant that direction points into. */
+function spinWedge(s: Sticker, mv: Move): Sticker {
+  const w = snapDir(rotateVec(s.w!, mv.axis, mv.angle));
+  const p = s.p.map((c, i) => (i === mv.axis ? c : Math.sign(w[i]!) * Math.abs(c))) as Vec;
+  return { ...s, p, w };
 }
 
 /**
- * Stickers with a wheel on every face: the wedges coloured from `wedges` (a net), or else each like
- * the corner sticker beside it (as on a cube turned by layers only).
+ * A wheel turn: lowercase u d r l f b, one wedge on clockwise; a number of wedges after it (u2, u3)
+ * and ' for anticlockwise. Null if not one.
  */
-export function withWheels(size: number, stickers: Sticker[], wedges?: Record<Face, string[]>): Sticker[] {
+export function parseWheelMove(token: string, size: number, wedges: number): Move | null {
+  const m = /^([udrlfb])(\d?)('?)$/.exec(token.trim());
+  if (!m) return null;
+  const steps = (m[2] ? Number(m[2]) : 1) * (m[3] ? -1 : 1);
+  if (!steps || Math.abs(steps) >= wedges) return null;
+  const base = parseMove(m[1]!.toUpperCase(), size);
+  const angle = (base.angle * steps * 4) / wedges;
+  const q = (Math.abs(angle) > Math.PI * 0.99 ? 2 : Math.sign(steps)) as 1 | 2 | -1;
+  return { ...base, token, q, angle, wheel: true };
+}
+
+/** A wheel turn of `steps` wedges clockwise on `face`, written the shortest way: u, u2, u', u3'. */
+export function wheelToken(face: Face, steps: number, wedges: number): string | null {
+  let k = ((steps % wedges) + wedges) % wedges;
+  if (!k) return null;
+  if (k > wedges / 2) k -= wedges;
+  const letter = face.toLowerCase();
+  return `${letter}${Math.abs(k) === 1 ? "" : Math.abs(k)}${k < 0 ? "'" : ""}`;
+}
+
+/** Each face's up direction as its net is read (away from image-down). */
+const upAxis = (f: Face): Vec => FACE_AXES[f].down.map((v) => -v) as Vec;
+
+/** Which wedge of its face a direction is: 0.. counter-clockwise from the face's right, as the face is read. */
+function wedgeIndex(f: Face, w: Vec, wedges: number): number {
+  const ax = FACE_AXES[f];
+  const up = upAxis(f);
+  const a = Math.atan2(w[0] * up[0] + w[1] * up[1] + w[2] * up[2], w[0] * ax.right[0] + w[1] * ax.right[1] + w[2] * ax.right[2]);
+  return Math.floor((((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / ((2 * Math.PI) / wedges));
+}
+
+/** The wedges' colours: each face's, in wedge order (counter-clockwise from its right). */
+export function wheelColours(stickers: Sticker[]): Record<Face, string> {
+  const wedges = stickers.filter((s) => s.w);
+  const per = wedges.length / 6;
+  const out = Object.fromEntries(FACE_ORDER.map((f) => [f, Array.from({ length: per }, () => "?")])) as Record<Face, string[]>;
+  for (const s of wedges) {
+    const f = FACE_ORDER.find((g) => FACE_AXES[g].n.every((v, i) => v === s.n[i]))!;
+    out[f][wedgeIndex(f, s.w!, per)] = s.c;
+  }
+  return Object.fromEntries(FACE_ORDER.map((f) => [f, out[f].join("")])) as Record<Face, string>;
+}
+
+/**
+ * Stickers with a wheel of `wedges` wedges on every face: coloured from `colours` (wheelColours), or
+ * else each like the corner sticker beside it (as on a cube turned by layers only).
+ */
+export function withWheels(size: number, stickers: Sticker[], wedges = 4, colours?: Record<Face, string>): Sticker[] {
   const plain = stickers.filter((s) => !s.w);
-  return [...plain, ...fromNet(size, wedges ?? toNet(size, plain)).map((s) => ({ ...s, w: true as const }))];
+  const out = [...plain];
+  for (const f of FACE_ORDER) {
+    const ax = FACE_AXES[f];
+    const up = upAxis(f);
+    for (let k = 0; k < wedges; k++) {
+      const a = ((k + 0.5) * 2 * Math.PI) / wedges;
+      const w = snapDir([0, 1, 2].map((i) => Math.cos(a) * ax.right[i]! + Math.sin(a) * up[i]!) as Vec);
+      const p = [0, 1, 2].map((i) => ax.n[i]! * (size - 1) + Math.sign(w[i]!) * (size - 1)) as Vec;
+      const beside = plain.find((s) => s.p.every((v, i) => v === p[i]) && s.n.every((v, i) => v === ax.n[i]));
+      out.push({ p, n: [...ax.n] as Vec, c: (colours?.[f]?.[k] ?? beside?.c ?? "?") as Color, w });
+    }
+  }
+  return out;
 }

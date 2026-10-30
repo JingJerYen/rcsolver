@@ -11,7 +11,7 @@ import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
-import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateVec, toNet, wedgeNet, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateVec, toNet, wheelColours, wheelToken, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
@@ -49,8 +49,8 @@ interface Save {
   title?: string;
   /** A study of the 3×3 whose centres have arrows: where each centre's arrow pointed at the start (centreTurns). */
   centres?: number[];
-  /** A study of the 2×2 Magic Wheel: its wedges' colours at the start, as a net (`faces` holds the corners). */
-  wheels?: Record<Face, string[]>;
+  /** A study of the 2×2 Magic Wheel: wedges a wheel and their colours at the start (`faces` holds the corners). */
+  wheels?: { wedges: number; colours: Record<Face, string> };
   /** A study: `faces` is where it started, `moves` everything typed (kept as typed), `index` the step shown. */
   study?: boolean;
 }
@@ -179,9 +179,9 @@ function renderSaves() {
     const el = document.createElement("div");
     el.className = "save";
     // a Magic Wheel's moves read as wheel turns (u d r l f b), only while reading its own
-    setWheelStudy(!!sv.wheels);
+    setWheelStudy(!!sv.wheels, sv.wheels?.wedges);
     const done = readMoves(sv.moves, sv.size).moves;
-    setWheelStudy(studying && studyWheel);
+    setWheelStudy(studying && studyWheel > 0, studyWheel || 4);
     // sharing happens inside a save, so the card only opens, renames and deletes
     el.innerHTML = `<canvas class="mini"></canvas><div class="save-text"><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${done.length}</span></div><button class="del" aria-label="${tr("刪除", "Delete")}">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 6l7 3.8v7.6L12 21l-7-3.6V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M5 9.8l7 3.7 7-3.7M12 13.5V21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
     el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
@@ -189,7 +189,7 @@ function renderSaves() {
     const view = new CubeView(el.querySelector("canvas")!);
     miniViews.push(view);
     const plain = fromNet(sv.size, sv.faces);
-    const start = sv.wheels ? withWheels(sv.size, plain, sv.wheels) : sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain;
+    const start = sv.wheels ? withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours) : sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain;
     view.setState(sv.size, applyAlgorithm(start, done.slice(0, sv.index)));
     view.resetView();
     el.onclick = (e) => {
@@ -239,7 +239,7 @@ $("titleCancel").onclick = () => titleDialog.close();
 function saveCurrent() {
   if (!net) return;
   const entry: Save = studying
-    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: wedgeNet(net.size, startState) } : {}) }
+    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}) }
     : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
@@ -258,7 +258,7 @@ function openSave(i: number) {
 let savedKey = "";
 function progressKey(): string {
   if (!net) return "";
-  return JSON.stringify([studying, net.size, toNet(net.size, startState), studyArrows && centreTurns(net.size, startState), studyWheel && wedgeNet(net.size, startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
+  return JSON.stringify([studying, net.size, toNet(net.size, startState), studyArrows && centreTurns(net.size, startState), studyWheel && wheelColours(startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
 }
 /** The same for the result screen: a saved cube opened before it was solved, as long as it is unchanged. */
 function resultKey(): string {
@@ -300,7 +300,7 @@ function openSaved(sv: Save) {
 function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
   // lowercase letters are wheel turns only on a Magic Wheel study's own screen
-  setWheelStudy(id === "solveView" && studying && studyWheel);
+  setWheelStudy(id === "solveView" && studying && studyWheel > 0, studyWheel || 4);
   // one home button in the header serves every screen but the home screen itself
   const home = $("home");
   home.classList.toggle("hidden", id === "setup");
@@ -842,23 +842,23 @@ function renderKeys() {
 /** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
 /** The study is of the 3×3 whose centres have arrows: no hint, solver or share, and solved means the arrows too. */
 let studyArrows = false;
-/** The study is of the 2×2 Magic Wheel: wheel turns too, no hint, solver or share. */
-let studyWheel = false;
+/** The study is of the 2×2 Magic Wheel, with this many wedges a wheel (0: not one): wheel turns too, no hint, solver or share. */
+let studyWheel = 0;
 /** Its keypad shows the layer keys (U R F) or the wheel keys (u r f). */
 let studyKeyset: "layer" | "wheel" = "layer";
 /** A solved cube for the study kind now open: arrows on its centres, or wheels, when the study has them. */
 function studySolved(n: number): Sticker[] {
-  return studyWheel ? withWheels(n, solvedState(n)) : studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
+  return studyWheel ? withWheels(n, solvedState(n), studyWheel) : studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
 }
 
-function startStudy(n: number, start: Sticker[], arrows = false, wheel = false) {
+function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
   stopPlaying();
   studyArrows = arrows;
   studyWheel = wheel;
   studyKeyset = "layer";
-  setWheelStudy(wheel);
+  setWheelStudy(wheel > 0, wheel || 4);
   $("solveView").classList.toggle("arrows", arrows);
-  $("solveView").classList.toggle("wheel", wheel);
+  $("solveView").classList.toggle("wheel", wheel > 0);
   net = netFor(n, start);
   startState = start;
   moves = [];
@@ -968,7 +968,7 @@ function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
 /** Open a saved study as it was left: same start, same text, same step. */
 function openStudy(sv: Save) {
   const plain = fromNet(sv.size, sv.faces);
-  if (sv.wheels) startStudy(sv.size, withWheels(sv.size, plain, sv.wheels), false, true);
+  if (sv.wheels) startStudy(sv.size, withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours), false, sv.wheels.wedges);
   else startStudy(sv.size, sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain, !!sv.centres);
   studyTokens = sv.moves;
   macroRuns = [];
@@ -1376,10 +1376,10 @@ $("twistBtn").onclick = () => {
 cubeView.canTwist = () => studying && cutAtCursor();
 cubeView.onTwist = (axis, layer, quarters, wheel) => {
   if (!net) return;
-  const turned = twistToken(net.size, axis, layer, quarters);
-  if (!turned) return;
-  // a Magic Wheel's wheel spun round: the same face, in lowercase
-  const token = wheel ? turned.toLowerCase() : turned;
+  // a Magic Wheel's wheel spun round some wedges (by the right-hand rule): its face, clockwise as seen from it
+  const face = ((layer > 0 ? ["R", "U", "F"] : ["L", "D", "B"]) as Face[])[axis]!;
+  const token = wheel ? wheelToken(face, (layer > 0 ? -1 : 1) * quarters, studyWheel) : twistToken(net.size, axis, layer, quarters);
+  if (!token) return;
   const next = addToken(token);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, undefined, true);
@@ -1583,11 +1583,12 @@ function openSizePicker(purpose: "study" | "manual") {
   $("sizeGrid").innerHTML =
     SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("") +
     `<button type="button" data-n="3" data-arrows class="size-arrows"><canvas></canvas>${tr("3×3 ▲ 中心", "3×3 ▲ centres")}</button>` +
-    `<button type="button" data-n="2" data-wheel class="size-arrows"><canvas></canvas>${tr("2×2 魔輪", "2×2 Magic Wheel")}</button>`;
+    `<button type="button" data-n="2" data-wheel="4" class="size-arrows"><canvas></canvas>${tr("2×2 魔輪・四分", "2×2 Wheel 4")}</button>` +
+    `<button type="button" data-n="2" data-wheel="8" class="size-arrows"><canvas></canvas>${tr("2×2 魔輪・八分", "2×2 Wheel 8")}</button>`;
   sizeViews = Array.from($("sizeGrid").querySelectorAll("canvas"), (c, i) => {
     const n = SOLVABLE[i] ?? 3;
     const v = new CubeView(c);
-    const extra = [pointCentres(3, solvedState(3)), withWheels(2, solvedState(2))][i - SOLVABLE.length];
+    const extra = [pointCentres(3, solvedState(3)), withWheels(2, solvedState(2), 4), withWheels(2, solvedState(2), 8)][i - SOLVABLE.length];
     v.setState(i < SOLVABLE.length ? n : i === SOLVABLE.length ? 3 : 2, extra ?? solvedState(n));
     v.resetView();
     return v;
@@ -1607,7 +1608,7 @@ $("sizeGrid").onclick = (e) => {
   const n = Number(b.dataset.n);
   if (sizePurpose === "manual") startManual(n);
   else if (b.dataset.arrows !== undefined) startStudy(3, pointCentres(3, solvedState(3)), true);
-  else if (b.dataset.wheel !== undefined) startStudy(2, withWheels(2, solvedState(2)), false, true);
+  else if (b.dataset.wheel) startStudy(2, withWheels(2, solvedState(2), Number(b.dataset.wheel)), false, Number(b.dataset.wheel));
   else startStudy(n, solvedState(n));
 };
 $("aiRetry").onclick = () => {
@@ -1722,7 +1723,7 @@ function scrambleStudy() {
   if (!net || !studying || cubeView.animating) return;
   const n = net.size;
   // the Magic Wheel mixes layer and wheel turns
-  const scramble = studyWheel ? wheelScrambleTokens().map((t) => studyMove(t, n)!) : parseAlgorithm(scrambleTokens(n).join(" "), n);
+  const scramble = studyWheel ? wheelScrambleTokens(Math.random, 25, studyWheel).map((t) => studyMove(t, n)!) : parseAlgorithm(scrambleTokens(n).join(" "), n);
   startStudy(n, applyAlgorithm(studySolved(n), scramble), studyArrows, studyWheel);
   navigator.vibrate?.(30);
 }

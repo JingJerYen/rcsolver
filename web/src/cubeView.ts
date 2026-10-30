@@ -88,6 +88,8 @@ export class CubeView {
   private lookup = new Map<string, string>();
   /** Sticker key → the way its arrow points, for the centres that have one. */
   private dirAt = new Map<string, Vec>();
+  /** Wedges on each wheel of a Magic Wheel (0 on any other cube). */
+  private wheelWedges = 0;
   /** Sticker position key → index in `stickers`; the index is the sticker itself, since turns keep the order. */
   private indexAt = new Map<string, number>();
   /**
@@ -239,7 +241,7 @@ export class CubeView {
       if (key && this.canTwist()) {
         const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
         // a Magic Wheel's wedge spins its wheel round; any other sticker drags its layer
-        const wheel = key.endsWith("|w");
+        const wheel = key.includes("|w");
         this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null, wheel, spin: wheel || this.spinsFrom(c, n) ? { last: null } : null };
         this.drag = null;
         return;
@@ -296,7 +298,8 @@ export class CubeView {
     this.size = size;
     this.stickers = stickers;
     // a Magic Wheel's wedge shares its place with a corner sticker: its key carries "|w"
-    const key = (s: Sticker) => `${s.p.join(",")}|${s.n.join(",")}${s.w ? "|w" : ""}`;
+    const key = (s: Sticker) => `${s.p.join(",")}|${s.n.join(",")}${s.w ? `|w${s.w.join(",")}` : ""}`;
+    this.wheelWedges = stickers.filter((s) => s.w).length / 6;
     this.lookup = new Map(stickers.map((s) => [key(s), s.c]));
     this.dirAt = new Map(stickers.filter((s) => s.d).map((s) => [key(s), s.d!]));
     this.indexAt = new Map(stickers.map((s, i) => [key(s), i]));
@@ -496,11 +499,14 @@ export class CubeView {
   private settleTwist(back = false) {
     const tw = this.twist;
     if (!tw) return;
-    const quarter = Math.PI / 2;
+    // a wheel settles on a whole wedge; anything else on a quarter turn
+    const quarter = tw.wheel ? (2 * Math.PI) / this.wheelWedges : Math.PI / 2;
+    const whole = tw.wheel ? this.wheelWedges : 4;
     const near = Math.round(tw.angle / quarter);
     // a face spun round can go past a half turn: settle where it is, report it as the shortest turn
     const q = back ? 0 : tw.spin ? near : Math.max(-2, Math.min(2, near));
-    const turns = (((q % 4) + 4) % 4 === 3 ? -1 : ((q % 4) + 4) % 4) as -1 | 0 | 1 | 2;
+    const mod = ((q % whole) + whole) % whole;
+    const turns = mod > whole / 2 ? mod - whole : mod;
     const from = tw.angle;
     const to = q * quarter;
     const start = performance.now();
@@ -630,7 +636,7 @@ export class CubeView {
   rollView(angle: number) {
     if (!this.free) return;
     const b = this.basis();
-    this.free = squared({ right: turnAbout(b.right, b.view, angle), up: turnAbout(b.up, b.view, angle), view: b.view });
+    this.free = squared({ right: turnAbout(b.right, b.view, angle), up: turnAbout(b.up, b.view, angle) });
     this.yaw = this.pitch = 0;
     this.queueDraw();
   }
@@ -741,8 +747,9 @@ export class CubeView {
       light: number;
       key: string;
       marked: boolean;
-      /** A Magic Wheel's wedge, raised off its face: the dark band of its side, drawn under it. */
+      /** A Magic Wheel's wedge, raised off its face: drawn as two entries, every wedge's dark side before any wedge's top. */
       band?: [number, number][];
+      wedge?: "side" | "top";
     };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
@@ -807,50 +814,48 @@ export class CubeView {
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
         });
       }
-      // the Magic Wheel's wedges: a quarter of a raised disc on each face of a corner cubie
-      for (let ax = 0; ax < 3; ax++) {
-        if (Math.abs(c[ax]!) !== size - 1) continue;
-        const n: Vec = [0, 0, 0];
-        n[ax] = Math.sign(c[ax]!);
-        const key = `${c.join(",")}|${n.join(",")}|w`;
-        const raw = this.lookup.get(key);
-        if (!raw) continue;
-        const wActive = !!shown && shown.layers.includes(c[shown.axis]) && (!shown.wheel || n[shown.axis] !== 0);
-        const rn = rot(n, wActive);
-        if (dot(rn, b.view) <= 0.001) continue;
-        const a = (ax + 1) % 3, v = (ax + 2) % 3;
-        const ea: Vec = [0, 0, 0], ev: Vec = [0, 0, 0];
-        ea[a] = Math.sign(c[a]!);
-        ev[v] = Math.sign(c[v]!);
-        const plane = size - 1 + 0.975;
-        const radius = size * 0.62;
-        const rise = size * 0.13;
-        // the quarter arc, at a height off the face
-        const arc = (t: number): Vec[] =>
-          Array.from({ length: 9 }, (_, i) => {
-            const th = (i / 8) * (Math.PI / 2);
-            return [0, 1, 2].map((k) => n[k]! * (plane + t) + radius * (Math.cos(th) * ea[k]! + Math.sin(th) * ev[k]!)) as Vec;
-          });
-        const centreAt = (t: number): Vec => n.map((k) => k * (plane + t)) as Vec;
-        const show = (ps: Vec[]) => ps.map((p) => project(rot(p, wActive)));
-        const top = show([centreAt(rise), ...arc(rise)]);
-        const band = show([...arc(0), ...arc(rise).reverse()]);
-        const focus = this.focus;
-        const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted));
-        faces.push({
-          poly: top,
-          st: top,
-          arrow: null,
-          band,
-          col: muted ? GREY : hexOf(raw),
-          active: wActive,
-          key,
-          marked: this.marks.size > 0 && this.marks.has(this.indexAt.get(key) ?? -1),
-          // over its own face's corner stickers, whichever is nearer
-          depth: dot(rot(centreAt(rise), wActive), b.view) + size * 0.75,
-          light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
+    }
+    // the Magic Wheel's wedges: slices of a disc raised off each face
+    for (const st of this.stickers) {
+      if (!st.w) continue;
+      const c = st.p, n = st.n, w = st.w;
+      const key = `${c.join(",")}|${n.join(",")}|w${w.join(",")}`;
+      const shown = turn ?? this.preview;
+      const wActive = !!shown && shown.layers.includes(c[shown.axis]) && (!shown.wheel || n[shown.axis] !== 0);
+      const rn = rot(n, wActive);
+      if (dot(rn, b.view) <= 0.001) continue;
+      const plane = size - 1 + 0.975;
+      const radius = size * 0.62;
+      const rise = size * 0.13;
+      const half = Math.PI / this.wheelWedges;
+      const across: Vec = [n[1] * w[2] - n[2] * w[1], n[2] * w[0] - n[0] * w[2], n[0] * w[1] - n[1] * w[0]];
+      // its arc, at a height off the face
+      const arc = (t: number): Vec[] =>
+        Array.from({ length: 9 }, (_, i) => {
+          const th = -half + (i / 8) * 2 * half;
+          return [0, 1, 2].map((k) => n[k]! * (plane + t) + radius * (Math.cos(th) * w[k]! + Math.sin(th) * across[k]!)) as Vec;
         });
-      }
+      const centreAt = (t: number): Vec => n.map((k) => k * (plane + t)) as Vec;
+      const show = (ps: Vec[]) => ps.map((p) => project(rot(p, wActive)));
+      const top = show([centreAt(rise), ...arc(rise)]);
+      const band = show([...arc(0), ...arc(rise).reverse()]);
+      const focus = this.focus;
+      const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && "keys" in focus && !focus.keys.has(key));
+      const depth = dot(rot(centreAt(rise), wActive), b.view) + size * 0.75;
+      faces.push({ poly: band, st: band, arrow: null, band, wedge: "side", col: "#1d2733", active: false, key: "", marked: false, depth: depth - 1e-3, light: 1 });
+      faces.push({
+        poly: top,
+        st: top,
+        arrow: null,
+        wedge: "top",
+        col: muted ? GREY : hexOf(st.c),
+        active: wActive,
+        key,
+        marked: this.marks.size > 0 && this.marks.has(this.indexAt.get(key) ?? -1),
+        // over its own face's corner stickers, whichever is nearer
+        depth,
+        light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
+      });
     }
     faces.sort((p, q) => p.depth - q.depth);
     const path = (ps: [number, number][]) => {
@@ -859,11 +864,14 @@ export class CubeView {
       ctx.closePath();
     };
     for (const f of faces) {
-      if (f.band) {
-        // a wedge: its dark side, then the wedge itself with a dark edge to part it from the next
-        path(f.band);
+      if (f.wedge === "side") {
+        path(f.band!);
         ctx.fillStyle = "#1d2733";
         ctx.fill();
+        continue;
+      }
+      if (f.wedge === "top") {
+        // the wedge itself, with a dark edge to part it from the next
         path(f.st);
         ctx.fillStyle = f.col!;
         ctx.fill();
@@ -898,7 +906,7 @@ export class CubeView {
         if (f.marked) this.drawMark(f.st);
       }
     }
-    this.hits = faces.map((f) => ({ poly: f.poly, key: f.key }));
+    this.hits = faces.filter((f) => f.wedge !== "side").map((f) => ({ poly: f.poly, key: f.key }));
     if (this.guides && !anim && !this.twist) this.drawGuides(faces, project, b.view);
     if (this.axes) this.drawAxes(b, project, this.axes);
     else if (this.flash && now < this.flash.until) {

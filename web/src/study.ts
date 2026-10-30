@@ -3,7 +3,8 @@
  * from wherever a solve had got to). This module is the part without the page: reading typed
  * moves, the tokens the keypad produces, and the keypad itself.
  */
-import { FACE_AXES, FACE_ORDER, layerValues, parseMove, parseWheelMove, type Move, type Vec } from "./cubeState.js";
+import { FACE_AXES, FACE_ORDER, layerValues, parseMove, parseWheelMove, wheelToken, type Move, type Vec } from "./cubeState.js";
+import type { Face } from "./api.js";
 import { tr } from "./i18n.js";
 
 export const FACE_KEYS = ["U", "D", "F", "B", "L", "R"] as const;
@@ -13,14 +14,17 @@ export const FACE_KEYS = ["U", "D", "F", "B", "L", "R"] as const;
  * wide turns). Set when such a study starts.
  */
 let wheelStudy = false;
-export function setWheelStudy(on: boolean) {
+/** Wedges on each of its wheels (4 or 8): one wheel turn is one wedge on. */
+let wheelWedges = 4;
+export function setWheelStudy(on: boolean, wedges = 4) {
   wheelStudy = on;
+  wheelWedges = wedges;
 }
 
 /** One token for this cube size, or null if it is not a move (unknown letter, a layer the cube does not have). */
 export function studyMove(token: string, size: number): Move | null {
   if (wheelStudy) {
-    const wheel = parseWheelMove(token, size);
+    const wheel = parseWheelMove(token, size, wheelWedges);
     if (wheel) return wheel;
     // only plain layer turns and x y z on the Magic Wheel
     if (!/^[URFDLBxyz]['2]?$/.test(token.trim())) return null;
@@ -96,14 +100,15 @@ export function scrambleTokens(size: number, rand: () => number = Math.random): 
 }
 
 /** A Magic Wheel scramble: layer and wheel turns mixed, never the same face twice running. */
-export function wheelScrambleTokens(rand: () => number = Math.random, length = 25): string[] {
+export function wheelScrambleTokens(rand: () => number = Math.random, length = 25, wedges = 4): string[] {
   const out: string[] = [];
   let last = "";
   while (out.length < length) {
     const face = FACE_KEYS[Math.floor(rand() * 6)]!;
     if (face === last) continue;
     last = face;
-    out.push((rand() < 0.5 ? face : face.toLowerCase()) + ["", "'", "2"][Math.floor(rand() * 3)]);
+    // a wheel turn of any number of wedges, or a layer turn
+    out.push(rand() < 0.5 ? wheelToken(face, 1 + Math.floor(rand() * (wedges - 1)), wedges)! : face + ["", "'", "2"][Math.floor(rand() * 3)]);
   }
   return out;
 }
@@ -118,6 +123,15 @@ const quarters = (token: string) => (token.endsWith("2") ? 2 : token.endsWith("'
  */
 export function pushMove(tokens: string[], token: string): string[] {
   const last = tokens[tokens.length - 1];
+  // a Magic Wheel's wheel turns add up in wedges, round its own number of them
+  const wheel = wheelStudy ? /^([udrlfb])(\d?)('?)$/.exec(token) : null;
+  const before = wheel && last ? /^([udrlfb])(\d?)('?)$/.exec(last) : null;
+  if (wheel) {
+    if (!before || before[1] !== wheel[1]) return [...tokens, token];
+    const steps = (m: RegExpExecArray) => (m[2] ? Number(m[2]) : 1) * (m[3] ? -1 : 1);
+    const merged = wheelToken(wheel[1]!.toUpperCase() as Face, steps(before) + steps(wheel), wheelWedges);
+    return merged ? [...tokens.slice(0, -1), merged] : tokens.slice(0, -1);
+  }
   const base = token.replace(/['2]$/, "");
   if (!last || last.replace(/['2]$/, "") !== base) return [...tokens, token];
   const q = (quarters(last) + quarters(token)) % 4;
@@ -155,6 +169,8 @@ export function twistToken(size: number, axis: 0 | 1 | 2, layer: number, quarter
  * R → R2 continues a quarter turn; R → R' goes back half a turn.
  */
 export function deltaTurn(before: string, after: string, size: number): { move: Move; dir: 1 | -1 } | null {
+  // (a Magic Wheel's wheel turns count in wedges: the cube just lands on the new state)
+  if (wheelStudy && /^[udrlfb]/.test(before)) return null;
   const base = before.replace(/['2]$/, "");
   if (before === after || after.replace(/['2]$/, "") !== base) return null;
   const a = studyMove(before, size);
