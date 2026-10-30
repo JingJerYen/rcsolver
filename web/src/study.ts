@@ -177,10 +177,10 @@ export function keypadHtml(size: number, depth: number, wide: boolean, wheelKeys
           return `<button type="button" class="k small${depth === d ? " on" : ""}" data-depth="${d}">${label}</button>`;
         }).join("")}<button type="button" class="k small${wide ? " on" : ""}" data-wide aria-pressed="${wide}">${tr("多層", "Wide")}</button></div>`
       : "";
-  // the Magic Wheel: a switch between the layer keys (U R F) and the wheel keys (u r f)
+  // the Magic Wheel: a switch between the layer keys (U R F…) and the wheel keys (u r f…)
   const keyset = wheelKeys
     ? `<div class="keyset" role="tablist">${(["layer", "wheel"] as const)
-        .map((k) => `<button type="button" role="tab" data-keyset="${k}" aria-selected="${wheelKeys === k}">${k === "layer" ? tr("層 U R F", "Layers U R F") : tr("輪 u r f", "Wheels u r f")}</button>`)
+        .map((k) => `<button type="button" role="tab" data-keyset="${k}" aria-selected="${wheelKeys === k}">${k === "layer" ? tr("層", "Layers") : tr("輪", "Wheels")}</button>`)
         .join("")}</div>`
     : "";
   const row = (prime: boolean) =>
