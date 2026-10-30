@@ -16,6 +16,7 @@ import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
 import { studyHint } from "./hint.js";
+import { solveArrows } from "./solvers/arrows.js";
 import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 import { initHoverTips } from "./hoverTips.js";
 
@@ -240,7 +241,7 @@ function saveCurrent() {
   if (!net) return;
   const entry: Save = studying
     ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}) }
-    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}) };
+    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   savedKey = progressKey();
@@ -272,6 +273,7 @@ function openSaved(sv: Save) {
     return;
   }
   setStudying(false);
+  setStudyKind(!!sv.centres, 0);
   studyFrom = null;
   size = sv.size;
   images = {}; // photos from an earlier capture belong to another cube
@@ -287,7 +289,7 @@ function openSaved(sv: Save) {
   moves = parseAlgorithm(sv.moves.join(" "), sv.size);
   // an old teaching save keeps its moves; the stage notes went with the teaching mode
   segments = sv.teach ? null : (sv.segments ?? null);
-  startState = fromNet(sv.size, sv.faces);
+  startState = sv.centres ? withCentreTurns(sv.size, fromNet(sv.size, sv.faces), sv.centres) : fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
   shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
   cubeView.setState(sv.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
@@ -628,6 +630,7 @@ function startSolve() {
     shownIndex = 0;
     startState = fromNet(net.size, net.current);
     setStudying(false);
+    setStudyKind(false, 0);
     cubeView.setState(net.size, startState);
     cubeView.resetView();
     showScreen("solveView");
@@ -840,7 +843,7 @@ function renderKeys() {
 }
 
 /** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
-/** The study is of the 3×3 whose centres have arrows: no hint, solver or share, and solved means the arrows too. */
+/** The cube is the 3×3 whose centres have arrows: no hint or share, and solved (Go included) means the arrows too. */
 let studyArrows = false;
 /** The study is of the 2×2 Magic Wheel, with this many wedges a wheel (0: not one): wheel turns too, no hint, solver or share. */
 let studyWheel = 0;
@@ -851,14 +854,19 @@ function studySolved(n: number): Sticker[] {
   return studyWheel ? withWheels(n, solvedState(n), studyWheel) : studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
 }
 
-function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
-  stopPlaying();
+/** Which cube the solve screen holds: a plain one, the 3×3 with arrows or a Magic Wheel. */
+function setStudyKind(arrows: boolean, wheel: number) {
   studyArrows = arrows;
   studyWheel = wheel;
-  studyKeyset = "layer";
   setWheelStudy(wheel > 0, wheel || 4);
   $("solveView").classList.toggle("arrows", arrows);
   $("solveView").classList.toggle("wheel", wheel > 0);
+}
+
+function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
+  stopPlaying();
+  setStudyKind(arrows, wheel);
+  studyKeyset = "layer";
   net = netFor(n, start);
   startState = start;
   moves = [];
@@ -1479,15 +1487,18 @@ $("studyGo").onclick = () => {
   setBusy(true);
   void (async () => {
     const studyNet = netFor(n, from);
-    const r = await solveAsync(n, studyNet.current);
+    // the 3×3 with arrows has its own solver, the arrows after the colours (no stages to show)
+    const arrows = studyArrows ? solveArrows(from) : null;
+    const r = studyArrows ? null : await solveAsync(n, studyNet.current);
     setBusy(false);
     btn.disabled = false;
     // every study state comes from turning a solved cube, so it always solves
-    if (!r.ok) return;
+    const solution = arrows ?? (r?.ok ? r.moves : null);
+    if (!solution) return;
     net = studyNet;
     startState = from;
-    moves = parseAlgorithm(r.moves.join(" "), n);
-    segments = r.segments;
+    moves = parseAlgorithm(solution.join(" "), n);
+    segments = r?.ok ? r.segments : null;
     moveIndex = 0;
     shownIndex = 0;
     studyFrom = null;
@@ -1539,7 +1550,7 @@ $("studyTipLearn").onclick = () => {
 $("toStudy").onclick = () => {
   if (!net || cubeView.animating) return;
   const from = { net, start: startState, moves, segments, index: moveIndex };
-  startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
+  startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)), studyArrows, studyWheel);
   studyFrom = from;
   $("backToSolve").classList.remove("hidden");
 };
@@ -2015,6 +2026,10 @@ initSpeed();
   /** The cube on screen as a net, to compare states across pages. */
   get cubeNet() {
     return net ? toNet(net.size, cubeView.getState()) : null;
+  },
+  /** The 3×3 with arrows: each centre's arrow in quarter turns from up its face. */
+  get centres() {
+    return net ? centreTurns(net.size, cubeView.getState()) : null;
   },
   get solved() {
     return isSolved(cubeView.getState());

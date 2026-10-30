@@ -480,9 +480,9 @@ html.speed-open,html.speed-open body{overflow:hidden}
 .move-row.noting .move-note{display:block}
 .study-del{position:relative}
 .del-tag{position:absolute;right:-6px;top:-6px;padding:1px 6px;border-radius:9px;background:#fff7df;border:1px solid #e0a21c;color:#6b4b00;font-size:12px;font-weight:800;line-height:16px;pointer-events:none}
-/* the 3×3 with arrows on its centres: a study only, without hint, solver or share */
+/* the 3×3 with arrows on its centres: no hint or share (a link carries colours only) */
 .size-grid.manual .size-arrows{display:none}
-#solveView.arrows #studyHint,#solveView.arrows #studyGo,#solveView.arrows #shareSolve{display:none}
+#solveView.arrows #studyHint,#solveView.arrows #shareSolve{display:none}
 /* a computer's hover label under an icon button (hoverTips.ts) */
 .hover-tip{position:fixed;z-index:100;max-width:240px;padding:5px 9px;border-radius:8px;background:#192a40;color:#fff;font-size:12.5px;font-weight:600;line-height:1.35;pointer-events:none;opacity:0;transition:opacity .12s}
 .hover-tip.on{opacity:1}
