@@ -399,6 +399,8 @@ export class CubeView {
 
   private toggleMarkAt(x: number, y: number) {
     const key = this.stickerAt(x, y);
+    // a Magic Wheel's wedges take no marks: a wheel full of dots is too crowded to read
+    if (key?.includes("|w")) return;
     const index = key === null ? undefined : this.indexAt.get(key);
     if (index === undefined) return;
     if (!this.marks.delete(index)) this.marks.add(index);
