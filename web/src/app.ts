@@ -1421,7 +1421,7 @@ function studyTour() {
     {
       targets: [$("twistBtn")],
       title: tr("手轉", "Turn by hand"),
-      body: tr("開：拖一層就轉那層。關：拖曳轉視角。", "On: drag a layer to turn it. Off: drag to turn the view."),
+      body: tr("開：拖一層就轉那層，兩指拖轉視角。關：拖曳轉視角。", "On: drag a layer to turn it, two fingers turn the view. Off: drag to turn the view."),
     },
     {
       targets: [$("viewHome")],
