@@ -486,8 +486,8 @@ html.speed-open,html.speed-open body{overflow:hidden}
 /* a computer's hover label under an icon button (hoverTips.ts) */
 .hover-tip{position:fixed;z-index:100;max-width:240px;padding:5px 9px;border-radius:8px;background:#192a40;color:#fff;font-size:12.5px;font-weight:600;line-height:1.35;pointer-events:none;opacity:0;transition:opacity .12s}
 .hover-tip.on{opacity:1}
-/* the 2×2 Magic Wheel: a study only, without hint, solver or share; its keypad switches layers / wheels */
-#solveView.wheel #studyHint,#solveView.wheel #studyGo,#solveView.wheel #shareSolve{display:none}
+/* the 2×2 Magic Wheel: no hint or share (a link carries no wheels), Go for four wedges only; its keypad switches layers / wheels */
+#solveView.wheel #studyHint,#solveView.wheel #shareSolve,#solveView.wheel8 #studyGo{display:none}
 .keyset{display:flex;align-self:center;justify-self:center;margin:0 auto 6px;width:max-content;background:#dfe7f1;border-radius:20px;padding:3px}
 .keyset button{height:34px;padding:0 18px;border:0;border-radius:17px;background:transparent;color:#39536e;font-size:14px;font-weight:700}
 .keyset button[aria-selected="true"]{background:#fff;color:#195ed6;box-shadow:0 1px 3px rgba(0,0,0,.12)}
