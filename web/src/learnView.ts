@@ -7,7 +7,7 @@ import { CubeView } from "./cubeView.js";
 import { applyAlgorithm, parseAlgorithm, parseMove, toNet, type Sticker } from "./cubeState.js";
 import { tr } from "./i18n.js";
 import { LESSONS, demoStart, guidesFor, hintFor, puzzle, solvedFor, starsFor, faceName, type LearnSize, type Lesson } from "./learn.js";
-import type { Color } from "./api.js";
+import type { Color, Face } from "./api.js";
 import { COLOR_HEX } from "./net.js";
 import { twistToken } from "./study.js";
 
