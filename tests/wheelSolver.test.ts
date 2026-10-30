@@ -17,21 +17,23 @@ test("a solved Magic Wheel needs no moves", () => {
   assert.deepEqual(solveWheel(withWheels(2, solvedCorners, 4), 4), []);
 });
 
-test("scrambled four-wedge Magic Wheels come back solved", () => {
+for (const [wedges, count, bound] of [[4, 20, 70], [8, 6, 100]] as const)
+test(`scrambled ${wedges}-wedge Magic Wheels come back solved`, () => {
   const rand = rng(11);
   const tokens = ["U", "R", "F", "D", "L", "B", "u", "r", "f", "d", "l", "b"].flatMap((t) => [t, `${t}'`, `${t}2`]);
+  if (wedges === 8) tokens.push("u3", "r4", "f3'", "d4", "l3", "b3'");
   let total = 0;
   let longest = 0;
-  for (let k = 0; k < 20; k++) {
+  for (let k = 0; k < count; k++) {
     const scramble = Array.from({ length: 30 }, () => tokens[Math.floor(rand() * tokens.length)]!);
     // held another way up now and then, too
-    const cube = applyAlgorithm(withWheels(2, solvedCorners, 4), [...(k % 4 === 0 ? ["x", "y'"] : []), ...scramble].map((t) => move(t, 4)));
-    const moves = solveWheel(cube, 4);
+    const cube = applyAlgorithm(withWheels(2, solvedCorners, wedges), [...(k % 4 === 0 ? ["x", "y'"] : []), ...scramble].map((t) => move(t, wedges)));
+    const moves = solveWheel(cube, wedges);
     assert.ok(moves, scramble.join(" "));
-    assert.ok(isSolved(applyAlgorithm(cube, moves.map((t) => move(t, 4)))), scramble.join(" "));
+    assert.ok(isSolved(applyAlgorithm(cube, moves.map((t) => move(t, wedges)))), scramble.join(" "));
     total += moves.length;
     longest = Math.max(longest, moves.length);
   }
-  console.log(`magic wheel: ${(total / 20).toFixed(1)} moves on average, ${longest} at most`);
-  assert.ok(longest <= 70, `took ${longest} moves`);
+  console.log(`magic wheel ${wedges}: ${(total / count).toFixed(1)} moves on average, ${longest} at most`);
+  assert.ok(longest <= bound, `took ${longest} moves`);
 });

@@ -847,7 +847,7 @@ function renderKeys() {
 /** Open the solve screen in study mode on `start`: a solved cube from the home screen, or a solve's current step. */
 /** The cube is the 3×3 whose centres have arrows: no hint or share, and solved (Go included) means the arrows too. */
 let studyArrows = false;
-/** The cube is the 2×2 Magic Wheel, with this many wedges a wheel (0: not one): wheel turns too, no hint or share, Go for four wedges. */
+/** The cube is the 2×2 Magic Wheel, with this many wedges a wheel (0: not one): wheel turns too, no share, a hint of one line. */
 let studyWheel = 0;
 /** Its keypad shows the layer keys (U R F) or the wheel keys (u r f). */
 let studyKeyset: "layer" | "wheel" = "layer";
@@ -863,8 +863,6 @@ function setStudyKind(arrows: boolean, wheel: number) {
   setWheelStudy(wheel > 0, wheel || 4);
   $("solveView").classList.toggle("arrows", arrows);
   $("solveView").classList.toggle("wheel", wheel > 0);
-  // the eight-wedge wheel has no solver yet
-  $("solveView").classList.toggle("wheel8", wheel === 8);
 }
 
 function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
@@ -1532,7 +1530,10 @@ $("studyHint").onclick = () => {
   if (!net || cubeView.animating) return;
   if (hintShownAt !== null) return clearStudyHint();
   stopPlaying();
-  const h = studyHint(net.size, cubeView.getState());
+  // the Magic Wheel's hint is one line, whatever the state
+  const h = studyWheel
+    ? { title: tr("魔輪", "Magic Wheel"), body: tr("先解完方塊，再解輪子，類似 4×4 的中心。", "Solve the cube first, then the wheels, like a 4×4's centres."), rings: new Set<string>(), lesson: undefined }
+    : studyHint(net.size, cubeView.getState());
   hintLesson = h?.lesson ?? null;
   $("studyTipTitle").textContent = h ? h.title : tr("看不出來", "Can't tell");
   $("studyTipBody").textContent = h ? h.body : tr("這個方塊的顏色對不起來，沒辦法判斷。", "The colours on this cube do not add up, so there is no hint.");
