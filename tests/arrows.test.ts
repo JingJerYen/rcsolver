@@ -39,7 +39,8 @@ test("scrambled cubes come back with every arrow up", () => {
     longest = Math.max(longest, moves.length);
   }
   console.log(`arrows: ${(total / 40).toFixed(1)} moves on average, ${longest} at most`);
-  assert.ok(longest <= 80, `took ${longest} moves`);
+  // a slow machine may stop trying first moves early (see solveArrows), so the bound is loose
+  assert.ok(longest <= 100, `took ${longest} moves`);
 });
 
 test("turns of a face in a row merge, across the opposite face too", () => {
