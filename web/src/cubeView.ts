@@ -118,15 +118,17 @@ export class CubeView {
     turn: { axis: 0 | 1 | 2; layer: number; dir: [number, number]; pxPerRad: number } | null;
     /** Started on a face's centre with `centreSpin` on: the finger's last angle round that face's middle. */
     spin: { last: number | null } | null;
+    /** Started on a Magic Wheel's wedge: the spin turns that face's wheel, not its layer. */
+    wheel: boolean;
   } | null = null;
   /** The layer being turned by hand and how far, in radians; `spin` for a whole face turned round its middle. */
-  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean } | null = null;
+  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean; wheel?: boolean } | null = null;
   /** Speed mode: a drag that starts on a face's centre turns that whole face, following the finger round. */
   centreSpin = false;
   /** Asked before a hand turn starts; false leaves the drag to turn the view. */
   canTwist: () => boolean = () => true;
   /** A hand turn that landed: its axis, layer and quarter turns (right-hand rule), already applied. */
-  onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number) => void) | null = null;
+  onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number, wheel: boolean) => void) | null = null;
   private w = 300;
   private h = 300;
   private yaw = DEFAULT_VIEW.yaw;
@@ -236,7 +238,9 @@ export class CubeView {
       const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
       if (key && this.canTwist()) {
         const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
-        this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null, spin: this.spinsFrom(c, n) ? { last: null } : null };
+        // a Magic Wheel's wedge spins its wheel round; any other sticker drags its layer
+        const wheel = key.endsWith("|w");
+        this.grab = { x: e.clientX, y: e.clientY, c, n, turn: null, wheel, spin: wheel || this.spinsFrom(c, n) ? { last: null } : null };
         this.drag = null;
         return;
       }
@@ -291,9 +295,11 @@ export class CubeView {
   setState(size: number, stickers: Sticker[]) {
     this.size = size;
     this.stickers = stickers;
-    this.lookup = new Map(stickers.map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s.c]));
-    this.dirAt = new Map(stickers.filter((s) => s.d).map((s) => [`${s.p.join(",")}|${s.n.join(",")}`, s.d!]));
-    this.indexAt = new Map(stickers.map((s, i) => [`${s.p.join(",")}|${s.n.join(",")}`, i]));
+    // a Magic Wheel's wedge shares its place with a corner sticker: its key carries "|w"
+    const key = (s: Sticker) => `${s.p.join(",")}|${s.n.join(",")}${s.w ? "|w" : ""}`;
+    this.lookup = new Map(stickers.map((s) => [key(s), s.c]));
+    this.dirAt = new Map(stickers.filter((s) => s.d).map((s) => [key(s), s.d!]));
+    this.indexAt = new Map(stickers.map((s, i) => [key(s), i]));
     this.draw();
   }
 
@@ -358,7 +364,7 @@ export class CubeView {
   pointOf(key: string): [number, number] | null {
     const hit = this.hits.find((h) => h.key === key);
     if (!hit) return null;
-    return [hit.poly.reduce((a, p) => a + p[0], 0) / 4, hit.poly.reduce((a, p) => a + p[1], 0) / 4];
+    return [hit.poly.reduce((a, p) => a + p[0], 0) / hit.poly.length, hit.poly.reduce((a, p) => a + p[1], 0) / hit.poly.length];
   }
 
   /**
@@ -475,7 +481,7 @@ export class CubeView {
     const angle = Math.atan2((sa[0]! * dy - sa[1]! * dx) / det, (dx * sb[1]! - dy * sb[0]!) / det);
     if (!g.turn) {
       g.turn = { axis: ax, layer: g.c[ax]!, dir: [0, 0], pxPerRad: 1 };
-      this.twist = { axis: ax, layers: [g.c[ax]!], angle: 0, spin: true };
+      this.twist = { axis: ax, layers: [g.c[ax]!], angle: 0, spin: true, wheel: g.wheel };
       sp.last = angle;
     }
     let d = angle - sp.last!;
@@ -504,8 +510,8 @@ export class CubeView {
       this.settling = null;
       this.twist = null;
       if (turns !== 0) {
-        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: turns * quarter } as Move));
-        this.onTwist?.(tw.axis, tw.layers[0]!, tw.spin ? turns : q);
+        this.setState(this.size, applyMove(this.stickers, { axis: tw.axis, layers: tw.layers, angle: turns * quarter, ...(tw.wheel ? { wheel: true } : {}) } as Move));
+        this.onTwist?.(tw.axis, tw.layers[0]!, tw.spin ? turns : q, !!tw.wheel);
       } else this.draw();
     };
     const tick = (now: number) => {
@@ -719,7 +725,7 @@ export class CubeView {
     const vals = layerValues(size);
     const anim = this.anim;
     // the layer turning now: an animated move, or one being turned by hand
-    const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f } : this.twist;
+    const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f, wheel: !!anim.move.wheel } : this.twist;
     const rot = (p: Vec, active: boolean): Vec => (active && turn ? rotateVec(p, turn.axis, turn.angle) : p);
 
     // the pieces (by where they are now) that carry a mark, for the marked-only view
@@ -735,6 +741,8 @@ export class CubeView {
       light: number;
       key: string;
       marked: boolean;
+      /** A Magic Wheel's wedge, raised off its face: the dark band of its side, drawn under it. */
+      band?: [number, number][];
     };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
@@ -743,7 +751,8 @@ export class CubeView {
       if (Math.abs(x) !== size - 1 && Math.abs(y) !== size - 1 && Math.abs(z) !== size - 1) continue;
       const c: Vec = [x, y, z];
       const shown = turn ?? this.preview;
-      const active = !!shown && shown.layers.includes(c[shown.axis]);
+      // a wheel turn carries only the wedges, never the corner stickers
+      const active = !!shown && !shown.wheel && shown.layers.includes(c[shown.axis]);
       const focus = this.focus;
       let pieceMuted = false;
       if (focus && "pieces" in focus) {
@@ -798,6 +807,50 @@ export class CubeView {
           light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
         });
       }
+      // the Magic Wheel's wedges: a quarter of a raised disc on each face of a corner cubie
+      for (let ax = 0; ax < 3; ax++) {
+        if (Math.abs(c[ax]!) !== size - 1) continue;
+        const n: Vec = [0, 0, 0];
+        n[ax] = Math.sign(c[ax]!);
+        const key = `${c.join(",")}|${n.join(",")}|w`;
+        const raw = this.lookup.get(key);
+        if (!raw) continue;
+        const wActive = !!shown && shown.layers.includes(c[shown.axis]) && (!shown.wheel || n[shown.axis] !== 0);
+        const rn = rot(n, wActive);
+        if (dot(rn, b.view) <= 0.001) continue;
+        const a = (ax + 1) % 3, v = (ax + 2) % 3;
+        const ea: Vec = [0, 0, 0], ev: Vec = [0, 0, 0];
+        ea[a] = Math.sign(c[a]!);
+        ev[v] = Math.sign(c[v]!);
+        const plane = size - 1 + 0.975;
+        const radius = size * 0.62;
+        const rise = size * 0.13;
+        // the quarter arc, at a height off the face
+        const arc = (t: number): Vec[] =>
+          Array.from({ length: 9 }, (_, i) => {
+            const th = (i / 8) * (Math.PI / 2);
+            return [0, 1, 2].map((k) => n[k]! * (plane + t) + radius * (Math.cos(th) * ea[k]! + Math.sin(th) * ev[k]!)) as Vec;
+          });
+        const centreAt = (t: number): Vec => n.map((k) => k * (plane + t)) as Vec;
+        const show = (ps: Vec[]) => ps.map((p) => project(rot(p, wActive)));
+        const top = show([centreAt(rise), ...arc(rise)]);
+        const band = show([...arc(0), ...arc(rise).reverse()]);
+        const focus = this.focus;
+        const muted = (litPieces !== null && !litPieces.has(c.join(","))) || (focus !== null && ("keys" in focus ? !focus.keys.has(key) : pieceMuted));
+        faces.push({
+          poly: top,
+          st: top,
+          arrow: null,
+          band,
+          col: muted ? GREY : hexOf(raw),
+          active: wActive,
+          key,
+          marked: this.marks.size > 0 && this.marks.has(this.indexAt.get(key) ?? -1),
+          // over its own face's corner stickers, whichever is nearer
+          depth: dot(rot(centreAt(rise), wActive), b.view) + size * 0.75,
+          light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
+        });
+      }
     }
     faces.sort((p, q) => p.depth - q.depth);
     const path = (ps: [number, number][]) => {
@@ -806,6 +859,22 @@ export class CubeView {
       ctx.closePath();
     };
     for (const f of faces) {
+      if (f.band) {
+        // a wedge: its dark side, then the wedge itself with a dark edge to part it from the next
+        path(f.band);
+        ctx.fillStyle = "#1d2733";
+        ctx.fill();
+        path(f.st);
+        ctx.fillStyle = f.col!;
+        ctx.fill();
+        ctx.fillStyle = `rgba(0,0,0,${(1 - f.light) * 0.35})`;
+        ctx.fill();
+        ctx.strokeStyle = f.active ? "#fff1a8" : "#1d2733";
+        ctx.lineWidth = f.active ? 2 : 1.6;
+        ctx.stroke();
+        if (f.marked) this.drawMark(f.st);
+        continue;
+      }
       path(f.poly);
       ctx.fillStyle = "#172336";
       ctx.fill();

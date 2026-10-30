@@ -167,3 +167,28 @@ test("eight wedges a wheel, and wheels turning only with the layers, are setting
   assert.ok(offset.locked.has("R"));
   assert.ok(offset.moves.has("r"));
 });
+
+test("the study screen's sticker model turns exactly like the geometric one", async () => {
+  const { applyAlgorithm, fromNet, isSolved, withWheels } = await import("../web/src/cubeState.js");
+  const { setWheelStudy, studyMove, wheelScrambleTokens } = await import("../web/src/study.js");
+  const COLOUR: Record<WheelFace, string> = { U: "W", R: "R", F: "G", D: "Y", L: "O", B: "B" };
+  const solvedCube = withWheels(2, fromNet(2, Object.fromEntries(WHEEL_FACES.map((f) => [f, ["", ""].map(() => COLOUR[f].repeat(2))])) as never));
+  setWheelStudy(true);
+  try {
+    for (let trial = 0; trial < 30; trial++) {
+      const tokens = wheelScrambleTokens(rand, 30).concat(["x", "y'", "z2"]);
+      const cube = applyAlgorithm(solvedCube, tokens.map((t) => studyMove(t, 2)!));
+      const model = run(tokens.join(" "));
+      pz.slots.forEach((s, slot) => {
+        const { n, u, v } = FACE_BASIS[s.face];
+        const a = Math.PI / 4 + (s.index * Math.PI) / 2;
+        const p = [0, 1, 2].map((i) => n[i]! + Math.sign(Math.cos(a)) * u[i]! + Math.sign(Math.sin(a)) * v[i]!);
+        const sticker = cube.find((t) => !!t.w === (s.kind === "wedge") && t.p.every((x, i) => x === p[i]) && t.n.every((x, i) => x === n[i]));
+        assert.equal(sticker?.c, COLOUR[colourOf(pz, model[slot]!)], `${tokens.join(" ")}: ${s.face} ${s.kind} ${s.index}`);
+      });
+      assert.equal(isSolved(cube), isWheelSolved(pz, model));
+    }
+  } finally {
+    setWheelStudy(false);
+  }
+});

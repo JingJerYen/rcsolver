@@ -3,13 +3,28 @@
  * from wherever a solve had got to). This module is the part without the page: reading typed
  * moves, the tokens the keypad produces, and the keypad itself.
  */
-import { FACE_AXES, FACE_ORDER, layerValues, parseMove, type Move, type Vec } from "./cubeState.js";
+import { FACE_AXES, FACE_ORDER, layerValues, parseMove, parseWheelMove, type Move, type Vec } from "./cubeState.js";
 import { tr } from "./i18n.js";
 
 export const FACE_KEYS = ["U", "D", "F", "B", "L", "R"] as const;
 
+/**
+ * Study mode on the 2×2 Magic Wheel: lowercase u d r l f b are wheel turns there (elsewhere they are
+ * wide turns). Set when such a study starts.
+ */
+let wheelStudy = false;
+export function setWheelStudy(on: boolean) {
+  wheelStudy = on;
+}
+
 /** One token for this cube size, or null if it is not a move (unknown letter, a layer the cube does not have). */
 export function studyMove(token: string, size: number): Move | null {
+  if (wheelStudy) {
+    const wheel = parseWheelMove(token, size);
+    if (wheel) return wheel;
+    // only plain layer turns and x y z on the Magic Wheel
+    if (!/^[URFDLBxyz]['2]?$/.test(token.trim())) return null;
+  }
   try {
     const mv = parseMove(token, size);
     return mv.layers.length && mv.layers.every((v) => v !== undefined) ? mv : null;
@@ -80,6 +95,19 @@ export function scrambleTokens(size: number, rand: () => number = Math.random): 
   return out;
 }
 
+/** A Magic Wheel scramble: layer and wheel turns mixed, never the same face twice running. */
+export function wheelScrambleTokens(rand: () => number = Math.random, length = 25): string[] {
+  const out: string[] = [];
+  let last = "";
+  while (out.length < length) {
+    const face = FACE_KEYS[Math.floor(rand() * 6)]!;
+    if (face === last) continue;
+    last = face;
+    out.push((rand() < 0.5 ? face : face.toLowerCase()) + ["", "'", "2"][Math.floor(rand() * 3)]);
+  }
+  return out;
+}
+
 /** Quarter turns clockwise in a move's suffix: R 1, R2 2, R' 3. */
 const quarters = (token: string) => (token.endsWith("2") ? 2 : token.endsWith("'") ? 3 : 1);
 
@@ -139,7 +167,7 @@ export function deltaTurn(before: string, after: string, size: number): { move: 
 }
 
 /** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then x y z and x′ y′ z′ and delete. A half turn is the same key twice. */
-export function keypadHtml(size: number, depth: number, wide: boolean): string {
+export function keypadHtml(size: number, depth: number, wide: boolean, wheelKeys?: "layer" | "wheel"): string {
   const deepest = Math.floor(size / 2);
   const layers =
     size >= 4
@@ -149,12 +177,18 @@ export function keypadHtml(size: number, depth: number, wide: boolean): string {
           return `<button type="button" class="k small${depth === d ? " on" : ""}" data-depth="${d}">${label}</button>`;
         }).join("")}<button type="button" class="k small${wide ? " on" : ""}" data-wide aria-pressed="${wide}">${tr("多層", "Wide")}</button></div>`
       : "";
+  // the Magic Wheel: a switch between the layer keys (U R F) and the wheel keys (u r f)
+  const keyset = wheelKeys
+    ? `<div class="keyset" role="tablist">${(["layer", "wheel"] as const)
+        .map((k) => `<button type="button" role="tab" data-keyset="${k}" aria-selected="${wheelKeys === k}">${k === "layer" ? tr("層 U R F", "Layers U R F") : tr("輪 u r f", "Wheels u r f")}</button>`)
+        .join("")}</div>`
+    : "";
   const row = (prime: boolean) =>
     FACE_KEYS.map((f) => {
-      const t = keyToken(f, depth, wide) + (prime ? "'" : "");
+      const t = (wheelKeys === "wheel" ? f.toLowerCase() : keyToken(f, depth, wide)) + (prime ? "'" : "");
       return `<button type="button" class="k ${prime ? "ccw" : "face"}" data-tok="${t}">${t.replace("'", "′")}</button>`;
     }).join("");
-  return `${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>`;
+  return `${keyset}${layers}<div class="krow">${row(false)}</div><div class="krow">${row(true)}</div>`;
 }
 
 /**

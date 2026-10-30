@@ -12,6 +12,11 @@ export interface Sticker {
   c: Color;
   /** The way its picture points, on a cube whose centres have a direction; turns with the sticker. */
   d?: Vec;
+  /**
+   * A wedge of the 2×2 Magic Wheel: the quarter of a face's wheel in the quadrant of the corner sticker
+   * at the same p and n. Layer turns carry it like that sticker; a wheel turn spins only the wedges.
+   */
+  w?: true;
 }
 
 /** Face geometry: outward normal, image-right and image-down directions (same convention as the net). */
@@ -53,7 +58,8 @@ export function fromNet(size: number, faces: Record<Face, string[]>): Sticker[] 
 export function toNet(size: number, stickers: Sticker[]): Record<Face, string[]> {
   const vals = layerValues(size);
   const key = (p: Vec, n: Vec) => `${p.join(",")}|${n.join(",")}`;
-  const lookup = new Map(stickers.map((s) => [key(s.p, s.n), s.c]));
+  // (a Magic Wheel's wedges share their corner stickers' places: the net is the corners)
+  const lookup = new Map(stickers.filter((s) => !s.w).map((s) => [key(s.p, s.n), s.c]));
   const net = {} as Record<Face, string[]>;
   for (const f of FACE_ORDER) {
     const ax = FACE_AXES[f];
@@ -81,6 +87,8 @@ export interface Move {
   q: 1 | 2 | -1;
   /** Signed rotation angle about the axis, in radians. */
   angle: number;
+  /** The Magic Wheel's wheel turn (u d r l f b): only that face's wedges turn. */
+  wheel?: true;
 }
 
 const FACE_AXIS: Record<Face, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
@@ -177,12 +185,13 @@ export function rotateVec(v: Vec, axis: 0 | 1 | 2, angle: number): Vec {
 /** Apply a move and return the new sticker list (positions snapped back to integers). */
 export function applyMove(stickers: Sticker[], mv: Move): Sticker[] {
   return stickers.map((s) =>
-    mv.layers.includes(s.p[mv.axis])
+    mv.layers.includes(s.p[mv.axis]) && (!mv.wheel || (s.w && s.n[mv.axis] !== 0))
       ? {
           p: rotateVec(s.p, mv.axis, mv.angle).map(Math.round) as Vec,
           n: rotateVec(s.n, mv.axis, mv.angle).map(Math.round) as Vec,
           c: s.c,
           ...(s.d ? { d: rotateVec(s.d, mv.axis, mv.angle).map(Math.round) as Vec } : {}),
+          ...(s.w ? { w: true as const } : {}),
         }
       : s,
   );
@@ -248,4 +257,27 @@ export function withCentreTurns(size: number, stickers: Sticker[], turns: number
     for (let k = 0; k < (turns[FACE_ORDER.indexOf(f)] ?? 0); k++) d = rotateVec(d, ax, Math.PI / 2).map(Math.round) as Vec;
     return { ...s, d };
   });
+}
+
+/* The 2×2 Magic Wheel: wedges as stickers alongside the corner ones, and wheel turns. */
+
+/** A wheel turn: lowercase u d r l f b (with ' or 2), each wedge a quarter on; null if not one. */
+export function parseWheelMove(token: string, size: number): Move | null {
+  const m = /^([udrlfb])(['2]?)$/.exec(token.trim());
+  if (!m) return null;
+  return { ...parseMove(`${m[1]!.toUpperCase()}${m[2]}`, size), token, wheel: true };
+}
+
+/** The wedges' colours as a net (the same cells as the corner stickers they sit beside). */
+export function wedgeNet(size: number, stickers: Sticker[]): Record<Face, string[]> {
+  return toNet(size, stickers.filter((s) => s.w).map(({ w: _w, ...s }) => s));
+}
+
+/**
+ * Stickers with a wheel on every face: the wedges coloured from `wedges` (a net), or else each like
+ * the corner sticker beside it (as on a cube turned by layers only).
+ */
+export function withWheels(size: number, stickers: Sticker[], wedges?: Record<Face, string[]>): Sticker[] {
+  const plain = stickers.filter((s) => !s.w);
+  return [...plain, ...fromNet(size, wedges ?? toNet(size, plain)).map((s) => ({ ...s, w: true as const }))];
 }
