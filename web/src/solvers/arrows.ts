@@ -13,9 +13,11 @@ import { solve3 } from "../solver.js";
 const MACROS = [
   // the U centre a half turn
   "U R L U2 R' L' U R L U2 R' L'",
-  // half turns found by a meet-in-the-middle search over face turns: U and B; R and L; four centres at once
+  // half turns found by a meet-in-the-middle search over face turns (none turns a centre a quarter
+  // within 12 moves): U and B; R and L; U and D; four centres at once
   "R U2 F2 D2 R' L B2 D2 F2 L'",
-  "U R2 U2 F2 B2 D2 L2 D2 B2 F2 U",
+  "U2 R2 U2 F2 B2 D2 L2 D2 B2 F2",
+  "U2 R2 F2 B2 L2 D2 L2 B2 F2 R2",
   "U R2 F2 B2 R2 U' D F2 L2 R2 F2 D'",
   // the U and D centres a quarter turn each: X U X with X = R L' F2 B2 R L' turns the D layer, but the U centre
   "R L' F2 B2 R L' U R L' F2 B2 R L' D'",
@@ -158,14 +160,18 @@ export function simplify(tokens: string[]): string[] {
 
 /**
  * A whole solution for the 3×3 with arrows: the colours by the two-phase solver, then the arrows.
- * Which centres a colour solution leaves turned depends on the solution, so a few are tried (after
- * a first move or none) and the shortest total kept; that mostly spares the long U-perm macro.
+ * Which centres a colour solution leaves turned depends on the solution, so a few hundred are tried
+ * (after one or two first moves, or none) and the shortest total kept; that mostly spares the long
+ * U-perm macro and takes about half a second on a computer.
  */
 export function solveArrows(stickers: Sticker[]): string[] | null {
   let best: string[] | null = null;
   const singles = FACE_ORDER.flatMap((f) => [f, `${f}'`, `${f}2`]);
   const firsts = ["", ...singles, ...singles.flatMap((a) => singles.filter((b) => b[0] !== a[0]).map((b) => `${a} ${b}`))];
-  for (const first of firsts) {
+  const started = performance.now();
+  for (const [k, first] of firsts.entries()) {
+    // a slow phone stops after the single first moves after a second and a half
+    if (k > singles.length && performance.now() - started > 1500) break;
     const start = applyAlgorithm(stickers, parseAlgorithm(first, 3));
     const read = netToFacelets(toNet(3, start));
     if (!read) return null;
