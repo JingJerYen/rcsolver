@@ -34,7 +34,10 @@ interface Tables {
   perm: Map<string, Int16Array>;
   /** The wedge places, and each macro as a permutation of them alone (corners stay put). */
   wedgeSlots: number[];
-  macros: { tokens: string[]; dest: Int16Array }[];
+  /** `moved`: the wedge places a macro changes, so a step only looks at those. */
+  macros: { tokens: string[]; dest: Int16Array; moved: Int16Array }[];
+  /** Random keys per wedge place and colour, so a state's hash changes only where a macro moves wedges. */
+  zobrist: [Int32Array, Int32Array];
 }
 
 const tables = new Map<number, Tables>();
@@ -54,9 +57,83 @@ function build(wedges: number): Tables {
   const macros = sequences.map((tokens) => {
     // follow each wedge place through the sequence
     const dest = Int16Array.from(wedgeSlots.map((slot) => local.get(tokens.reduce((at, t) => perm.get(t)![at]!, slot))!));
-    return { tokens, dest };
+    return { tokens, dest, moved: Int16Array.from([...dest.keys()].filter((i) => dest[i] !== i)) };
   });
-  return { places, slotOf, perm, wedgeSlots, macros };
+  let seed = 12345;
+  const rand = () => (seed = (Math.imul(seed, 1103515245) + 12345) | 0);
+  const zobrist: [Int32Array, Int32Array] = [Int32Array.from({ length: wedgeSlots.length * 8 }, rand), Int32Array.from({ length: wedgeSlots.length * 8 }, rand)];
+  return { places, slotOf, perm, wedgeSlots, macros, zobrist };
+}
+
+interface Node {
+  s: Uint8Array;
+  /** Wedges on the wrong face. */
+  h: number;
+  /** Moves so far. */
+  len: number;
+  /** Two 32-bit hashes of `s`. */
+  z1: number;
+  z2: number;
+  parent: Node | null;
+  macro: number;
+}
+
+/**
+ * Wedges home with the corner-keeping macros: each round expands every state kept, scoring a step
+ * from the few wedges its macro moves (no copying) and keeping the `beam` states with the fewest
+ * wedges astray (fewer moves first among equals), never one seen before.
+ */
+function beamSearch(t: Tables, start: Uint8Array, target: Uint8Array, beam: number): string[] | null {
+  const [Z1, Z2] = t.zobrist;
+  const n = start.length;
+  let z1 = 0, z2 = 0, h = 0;
+  for (let i = 0; i < n; i++) {
+    z1 ^= Z1[i * 8 + start[i]!]!;
+    z2 ^= Z2[i * 8 + start[i]!]!;
+    if (start[i] !== target[i]) h++;
+  }
+  const seen = new Set<number>();
+  const keyOf = (a: number, b: number) => (a >>> 0) * 2097152 + ((b >>> 0) & 0x1fffff);
+  let front: Node[] = [{ s: start, h, len: 0, z1, z2, parent: null, macro: -1 }];
+  seen.add(keyOf(z1, z2));
+  let done: Node | null = h === 0 ? front[0]! : null;
+  for (let depth = 0; depth < 120 && !done && front.length; depth++) {
+    // candidates by how many wedges they leave astray
+    const buckets: { parent: Node; macro: number; h: number; len: number; z1: number; z2: number }[][] = Array.from({ length: n + 1 }, () => []);
+    for (const node of front) {
+      const s = node.s;
+      t.macros.forEach((m, k) => {
+        let a = node.z1, b = node.z2, hh = node.h;
+        for (const i of m.moved) {
+          const j = m.dest[i]!;
+          a ^= Z1[j * 8 + s[j]!]! ^ Z1[j * 8 + s[i]!]!;
+          b ^= Z2[j * 8 + s[j]!]! ^ Z2[j * 8 + s[i]!]!;
+          hh += (s[i] !== target[j] ? 1 : 0) - (s[j] !== target[j] ? 1 : 0);
+        }
+        const key = keyOf(a, b);
+        if (seen.has(key)) return;
+        seen.add(key);
+        buckets[hh]!.push({ parent: node, macro: k, h: hh, len: node.len + m.tokens.length, z1: a, z2: b });
+      });
+    }
+    const kept: Node[] = [];
+    for (const bucket of buckets) {
+      if (kept.length >= beam) break;
+      bucket.sort((x, y) => x.len - y.len);
+      for (const c of bucket.slice(0, beam - kept.length)) {
+        const m = t.macros[c.macro]!;
+        const s = c.parent.s.slice();
+        for (const i of m.moved) s[m.dest[i]!] = c.parent.s[i]!;
+        kept.push({ s, h: c.h, len: c.len, z1: c.z1, z2: c.z2, parent: c.parent, macro: c.macro });
+      }
+    }
+    front = kept;
+    if (front[0]?.h === 0) done = front[0];
+  }
+  if (!done) return null;
+  const path: string[][] = [];
+  for (let node: Node | null = done; node?.parent; node = node.parent) path.push(t.macros[node.macro]!.tokens);
+  return path.reverse().flat();
 }
 
 /** Same-letter turns in a row merged: layers by quarters, wheels by wedges. */
@@ -82,9 +159,10 @@ function simplify(tokens: string[], wedges: number): string[] {
 
 /**
  * Moves that solve this Magic Wheel (layer turns U R F D L B, wheel turns u r f d l b), or null when
- * the stickers are not one. About 40 moves for four wedges a wheel; `beam` trades time for length.
+ * the stickers are not one. About 35 moves for four wedges a wheel (a few hundredths of a second),
+ * about 55 for eight (a few tenths); `beam` trades time for length.
  */
-export function solveWheel(stickers: Sticker[], wedges: number, beam = 30): string[] | null {
+export function solveWheel(stickers: Sticker[], wedges: number, beam = wedges <= 4 ? 100 : 60): string[] | null {
   const t = tables.get(wedges) ?? build(wedges);
   tables.set(wedges, t);
   if (stickers.length !== t.places.length) return null;
@@ -110,30 +188,7 @@ export function solveWheel(stickers: Sticker[], wedges: number, beam = 30): stri
   const code = (c: string) => codes.get(c) ?? (codes.set(c, codes.size), codes.size - 1);
   const target = Uint8Array.from(t.wedgeSlots.map((slot) => code(faceColour.get(t.places[slot]!.n.join())!)));
   const start = Uint8Array.from(t.wedgeSlots.map((slot) => code(state[slot]!)));
-  const off = (s: Uint8Array) => s.reduce((a, c, i) => a + (c === target[i] ? 0 : 1), 0);
-
-  type Node = { s: Uint8Array; path: string[]; h: number };
-  let front: Node[] = [{ s: start, path: [], h: off(start) }];
-  let found: string[] | null = front[0]!.h === 0 ? [] : null;
-  for (let depth = 0; depth < 80 && !found; depth++) {
-    const next = new Map<string, Node>();
-    for (const n of front) {
-      for (const m of t.macros) {
-        const s = new Uint8Array(n.s.length);
-        for (let i = 0; i < s.length; i++) s[m.dest[i]!] = n.s[i]!;
-        const key = String.fromCharCode(...s);
-        if (next.has(key)) continue;
-        const node = { s, path: [...n.path, ...m.tokens], h: off(s) };
-        next.set(key, node);
-        if (node.h === 0) {
-          found = node.path;
-          break;
-        }
-      }
-      if (found) break;
-    }
-    front = [...next.values()].sort((a, b) => a.h - b.h || a.path.length - b.path.length).slice(0, beam);
-  }
+  const found = beamSearch(t, start, target, beam);
   if (!found) return null;
   const all = simplify([...corners.moves, ...found], wedges);
   // checked on the stickers themselves, so a slip in the tables can never hand back a wrong solution
