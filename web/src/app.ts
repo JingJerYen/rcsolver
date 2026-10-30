@@ -14,7 +14,7 @@ import { decodeShare, encodeShare } from "./share.js";
 import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateVec, toNet, withCentreTurns, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
-import { initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
+import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
 import { studyHint } from "./hint.js";
 import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 import { initHoverTips } from "./hoverTips.js";
@@ -1717,8 +1717,12 @@ $("viewHome").addEventListener("contextmenu", (e) => e.preventDefault());
 $("viewHome").onclick = () => {
   // the click that ends a long press is not a tap
   if (scrambledByHold) scrambledByHold = false;
-  else if (studying) smartHome();
-  else cubeView.resetView();
+  else {
+    if (studying) smartHome();
+    else cubeView.resetView();
+    // the arrows say which way is up, front and right now, then fade
+    cubeView.flashAxes(axisLabels(), 1800);
+  }
 };
 
 const WHOLE_TURNS = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
