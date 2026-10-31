@@ -11,14 +11,14 @@ import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
-import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateVec, toNet, wheelColours, wheelToken, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateAbout, rotateVec, toNet, wheelColours, wheelToken, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
 import { studyHint } from "./hint.js";
 import { solveArrows } from "./solvers/arrows.js";
 import { solveWheel } from "./solvers/wheel.js";
-import { pyraColours, pyraFromColours, pyraScrambleTokens, pyraSolved, solvePyra } from "./pyraminx.js";
+import { PYRA_HOLDS, parsePyraMove, pyraColours, pyraFromColours, pyraScrambleTokens, pyraSolved, solvePyra } from "./pyraminx.js";
 import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 import { initHoverTips } from "./hoverTips.js";
 
@@ -1384,9 +1384,8 @@ function setTwistOn(on: boolean) {
   const btn = $("twistBtn");
   btn.classList.toggle("on", on);
   btn.setAttribute("aria-pressed", String(on));
-  // (no hand turns on a Pyraminx: its keypad stays)
-  $("solveView").classList.toggle("twisting", on && !studyPyra);
-  cubeView.setTwisting(studying && on && !studyPyra);
+  $("solveView").classList.toggle("twisting", on);
+  cubeView.setTwisting(studying && on);
 }
 $("twistBtn").onclick = () => {
   setTwistOn(!twistOn);
@@ -1404,6 +1403,13 @@ cubeView.onTwist = (axis, layer, quarters, wheel) => {
   const face = ((layer > 0 ? ["R", "U", "F"] : ["L", "D", "B"]) as Face[])[axis]!;
   const token = wheel ? wheelToken(face, (layer > 0 ? -1 : 1) * quarters, studyWheel) : twistToken(net.size, axis, layer, quarters);
   if (!token) return;
+  const next = addToken(token);
+  $<HTMLInputElement>("studyText").value = next.join(" ");
+  setStudyTokens(next, undefined, true);
+};
+// a Pyraminx turned by hand reports its token
+cubeView.onTurnToken = (token) => {
+  if (!net) return;
   const next = addToken(token);
   $<HTMLInputElement>("studyText").value = next.join(" ");
   setStudyTokens(next, undefined, true);
@@ -1782,12 +1788,10 @@ $("viewHome").onclick = () => {
   // the click that ends a long press is not a tap
   if (scrambledByHold) scrambledByHold = false;
   else {
-    // a Pyraminx just goes back to its usual angle
-    if (studyPyra) return cubeView.resetView();
     if (studying) smartHome();
     else cubeView.resetView();
-    // the arrows say which way is up, front and right now, then fade
-    cubeView.flashAxes(axisLabels(), 1800);
+    // the arrows say which way is up, front and right now, then fade (a cube's faces only)
+    if (!studyPyra) cubeView.flashAxes(axisLabels(), 1800);
   }
 };
 
@@ -1802,15 +1806,24 @@ const WHOLE_TURNS = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
 function smartHome() {
   if (!net || cubeView.animating) return;
   const n = net.size;
-  const turnBy = (v: Vec, toks: string[]) => toks.reduce((p, t) => { const m = parseMove(t, n); return rotateVec(p, m.axis, m.angle); }, v);
-  const options = [[], ...WHOLE_TURNS.map((t) => [t]), ...WHOLE_TURNS.flatMap((a) => WHOLE_TURNS.map((b) => [a, b]))];
+  // a Pyraminx: of its twelve holds ([U] and the like), simply the one nearest the view now
+  const turnBy = (v: Vec, toks: string[]) =>
+    toks.reduce((p, t) => {
+      if (studyPyra) {
+        const m = parsePyraMove(t)!;
+        return rotateAbout(p, m.k!, m.angle);
+      }
+      const m = parseMove(t, n);
+      return rotateVec(p, m.axis, m.angle);
+    }, v);
+  const options = studyPyra ? PYRA_HOLDS : [[], ...WHOLE_TURNS.map((t) => [t]), ...WHOLE_TURNS.flatMap((a) => WHOLE_TURNS.map((b) => [a, b]))];
   const corner = cubeView.nearestCorner();
   const near = (v: Vec, w: Vec) => v.every((c, i) => Math.abs(c - w[i]!) < 1e-6);
   // the nearest; among ways to the same hold, the fewest turns (listed first)
   let turns: string[] = [];
   let best = -Infinity;
   for (const toks of options) {
-    if (!near(turnBy(corner, toks), [1, 1, 1])) continue;
+    if (!studyPyra && !near(turnBy(corner, toks), [1, 1, 1])) continue;
     const c = cubeView.homeCloseness((v) => turnBy(v, toks));
     if (c > best + 1e-9) [best, turns] = [c, toks];
   }

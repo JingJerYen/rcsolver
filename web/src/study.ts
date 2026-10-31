@@ -131,11 +131,12 @@ const quarters = (token: string) => (token.endsWith("2") ? 2 : token.endsWith("'
  */
 export function pushMove(tokens: string[], token: string): string[] {
   const last = tokens[tokens.length - 1];
-  // a Pyraminx corner turns in thirds: U U → U′, U U′ → nothing
+  // a Pyraminx corner turns in thirds: U U → U′, U U′ → nothing; the same for [U]
   if (pyraStudy) {
-    if (!last || last[0] !== token[0]) return [...tokens, token];
+    const base = token.replace(/'$/, "");
+    if (!last || last.replace(/'$/, "") !== base) return [...tokens, token];
     const thirds = (((last.endsWith("'") ? 2 : 1) + (token.endsWith("'") ? 2 : 1)) % 3) as 0 | 1 | 2;
-    return thirds === 0 ? tokens.slice(0, -1) : [...tokens.slice(0, -1), token[0] + (thirds === 2 ? "'" : "")];
+    return thirds === 0 ? tokens.slice(0, -1) : [...tokens.slice(0, -1), base + (thirds === 2 ? "'" : "")];
   }
   // a Magic Wheel's wheel turns add up in wedges, round its own number of them
   const wheel = wheelStudy ? /^([udrlfb])(\d?)('?)$/.exec(token) : null;
