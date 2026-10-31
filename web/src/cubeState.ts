@@ -18,6 +18,8 @@ export interface Sticker {
    * turn spins only the wedges, round the face.
    */
   w?: Vec;
+  /** A Pyraminx sticker: its triangle's corners. Its p is the triangle's middle and n its face's normal. */
+  t?: [Vec, Vec, Vec];
 }
 
 /** Face geometry: outward normal, image-right and image-down directions (same convention as the net). */
@@ -90,7 +92,37 @@ export interface Move {
   angle: number;
   /** The Magic Wheel's wheel turn (u d r l f b): only that face's wedges turn, by `angle`. */
   wheel?: true;
+  /**
+   * A Pyraminx turn: about the unit axis `k` through a corner, by `angle`, turning every sticker
+   * whose middle lies further than `depth` along it (the tip alone, or the tip with its layer).
+   */
+  k?: Vec;
+  depth?: number;
 }
+
+/** `v` turned by `angle` about the unit axis `k` (right-hand rule). */
+export function rotateAbout(v: Vec, k: Vec, angle: number): Vec {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const kv = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+  const x: Vec = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]];
+  return [0, 1, 2].map((i) => v[i]! * c + x[i]! * s + k[i]! * kv * (1 - c)) as Vec;
+}
+
+/**
+ * The places an off-grid puzzle (the Pyraminx) can put a point: each turned point is put back on the
+ * nearest one, so rounding never builds up and the same place always reads the same.
+ */
+const snapPoints: Vec[] = [];
+export function addSnapPoints(points: Vec[]) {
+  snapPoints.push(...points);
+}
+export function snapVec(v: Vec): Vec {
+  for (const q of snapPoints) if ((q[0] - v[0]) ** 2 + (q[1] - v[1]) ** 2 + (q[2] - v[2]) ** 2 < 1e-6) return [...q] as Vec;
+  return v;
+}
+
+/** How far along the unit axis `k` a point lies. */
+export const along = (p: Vec, k: Vec) => p[0] * k[0] + p[1] * k[1] + p[2] * k[2];
 
 const FACE_AXIS: Record<Face, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
   R: { axis: 0, sign: 1 },
@@ -185,6 +217,11 @@ export function rotateVec(v: Vec, axis: 0 | 1 | 2, angle: number): Vec {
 
 /** Apply a move and return the new sticker list (positions snapped back to integers). */
 export function applyMove(stickers: Sticker[], mv: Move): Sticker[] {
+  const k = mv.k;
+  if (k) {
+    const turn = (v: Vec) => snapVec(rotateAbout(v, k, mv.angle));
+    return stickers.map((s) => (along(s.p, k) > mv.depth! ? { ...s, p: turn(s.p), n: turn(s.n), t: s.t?.map(turn) as Sticker["t"] } : s));
+  }
   return stickers.map((s) =>
     mv.layers.includes(s.p[mv.axis]) && (!mv.wheel || (s.w && s.n[mv.axis] !== 0))
       ? mv.wheel

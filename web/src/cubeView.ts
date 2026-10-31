@@ -4,9 +4,11 @@
  */
 import { hexOf } from "./net.js";
 import type { Face } from "./api.js";
-import { FACE_AXES, FACE_ORDER, applyMove, layerValues, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { FACE_AXES, FACE_ORDER, along, applyMove, layerValues, rotateAbout, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { pyraPiece } from "./pyraminx.js";
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
+const PYRA_VIEW = { yaw: 0.55, pitch: 0.6 };
 
 /** `v` turned by `angle` about the unit axis `k` (right-hand rule). */
 function turnAbout(v: Vec, k: Vec, angle: number): Vec {
@@ -426,6 +428,8 @@ export class CubeView {
 
   /** Pixels per cube unit. */
   private scale(): number {
+    // the Pyraminx: its corners 3 from the middle
+    if (this.stickers[0]?.t) return ((Math.min(this.w, this.h) * 0.42) / 3.4) * (this.axes ? 0.92 : 1);
     // turned freely any corner can point at the screen's edge: fit the whole sphere round the cube
     if (this.free) return (Math.min(this.w, this.h) * 0.49) / (this.size * Math.sqrt(3));
     // turned by hand the cube is drawn bigger; with the axis arrows a little smaller, to leave them room round it
@@ -638,8 +642,10 @@ export class CubeView {
 
   /** The usual camera: from the front right, or from the front left to see the left face. */
   resetView(side: "right" | "left" = "right") {
-    this.yaw = side === "left" ? -DEFAULT_VIEW.yaw : DEFAULT_VIEW.yaw;
-    this.pitch = DEFAULT_VIEW.pitch;
+    // a Pyraminx shows its front face (corners U L R) and, past R, a little of the face behind
+    const view = this.stickers[0]?.t ? PYRA_VIEW : DEFAULT_VIEW;
+    this.yaw = side === "left" ? -view.yaw : view.yaw;
+    this.pitch = view.pitch;
     if (this.free) this.free = { right: [1, 0, 0], up: [0, 1, 0], view: [0, 0, 1] };
     if (!this.anim) this.draw();
   }
@@ -775,11 +781,12 @@ export class CubeView {
     const vals = layerValues(size);
     const anim = this.anim;
     // the layer turning now: an animated move, or one being turned by hand
-    const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f, wheel: !!anim.move.wheel } : this.twist;
+    const turn = anim ? { axis: anim.move.axis, layers: anim.move.layers, angle: anim.move.angle * anim.dir * anim.f, wheel: !!anim.move.wheel, k: anim.move.k, depth: anim.move.depth } : this.twist;
     const rot = (p: Vec, active: boolean): Vec => (active && turn ? rotateVec(p, turn.axis, turn.angle) : p);
 
     // the pieces (by where they are now) that carry a mark, for the marked-only view
-    const litPieces = this.markedOnly ? new Set([...this.marks].map((i) => this.stickers[i]!.p.join(","))) : null;
+    const pieceOf = (st: Sticker) => (st.t ? pyraPiece(st.p) : st.p.join(","));
+    const litPieces = this.markedOnly ? new Set([...this.marks].map((i) => pieceOf(this.stickers[i]!))) : null;
     type FaceDraw = {
       poly: [number, number][];
       st: [number, number][];
@@ -797,7 +804,36 @@ export class CubeView {
     };
     const GREY = "#9aa6b5";
     const faces: FaceDraw[] = [];
-    for (const x of vals) for (const y of vals) for (const z of vals) {
+    // the Pyraminx: its triangles, turning about a corner's axis
+    const pyra = this.stickers.some((st) => st.t);
+    if (pyra) {
+      const shown = turn ?? this.preview;
+      this.stickers.forEach((st, i) => {
+        const k = shown && "k" in shown ? shown.k : undefined;
+        const depth = shown && "depth" in shown ? shown.depth : undefined;
+        const active = !!k && depth !== undefined && along(st.p, k) > depth;
+        const r = (p: Vec): Vec => (active && turn && k ? rotateAbout(p, k, turn.angle) : p);
+        const rn = r(st.n);
+        if (dot(rn, b.view) <= 0.001) return;
+        const tri = st.t!.map(r);
+        const mid = r(st.p);
+        const shrink = (f: number) => tri.map((q) => project([0, 1, 2].map((x) => mid[x]! + (q[x]! - mid[x]!) * f) as Vec));
+        const key = `${st.p.join(",")}|${st.n.join(",")}`;
+        const muted = (litPieces !== null && !litPieces.has(pyraPiece(st.p))) || (this.focus !== null && "keys" in this.focus && !this.focus.keys.has(key));
+        faces.push({
+          poly: shrink(1.06),
+          st: shrink(0.8),
+          arrow: null,
+          col: muted ? GREY : hexOf(st.c),
+          active,
+          key,
+          marked: this.marks.size > 0 && this.marks.has(i),
+          depth: dot(mid, b.view),
+          light: 0.7 + 0.3 * Math.max(0, dot(rn, [0.3, 0.8, 0.5])),
+        });
+      });
+    }
+    for (const x of pyra ? [] : vals) for (const y of vals) for (const z of vals) {
       // only cubies on the surface have stickers; skip the hidden interior
       if (Math.abs(x) !== size - 1 && Math.abs(y) !== size - 1 && Math.abs(z) !== size - 1) continue;
       const c: Vec = [x, y, z];
@@ -1044,6 +1080,8 @@ export class CubeView {
    * layers that move, centred on the side facing the camera.
    */
   private drawArrow(move: Move, dir: 1 | -1, project: (p: Vec) => [number, number], view: Vec, now: number) {
+    // (a Pyraminx turn shows only its layer lit up)
+    if (move.k) return;
     const { ctx, size } = this;
     const ax = FACE_AXES[move.face];
     const n = ax.n;

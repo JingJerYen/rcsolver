@@ -5,7 +5,7 @@ import { drawPhotoTips, speakPhotoTip, stopPhotoTip } from "./photoTips.js";
 import { UNKNOWN, accuracy, blankRecognition, makeState, markBadCells, renderLegend, renderNet, unknownCount, type NetState } from "./net.js";
 import { renderFaceZoom } from "./faceZoom.js";
 import { localizePage, tr } from "./i18n.js";
-import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, setWheelStudy, studyMove, tokenize, tokensThrough, twistToken, wheelScrambleTokens } from "./study.js";
+import { deltaTurn, describeMark, keypadHtml, pushMove, readMoves, scrambleTokens, setPyraStudy, setWheelStudy, studyMove, tokenize, tokensThrough, twistToken, wheelScrambleTokens } from "./study.js";
 import { solveAsync, warmAsync } from "./solveClient.js";
 import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
@@ -18,6 +18,7 @@ import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } fro
 import { studyHint } from "./hint.js";
 import { solveArrows } from "./solvers/arrows.js";
 import { solveWheel } from "./solvers/wheel.js";
+import { pyraColours, pyraFromColours, pyraScrambleTokens, pyraSolved, solvePyra } from "./pyraminx.js";
 import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 import { initHoverTips } from "./hoverTips.js";
 
@@ -53,6 +54,8 @@ interface Save {
   centres?: number[];
   /** A study of the 2×2 Magic Wheel: wedges a wheel and their colours at the start (`faces` holds the corners). */
   wheels?: { wedges: number; colours: Record<Face, string> };
+  /** A Pyraminx (study, or its solve): its stickers' colours at the start (`pyraColours`); `faces` means nothing then. */
+  pyra?: string;
   /** A study: `faces` is where it started, `moves` everything typed (kept as typed), `index` the step shown. */
   study?: boolean;
 }
@@ -182,16 +185,18 @@ function renderSaves() {
     el.className = "save";
     // a Magic Wheel's moves read as wheel turns (u d r l f b), only while reading its own
     setWheelStudy(!!sv.wheels, sv.wheels?.wedges);
+    setPyraStudy(!!sv.pyra);
     const done = readMoves(sv.moves, sv.size).moves;
     setWheelStudy(studying && studyWheel > 0, studyWheel || 4);
+    setPyraStudy(studying && studyPyra);
     // sharing happens inside a save, so the card only opens, renames and deletes
-    el.innerHTML = `<canvas class="mini"></canvas><div class="save-text"><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.size}×${sv.size} · ${sv.index}/${done.length}</span></div><button class="del" aria-label="${tr("刪除", "Delete")}">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 6l7 3.8v7.6L12 21l-7-3.6V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M5 9.8l7 3.7 7-3.7M12 13.5V21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
+    el.innerHTML = `<canvas class="mini"></canvas><div class="save-text"><button type="button" class="save-title" aria-label="${tr("改標題", "Rename")}"><span></span></button><span class="badge">${sv.pyra ? tr("金字塔", "Pyraminx") : `${sv.size}×${sv.size}`} · ${sv.index}/${done.length}</span></div><button class="del" aria-label="${tr("刪除", "Delete")}">✕</button>${sv.study ? `<span class="save-kind"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 6l7 3.8v7.6L12 21l-7-3.6V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M5 9.8l7 3.7 7-3.7M12 13.5V21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>` : ""}`;
     el.querySelector(".save-title span")!.textContent = sv.title ?? savedAt(sv.ts);
     root.appendChild(el);
     const view = new CubeView(el.querySelector("canvas")!);
     miniViews.push(view);
     const plain = fromNet(sv.size, sv.faces);
-    const start = sv.wheels ? withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours) : sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain;
+    const start = sv.pyra ? pyraFromColours(sv.pyra) : sv.wheels ? withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours) : sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain;
     view.setState(sv.size, applyAlgorithm(start, done.slice(0, sv.index)));
     view.resetView();
     el.onclick = (e) => {
@@ -241,8 +246,8 @@ $("titleCancel").onclick = () => titleDialog.close();
 function saveCurrent() {
   if (!net) return;
   const entry: Save = studying
-    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}) }
-    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}) };
+    ? { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: studyTokens, index: moveIndex, study: true, ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}), ...(studyPyra ? { pyra: pyraColours(startState) } : {}) }
+    : { ts: Date.now(), size: net.size, faces: toNet(net.size, startState), moves: moves.map((m) => m.token), index: moveIndex, ...(segments ? { segments } : {}), ...(studyArrows ? { centres: centreTurns(net.size, startState) } : {}), ...(studyWheel ? { wheels: { wedges: studyWheel, colours: wheelColours(startState) } } : {}), ...(studyPyra ? { pyra: pyraColours(startState) } : {}) };
   storeSaves([entry, ...loadSaves()]);
   renderSaves();
   savedKey = progressKey();
@@ -260,7 +265,7 @@ function openSave(i: number) {
 let savedKey = "";
 function progressKey(): string {
   if (!net) return "";
-  return JSON.stringify([studying, net.size, toNet(net.size, startState), studyArrows && centreTurns(net.size, startState), studyWheel && wheelColours(startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
+  return JSON.stringify([studying, net.size, toNet(net.size, startState), studyArrows && centreTurns(net.size, startState), studyWheel && wheelColours(startState), studyPyra && pyraColours(startState), studying ? studyTokens : moves.map((m) => m.token), moveIndex]);
 }
 /** The same for the result screen: a saved cube opened before it was solved, as long as it is unchanged. */
 function resultKey(): string {
@@ -274,7 +279,7 @@ function openSaved(sv: Save) {
     return;
   }
   setStudying(false);
-  setStudyKind(!!sv.centres, sv.wheels?.wedges ?? 0);
+  setStudyKind(!!sv.centres, sv.wheels?.wedges ?? 0, !!sv.pyra);
   studyFrom = null;
   size = sv.size;
   images = {}; // photos from an earlier capture belong to another cube
@@ -288,10 +293,10 @@ function openSaved(sv: Save) {
   net = makeState(sv.size, response.recognition);
   renderNet($("net"), net);
   // a Magic Wheel's solve has wheel turns: read them as such (setStudyKind turned that on)
-  moves = sv.wheels ? readMoves(sv.moves, sv.size).moves : parseAlgorithm(sv.moves.join(" "), sv.size);
+  moves = sv.wheels || sv.pyra ? readMoves(sv.moves, sv.size).moves : parseAlgorithm(sv.moves.join(" "), sv.size);
   // an old teaching save keeps its moves; the stage notes went with the teaching mode
   segments = sv.teach ? null : (sv.segments ?? null);
-  startState = sv.wheels ? withWheels(sv.size, fromNet(sv.size, sv.faces), sv.wheels.wedges, sv.wheels.colours) : sv.centres ? withCentreTurns(sv.size, fromNet(sv.size, sv.faces), sv.centres) : fromNet(sv.size, sv.faces);
+  startState = sv.pyra ? pyraFromColours(sv.pyra) : sv.wheels ? withWheels(sv.size, fromNet(sv.size, sv.faces), sv.wheels.wedges, sv.wheels.colours) : sv.centres ? withCentreTurns(sv.size, fromNet(sv.size, sv.faces), sv.centres) : fromNet(sv.size, sv.faces);
   moveIndex = Math.min(sv.index, moves.length);
   shownIndex = Math.max(0, Math.min(moves.length - 1, moveIndex - 1));
   cubeView.setState(sv.size, applyAlgorithm(startState, moves.slice(0, moveIndex)));
@@ -305,6 +310,7 @@ function showScreen(id: (typeof SCREENS)[number]) {
   for (const s of SCREENS) $(s).classList.toggle("hidden", s !== id);
   // lowercase letters are wheel turns only on a Magic Wheel study's own screen
   setWheelStudy(id === "solveView" && studying && studyWheel > 0, studyWheel || 4);
+  setPyraStudy(id === "solveView" && studying && studyPyra);
   // one home button in the header serves every screen but the home screen itself
   const home = $("home");
   home.classList.toggle("hidden", id === "setup");
@@ -647,7 +653,8 @@ function pretty(token: string) {
 
 function showMove(mv: Move | null) {
   $("move").textContent = mv ? pretty(mv.token) : "";
-  $("angle").textContent = mv ? (Math.abs(mv.q) === 2 ? "180°" : "90°") : "";
+  // a Pyraminx turns a third of the way round
+  $("angle").textContent = mv ? (mv.k ? "120°" : Math.abs(mv.q) === 2 ? "180°" : "90°") : "";
 }
 
 /** Jump straight to step `index` (0 = as read), without animation. */
@@ -840,7 +847,7 @@ function setStudying(on: boolean) {
 }
 
 function renderKeys() {
-  if (net) $("studyKeys").innerHTML = keypadHtml(net.size, studyDepth, studyWide, studyWheel ? studyKeyset : undefined);
+  if (net) $("studyKeys").innerHTML = keypadHtml(net.size, studyDepth, studyWide, studyWheel || studyPyra ? studyKeyset : undefined, studyPyra);
   renderMacros();
 }
 
@@ -849,25 +856,30 @@ function renderKeys() {
 let studyArrows = false;
 /** The cube is the 2×2 Magic Wheel, with this many wedges a wheel (0: not one): wheel turns too, no share, a hint of one line. */
 let studyWheel = 0;
-/** Its keypad shows the layer keys (U R F) or the wheel keys (u r f). */
+/** The cube is a Pyraminx: its own keys (U L R B, tips u l r b), no hand turns, x y z or share. */
+let studyPyra = false;
+/** Its keypad shows the layer keys (U R F) or the wheel keys (u r f); on a Pyraminx the tips (u l r b). */
 let studyKeyset: "layer" | "wheel" = "layer";
 /** A solved cube for the study kind now open: arrows on its centres, or wheels, when the study has them. */
 function studySolved(n: number): Sticker[] {
-  return studyWheel ? withWheels(n, solvedState(n), studyWheel) : studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
+  return studyPyra ? pyraSolved() : studyWheel ? withWheels(n, solvedState(n), studyWheel) : studyArrows ? pointCentres(n, solvedState(n)) : solvedState(n);
 }
 
 /** Which cube the solve screen holds: a plain one, the 3×3 with arrows or a Magic Wheel. */
-function setStudyKind(arrows: boolean, wheel: number) {
+function setStudyKind(arrows: boolean, wheel: number, pyra = false) {
   studyArrows = arrows;
   studyWheel = wheel;
+  studyPyra = pyra;
   setWheelStudy(wheel > 0, wheel || 4);
+  setPyraStudy(pyra);
+  $("solveView").classList.toggle("pyra", pyra);
   $("solveView").classList.toggle("arrows", arrows);
   $("solveView").classList.toggle("wheel", wheel > 0);
 }
 
-function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
+function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0, pyra = false) {
   stopPlaying();
-  setStudyKind(arrows, wheel);
+  setStudyKind(arrows, wheel, pyra);
   studyKeyset = "layer";
   net = netFor(n, start);
   startState = start;
@@ -892,7 +904,7 @@ function startStudy(n: number, start: Sticker[], arrows = false, wheel = 0) {
   // a dot on the front face's centre to start with, so it is easy to see where the front went;
   // an even cube has no single centre, so the top-left of the middle four
   // (the arrow on a 3×3 with arrows already shows it, and a dot would hide it)
-  if (!arrows) cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
+  if (!arrows && !pyra) cubeView.mark(n % 2 ? `0,0,${n - 1}|0,0,1` : `-1,1,${n - 1}|0,0,1`);
   showScreen("solveView");
   renderSolve();
   firstStudyTour();
@@ -978,7 +990,8 @@ function setStudyTokens(tokens: string[], pressed?: string, turned = false) {
 /** Open a saved study as it was left: same start, same text, same step. */
 function openStudy(sv: Save) {
   const plain = fromNet(sv.size, sv.faces);
-  if (sv.wheels) startStudy(sv.size, withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours), false, sv.wheels.wedges);
+  if (sv.pyra) startStudy(sv.size, pyraFromColours(sv.pyra), false, 0, true);
+  else if (sv.wheels) startStudy(sv.size, withWheels(sv.size, plain, sv.wheels.wedges, sv.wheels.colours), false, sv.wheels.wedges);
   else startStudy(sv.size, sv.centres ? withCentreTurns(sv.size, plain, sv.centres) : plain, !!sv.centres);
   studyTokens = sv.moves;
   macroRuns = [];
@@ -1371,8 +1384,9 @@ function setTwistOn(on: boolean) {
   const btn = $("twistBtn");
   btn.classList.toggle("on", on);
   btn.setAttribute("aria-pressed", String(on));
-  $("solveView").classList.toggle("twisting", on);
-  cubeView.setTwisting(studying && on);
+  // (no hand turns on a Pyraminx: its keypad stays)
+  $("solveView").classList.toggle("twisting", on && !studyPyra);
+  cubeView.setTwisting(studying && on && !studyPyra);
 }
 $("twistBtn").onclick = () => {
   setTwistOn(!twistOn);
@@ -1490,8 +1504,8 @@ $("studyGo").onclick = () => {
   void (async () => {
     const studyNet = netFor(n, from);
     // the 3×3 with arrows and the Magic Wheel have their own solvers (no stages to show)
-    const own = studyArrows ? solveArrows(from) : studyWheel ? solveWheel(from, studyWheel) : null;
-    const r = studyArrows || studyWheel ? null : await solveAsync(n, studyNet.current);
+    const own = studyPyra ? solvePyra(from) : studyArrows ? solveArrows(from) : studyWheel ? solveWheel(from, studyWheel) : null;
+    const r = studyArrows || studyWheel || studyPyra ? null : await solveAsync(n, studyNet.current);
     setBusy(false);
     btn.disabled = false;
     // every study state comes from turning a solved cube, so it always solves
@@ -1500,7 +1514,7 @@ $("studyGo").onclick = () => {
     net = studyNet;
     startState = from;
     // still in the study, so wheel turns (u r f) read as such
-    moves = studyWheel ? readMoves(solution, n).moves : parseAlgorithm(solution.join(" "), n);
+    moves = studyWheel || studyPyra ? readMoves(solution, n).moves : parseAlgorithm(solution.join(" "), n);
     segments = r?.ok ? r.segments : null;
     moveIndex = 0;
     shownIndex = 0;
@@ -1531,7 +1545,9 @@ $("studyHint").onclick = () => {
   if (hintShownAt !== null) return clearStudyHint();
   stopPlaying();
   // the Magic Wheel's hint is one line, whatever the state
-  const h = studyWheel
+  const h = studyPyra
+    ? { title: tr("金字塔", "Pyraminx"), body: tr("先把四個小尖角轉到跟下面同色，再解其他的。", "Turn the four tips to match the pieces under them first, then solve the rest."), rings: new Set<string>(), lesson: undefined }
+    : studyWheel
     ? { title: tr("魔輪", "Magic Wheel"), body: tr("先解完方塊，再解輪子，類似 4×4 的中心。", "Solve the cube first, then the wheels, like a 4×4's centres."), rings: new Set<string>(), lesson: undefined }
     : studyHint(net.size, cubeView.getState());
   hintLesson = h?.lesson ?? null;
@@ -1556,7 +1572,7 @@ $("studyTipLearn").onclick = () => {
 $("toStudy").onclick = () => {
   if (!net || cubeView.animating) return;
   const from = { net, start: startState, moves, segments, index: moveIndex };
-  startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)), studyArrows, studyWheel);
+  startStudy(net.size, applyAlgorithm(startState, moves.slice(0, moveIndex)), studyArrows, studyWheel, studyPyra);
   studyFrom = from;
   $("backToSolve").classList.remove("hidden");
 };
@@ -1601,12 +1617,13 @@ function openSizePicker(purpose: "study" | "manual") {
     SOLVABLE.map((n) => `<button type="button" data-n="${n}"><canvas></canvas>${n}×${n}</button>`).join("") +
     `<button type="button" data-n="3" data-arrows class="size-arrows"><canvas></canvas>${tr("3×3 ▲ 中心", "3×3 ▲ centres")}</button>` +
     `<button type="button" data-n="2" data-wheel="4" class="size-arrows"><canvas></canvas>${tr("2×2 魔輪・四分", "2×2 Wheel 4")}</button>` +
-    `<button type="button" data-n="2" data-wheel="8" class="size-arrows"><canvas></canvas>${tr("2×2 魔輪・八分", "2×2 Wheel 8")}</button>`;
+    `<button type="button" data-n="2" data-wheel="8" class="size-arrows"><canvas></canvas>${tr("2×2 魔輪・八分", "2×2 Wheel 8")}</button>` +
+    `<button type="button" data-n="3" data-pyra class="size-arrows"><canvas></canvas>${tr("金字塔", "Pyraminx")}</button>`;
   sizeViews = Array.from($("sizeGrid").querySelectorAll("canvas"), (c, i) => {
     const n = SOLVABLE[i] ?? 3;
     const v = new CubeView(c);
-    const extra = [pointCentres(3, solvedState(3)), withWheels(2, solvedState(2), 4), withWheels(2, solvedState(2), 8)][i - SOLVABLE.length];
-    v.setState(i < SOLVABLE.length ? n : i === SOLVABLE.length ? 3 : 2, extra ?? solvedState(n));
+    const extra = [pointCentres(3, solvedState(3)), withWheels(2, solvedState(2), 4), withWheels(2, solvedState(2), 8), pyraSolved()][i - SOLVABLE.length];
+    v.setState(i < SOLVABLE.length ? n : [3, 2, 2, 3][i - SOLVABLE.length]!, extra ?? solvedState(n));
     v.resetView();
     return v;
   });
@@ -1625,6 +1642,7 @@ $("sizeGrid").onclick = (e) => {
   const n = Number(b.dataset.n);
   if (sizePurpose === "manual") startManual(n);
   else if (b.dataset.arrows !== undefined) startStudy(3, pointCentres(3, solvedState(3)), true);
+  else if (b.dataset.pyra !== undefined) startStudy(3, pyraSolved(), false, 0, true);
   else if (b.dataset.wheel) startStudy(2, withWheels(2, solvedState(2), Number(b.dataset.wheel)), false, Number(b.dataset.wheel));
   else startStudy(n, solvedState(n));
 };
@@ -1740,8 +1758,8 @@ function scrambleStudy() {
   if (!net || !studying || cubeView.animating) return;
   const n = net.size;
   // the Magic Wheel mixes layer and wheel turns
-  const scramble = studyWheel ? wheelScrambleTokens(Math.random, 25, studyWheel).map((t) => studyMove(t, n)!) : parseAlgorithm(scrambleTokens(n).join(" "), n);
-  startStudy(n, applyAlgorithm(studySolved(n), scramble), studyArrows, studyWheel);
+  const scramble = studyPyra ? pyraScrambleTokens().map((t) => studyMove(t, n)!) : studyWheel ? wheelScrambleTokens(Math.random, 25, studyWheel).map((t) => studyMove(t, n)!) : parseAlgorithm(scrambleTokens(n).join(" "), n);
+  startStudy(n, applyAlgorithm(studySolved(n), scramble), studyArrows, studyWheel, studyPyra);
   navigator.vibrate?.(30);
 }
 function endScrambleHold() {
@@ -1764,6 +1782,8 @@ $("viewHome").onclick = () => {
   // the click that ends a long press is not a tap
   if (scrambledByHold) scrambledByHold = false;
   else {
+    // a Pyraminx just goes back to its usual angle
+    if (studyPyra) return cubeView.resetView();
     if (studying) smartHome();
     else cubeView.resetView();
     // the arrows say which way is up, front and right now, then fade

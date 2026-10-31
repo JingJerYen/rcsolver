@@ -4,6 +4,7 @@
  * moves, the tokens the keypad produces, and the keypad itself.
  */
 import { FACE_AXES, FACE_ORDER, layerValues, parseMove, parseWheelMove, wheelToken, type Move, type Vec } from "./cubeState.js";
+import { parsePyraMove } from "./pyraminx.js";
 import type { Face } from "./api.js";
 import { tr } from "./i18n.js";
 
@@ -21,8 +22,15 @@ export function setWheelStudy(on: boolean, wedges = 4) {
   wheelWedges = wedges;
 }
 
+/** Study mode on the Pyraminx: its own moves (U L R B, tips u l r b), and nothing else. */
+let pyraStudy = false;
+export function setPyraStudy(on: boolean) {
+  pyraStudy = on;
+}
+
 /** One token for this cube size, or null if it is not a move (unknown letter, a layer the cube does not have). */
 export function studyMove(token: string, size: number): Move | null {
+  if (pyraStudy) return parsePyraMove(token);
   if (wheelStudy) {
     const wheel = parseWheelMove(token, size, wheelWedges);
     if (wheel) return wheel;
@@ -123,6 +131,12 @@ const quarters = (token: string) => (token.endsWith("2") ? 2 : token.endsWith("'
  */
 export function pushMove(tokens: string[], token: string): string[] {
   const last = tokens[tokens.length - 1];
+  // a Pyraminx corner turns in thirds: U U → U′, U U′ → nothing
+  if (pyraStudy) {
+    if (!last || last[0] !== token[0]) return [...tokens, token];
+    const thirds = (((last.endsWith("'") ? 2 : 1) + (token.endsWith("'") ? 2 : 1)) % 3) as 0 | 1 | 2;
+    return thirds === 0 ? tokens.slice(0, -1) : [...tokens.slice(0, -1), token[0] + (thirds === 2 ? "'" : "")];
+  }
   // a Magic Wheel's wheel turns add up in wedges, round its own number of them
   const wheel = wheelStudy ? /^([udrlfb])(\d?)('?)$/.exec(token) : null;
   const before = wheel && last ? /^([udrlfb])(\d?)('?)$/.exec(last) : null;
@@ -170,7 +184,7 @@ export function twistToken(size: number, axis: 0 | 1 | 2, layer: number, quarter
  */
 export function deltaTurn(before: string, after: string, size: number): { move: Move; dir: 1 | -1 } | null {
   // (a Magic Wheel's wheel turns count in wedges: the cube just lands on the new state)
-  if (wheelStudy && /^[udrlfb]/.test(before)) return null;
+  if ((wheelStudy && /^[udrlfb]/.test(before)) || pyraStudy) return null;
   const base = before.replace(/['2]$/, "");
   if (before === after || after.replace(/['2]$/, "") !== base) return null;
   const a = studyMove(before, size);
@@ -183,7 +197,22 @@ export function deltaTurn(before: string, after: string, size: number): { move: 
 }
 
 /** The keypad: a layer row on 4×4 and up, the six faces clockwise, the same six counter-clockwise, then x y z and x′ y′ z′ and delete. A half turn is the same key twice. */
-export function keypadHtml(size: number, depth: number, wide: boolean, wheelKeys?: "layer" | "wheel"): string {
+export function keypadHtml(size: number, depth: number, wide: boolean, wheelKeys?: "layer" | "wheel", pyra = false): string {
+  // the Pyraminx: corners U L R B, the switch between layers and tips
+  if (pyra) {
+    const set = wheelKeys ?? "layer";
+    const keyset = `<div class="keyset" role="tablist">${(["layer", "wheel"] as const)
+      .map((k) => `<button type="button" role="tab" data-keyset="${k}" aria-selected="${set === k}">${k === "layer" ? tr("層", "Layers") : tr("尖", "Tips")}</button>`)
+      .join("")}</div>`;
+    const row = (prime: boolean) =>
+      ["U", "L", "R", "B"]
+        .map((c) => {
+          const t = (set === "wheel" ? c.toLowerCase() : c) + (prime ? "'" : "");
+          return `<button type="button" class="k ${prime ? "ccw" : "face"}" data-tok="${t}">${t.replace("'", "′")}</button>`;
+        })
+        .join("");
+    return `${keyset}<div class="krow" style="grid-template-columns:repeat(4,1fr)">${row(false)}</div><div class="krow" style="grid-template-columns:repeat(4,1fr)">${row(true)}</div>`;
+  }
   const deepest = Math.floor(size / 2);
   const layers =
     size >= 4
