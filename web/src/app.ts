@@ -837,8 +837,8 @@ function setStudying(on: boolean) {
   studying = on;
   if (hintShownAt !== null) clearStudyHint();
   $("solveView").classList.toggle("study", on);
-  // tapping a sticker marks it in study mode; every new study starts without marks
-  cubeView.setMarking(on);
+  // tapping a sticker marks it in study mode (not on a Pyraminx); every new study starts without marks
+  cubeView.setMarking(on && !studyPyra);
   cubeView.clearMarks();
   setTwistOn(twistOn);
   $("viewHome").setAttribute("aria-label", on ? tr("轉回正面（長按打亂）", "Turn back to the front (hold to scramble)") : tr("轉回正面", "Turn back to the front"));
