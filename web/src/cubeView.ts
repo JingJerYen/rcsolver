@@ -1080,9 +1080,8 @@ export class CubeView {
    * layers that move, centred on the side facing the camera.
    */
   private drawArrow(move: Move, dir: 1 | -1, project: (p: Vec) => [number, number], view: Vec, now: number) {
-    // (a Pyraminx turn shows only its layer lit up)
-    if (move.k) return;
     const { ctx, size } = this;
+    const pyra = move.k;
     const ax = FACE_AXES[move.face];
     const n = ax.n;
     const outerOnly = move.layers.length === 1 && Math.abs(move.layers[0]!) === size - 1;
@@ -1093,7 +1092,18 @@ export class CubeView {
     // A face turned away from the camera gets the belt instead: a ring around the cube at that
     // layer's height, in front of everything, sweeping the way its side stickers move.
     const faceVisible = n[0] * view[0] + n[1] * view[1] + n[2] * view[2] >= 0.15;
-    if (outerOnly && faceVisible) {
+    if (pyra) {
+      // a Pyraminx turn: a ring round the corner's axis, just outside the layer (or the tip), its
+      // middle the point nearest the camera, sweeping the third of a turn
+      const tip = move.depth! > 1;
+      const height = tip ? 2.3 : 1.1;
+      const r = tip ? 0.85 : 1.75;
+      const kv = along(view, pyra);
+      const radial = [0, 1, 2].map((i) => view[i]! - pyra[i]! * kv) as Vec;
+      const len = Math.hypot(...radial) || 1;
+      const start = [0, 1, 2].map((i) => pyra[i]! * height + (radial[i]! / len) * r) as Vec;
+      for (let i = 0; i <= steps; i++) pts.push(project(rotateAbout(start, pyra, sweep * (i / steps - 0.5))));
+    } else if (outerOnly && faceVisible) {
       const out = size + 0.9;
       const r = size * 0.62;
       const centre: Vec = [n[0] * out, n[1] * out, n[2] * out];
