@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyAlgorithm, isSolved } from "../web/src/cubeState.js";
-import { parsePyraMove, pyraColours, pyraFromColours, pyraPiece, pyraScrambleTokens, pyraSolved, solvePyra } from "../web/src/pyraminx.js";
+import { PYRA_HOLDS, parsePyraMove, pyraColours, pyraFromColours, pyraPiece, pyraScrambleTokens, pyraSolved, solvePyra } from "../web/src/pyraminx.js";
 
 const solved = pyraSolved();
 const run = (alg: string, from = solved) => applyAlgorithm(from, alg.split(" ").filter(Boolean).map((t) => parsePyraMove(t)!));
@@ -51,4 +51,28 @@ test("scrambled Pyraminxes are solved in at most 4 tip turns and 11 layer turns"
     assert.ok(moves.filter((t) => t !== t.toLowerCase()).length <= 11, `${moves.length}: ${scramble}`);
   }
   assert.deepEqual(solvePyra(solved), []);
+});
+
+test("a Pyraminx held another way is solved as held, with no whole-puzzle turns", () => {
+  const rand = rng(9);
+  for (const hold of PYRA_HOLDS.slice(1, 13)) {
+    const cube = run([...hold, ...pyraScrambleTokens(rand)].join(" "));
+    const moves = solvePyra(cube);
+    assert.ok(moves, hold.join(" "));
+    assert.ok(moves.every((t) => !t.startsWith("[")));
+    assert.ok(isSolved(run(moves.join(" "), cube)), hold.join(" "));
+  }
+  // [U] three times is the puzzle as it was
+  assert.equal(pyraColours(run("[U] [U] [U]")), pyraColours(solved));
+  assert.ok(isSolved(run("[R] [B]'")));
+});
+
+test("Pyraminx turns typed twice merge in thirds, whole turns too", async () => {
+  const { pushMove, setPyraStudy } = await import("../web/src/study.js");
+  setPyraStudy(true);
+  assert.deepEqual(pushMove(["R"], "R"), ["R'"]);
+  assert.deepEqual(pushMove(["R"], "R'"), []);
+  assert.deepEqual(pushMove(["[U]"], "[U]"), ["[U]'"]);
+  assert.deepEqual(pushMove(["[U]"], "U"), ["[U]", "U"]);
+  setPyraStudy(false);
 });

@@ -7,7 +7,7 @@
  * the view, the study and saving treat it like any other puzzle there.
  */
 import type { Color, Face } from "./api.js";
-import { addSnapPoints, along, applyAlgorithm, applyMove, isSolved, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { addSnapPoints, along, applyAlgorithm, applyMove, isSolved, rotateAbout, type Move, type Sticker, type Vec } from "./cubeState.js";
 
 const S6 = Math.sqrt(6), S2 = Math.sqrt(2);
 /** The corners, 3 from the middle: standing on its bottom face with a face towards the viewer. */
@@ -56,15 +56,33 @@ export function pyraSolved(): Sticker[] {
   return SOLVED.map((s) => ({ ...s }));
 }
 
-/** A Pyraminx token as a move: U L R B (layer) or u l r b (tip), ′ counter-clockwise. */
+/**
+ * A Pyraminx token as a move: U L R B (layer), u l r b (tip) or [U] [L] [R] [B] (the whole puzzle
+ * about that corner), ′ counter-clockwise.
+ */
 export function parsePyraMove(token: string): Move | null {
-  const m = /^([ULRBulrb])('?)$/.exec(token.trim());
+  const m = /^(\[([ULRB])\]|([ULRBulrb]))('?)$/.exec(token.trim());
   if (!m) return null;
-  const corner = m[1]!.toUpperCase() as Corner;
-  const tip = m[1] !== corner;
-  const q = m[2] ? -1 : 1;
+  const letter = m[2] ?? m[3]!;
+  const corner = letter.toUpperCase() as Corner;
+  const depth = m[2] ? -Infinity : letter !== corner ? TIP_CUT : LAYER_CUT;
+  const q = m[4] ? -1 : 1;
   // clockwise as seen from the corner: a negative turn about the axis pointing out through it
-  return { token, face: corner as Face, axis: 0, layers: [], q, angle: (-q * 2 * Math.PI) / 3, k: unit(PYRA_CORNERS[corner]), depth: tip ? TIP_CUT : LAYER_CUT };
+  return { token, face: corner as Face, axis: 0, layers: [], q, angle: (-q * 2 * Math.PI) / 3, k: unit(PYRA_CORNERS[corner]), depth };
+}
+
+/** The whole-puzzle turns ([U] [U]′ …), and every way to hold the puzzle as none, one or two of them. */
+export const PYRA_ROTATIONS = CORNERS.flatMap((c) => [`[${c}]`, `[${c}]'`]);
+export const PYRA_HOLDS: string[][] = [[], ...PYRA_ROTATIONS.map((t) => [t]), ...PYRA_ROTATIONS.flatMap((a) => PYRA_ROTATIONS.map((b) => [a, b]))];
+
+/**
+ * What a drag from this sticker can turn: a tip turns alone, a corner's centre piece turns its
+ * layer, an edge either of its two corners' layers. Each with the turn's axis and depth.
+ */
+export function pyraGrips(p: Vec): { letter: string; k: Vec; depth: number }[] {
+  const piece = pyraPiece(p);
+  const corners = piece.slice(1).split("") as Corner[];
+  return corners.map((c) => (piece[0] === "t" ? { letter: c.toLowerCase(), k: unit(PYRA_CORNERS[c]), depth: TIP_CUT } : { letter: c, k: unit(PYRA_CORNERS[c]), depth: LAYER_CUT }));
 }
 
 /** Which piece a sticker (by its middle) is on: a tip, a corner's centre piece, or an edge between two corners. */
@@ -170,7 +188,31 @@ const step = (state: string[], d: Int16Array) => {
  * Pyraminx this model knows.
  */
 export function solvePyra(stickers: Sticker[]): string[] | null {
+  // held another way (after [U] and the like): solve it turned back to the usual way, then name
+  // each turn by the corner it is about in the puzzle as held
   const t = (tables ??= build());
+  for (const hold of PYRA_HOLDS) {
+    const turned = applyAlgorithm(stickers, hold.map((tok) => parsePyraMove(tok)!));
+    if (!usualWay(turned)) continue;
+    const moves = solveUsual(turned, t);
+    if (!moves) return null;
+    // a turn about corner c of the turned puzzle is about the corner the hold took to c
+    const back = (v: Vec) => hold.slice().reverse().reduce((q, tok) => { const mv = parsePyraMove(tok)!; return rotateAbout(q, mv.k!, -mv.angle); }, v);
+    const rename = (c: Corner) => CORNERS.find((d) => back(PYRA_CORNERS[c]).every((x, i) => Math.abs(x - PYRA_CORNERS[d][i]!) < 1e-6))!;
+    const all = moves.map((tok) => { const c = rename(tok[0]!.toUpperCase() as Corner); return (tok[0] === tok[0]!.toLowerCase() ? c.toLowerCase() : c) + tok.slice(1); });
+    // checked on the stickers themselves
+    return isSolved(applyAlgorithm(stickers, all.map((tok) => parsePyraMove(tok)!))) ? all : null;
+  }
+  return null;
+}
+
+/** Held the usual way: each corner's centre piece has that corner's three colours (it never leaves its corner). */
+function usualWay(stickers: Sticker[]): boolean {
+  const colours = (st: Sticker[], c: Corner) => st.filter((s) => pyraPiece(s.p) === `a${c}`).map((s) => s.c).sort().join("");
+  return CORNERS.every((c) => colours(stickers, c) === colours(SOLVED, c));
+}
+
+function solveUsual(stickers: Sticker[], t: Tables): string[] | null {
   let state = new Array<string>(t.places.length);
   for (const s of stickers) {
     const slot = t.slotOf.get(keyOf(s));
@@ -207,8 +249,6 @@ export function solvePyra(stickers: Sticker[]): string[] | null {
     }
     return false;
   };
-  for (let bound = h(state); bound <= 12; bound++) if (search(state, bound, "")) break;
-  const all = [...out, ...path];
-  // checked on the stickers themselves
-  return isSolved(applyAlgorithm(stickers, all.map((tok) => parsePyraMove(tok)!))) ? all : null;
+  for (let bound = h(state); bound <= 12; bound++) if (search(state, bound, "")) return [...out, ...path];
+  return null;
 }

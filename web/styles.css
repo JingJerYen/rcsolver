@@ -488,8 +488,8 @@ html.speed-open,html.speed-open body{overflow:hidden}
 .hover-tip.on{opacity:1}
 /* the 2×2 Magic Wheel: no share (a link carries no wheels); its keypad switches layers / wheels */
 #solveView.wheel #shareSolve{display:none}
-/* the Pyraminx: its own keypad (U L R B, tips u l r b); no hand turns, x y z, share or marks */
-#solveView.pyra #twistBtn,#solveView.pyra #studyTurns,#solveView.pyra #shareSolve,#solveView.pyra #studyFocusBtn{display:none}
+/* the Pyraminx: its own keypad (U L R B, tips u l r b); no x y z, share or marks */
+#solveView.pyra #studyTurns,#solveView.pyra #shareSolve,#solveView.pyra #studyFocusBtn{display:none}
 .keyset{display:flex;align-self:center;justify-self:center;margin:0 auto 6px;width:max-content;background:#dfe7f1;border-radius:20px;padding:3px}
 .keyset button{height:34px;padding:0 18px;border:0;border-radius:17px;background:transparent;color:#39536e;font-size:14px;font-weight:700}
 .keyset button[aria-selected="true"]{background:#fff;color:#195ed6;box-shadow:0 1px 3px rgba(0,0,0,.12)}

@@ -5,7 +5,7 @@
 import { hexOf } from "./net.js";
 import type { Face } from "./api.js";
 import { FACE_AXES, FACE_ORDER, along, applyMove, layerValues, rotateAbout, rotateVec, type Move, type Sticker, type Vec } from "./cubeState.js";
-import { pyraPiece } from "./pyraminx.js";
+import { pyraGrips, pyraPiece } from "./pyraminx.js";
 
 const DEFAULT_VIEW = { yaw: 0.62, pitch: 0.52 };
 const PYRA_VIEW = { yaw: 0.55, pitch: 0.6 };
@@ -124,15 +124,19 @@ export class CubeView {
     spin: { last: number | null } | null;
     /** Started on a Magic Wheel's wedge: the spin turns that face's wheel, not its layer. */
     wheel: boolean;
+    /** Started on a Pyraminx sticker: its index. */
+    pyra?: number;
   } | null = null;
   /** The layer being turned by hand and how far, in radians; `spin` for a whole face turned round its middle. */
-  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean; wheel?: boolean } | null = null;
+  private twist: { axis: 0 | 1 | 2; layers: number[]; angle: number; spin?: boolean; wheel?: boolean; k?: Vec; depth?: number; letter?: string } | null = null;
   /** Speed mode: a drag that starts on a face's centre turns that whole face, following the finger round. */
   centreSpin = false;
   /** Asked before a hand turn starts; false leaves the drag to turn the view. */
   canTwist: () => boolean = () => true;
   /** A hand turn that landed: its axis, layer and quarter turns (right-hand rule), already applied. */
   onTwist: ((axis: 0 | 1 | 2, layer: number, quarters: number, wheel: boolean) => void) | null = null;
+  /** A Pyraminx hand turn that landed, as its token (U, l′ …), already applied. */
+  onTurnToken: ((token: string) => void) | null = null;
   private w = 300;
   private h = 300;
   private yaw = DEFAULT_VIEW.yaw;
@@ -262,6 +266,12 @@ export class CubeView {
       const r = canvas.getBoundingClientRect();
       if (this.twisting) this.settling?.();
       const key = this.twisting && !this.anim && !this.twist ? this.stickerAt(e.clientX - r.left, e.clientY - r.top) : null;
+      const pyra = key ? this.indexAt.get(key) : undefined;
+      if (key && this.stickers[0]?.t && pyra !== undefined && this.canTwist()) {
+        this.grab = { x: e.clientX, y: e.clientY, c: [0, 0, 0], n: [0, 0, 0], turn: null, wheel: false, spin: null, pyra };
+        this.drag = null;
+        return;
+      }
       if (key && this.canTwist()) {
         const [c, n] = key.split("|").map((v) => v.split(",").map(Number) as Vec) as [Vec, Vec];
         // a Magic Wheel's wedge spins its wheel round; any other sticker drags its layer
@@ -444,6 +454,10 @@ export class CubeView {
    */
   private turnByHand(x: number, y: number) {
     const g = this.grab!;
+    if (g.pyra !== undefined) {
+      this.pyraByHand(x, y);
+      return;
+    }
     if (g.spin) {
       this.spinByHand(x, y);
       return;
@@ -479,6 +493,39 @@ export class CubeView {
       const len = Math.hypot(...sv) || 1;
       g.turn = { axis, layer: g.c[axis], dir: [sv[0] / len, sv[1] / len], pxPerRad: len };
       this.twist = { axis, layers: [g.c[axis]], angle: 0 };
+    }
+    const t = g.turn!;
+    this.twist!.angle = (dx * t.dir[0] + dy * t.dir[1]) / t.pxPerRad;
+    this.draw();
+  }
+
+  /**
+   * A Pyraminx turned by hand. The first few pixels pick, of the turns the sticker can take part in
+   * (`pyraGrips`), the one that moves it most nearly the way the finger goes; then the angle follows
+   * the finger, so the sticker stays under it.
+   */
+  private pyraByHand(x: number, y: number) {
+    const g = this.grab!;
+    const dx = x - g.x, dy = y - g.y;
+    if (!g.turn) {
+      if (Math.hypot(dx, dy) < 8) return;
+      const b = this.basis();
+      const scale = this.scale();
+      const screen = (v: Vec): [number, number] => [along(v, b.right) * scale, -along(v, b.up) * scale];
+      const p = this.stickers[g.pyra!]!.p;
+      let best: { fit: number; dir: [number, number]; len: number; grip: ReturnType<typeof pyraGrips>[number] } | null = null;
+      for (const grip of pyraGrips(p)) {
+        const k = grip.k;
+        // the sticker's velocity for one radian a unit of time about k: its screen length is pixels per radian
+        const sv = screen([k[1] * p[2] - k[2] * p[1], k[2] * p[0] - k[0] * p[2], k[0] * p[1] - k[1] * p[0]]);
+        const len = Math.hypot(...sv);
+        if (len < 1e-6) continue;
+        const fit = Math.abs(dx * sv[0] + dy * sv[1]) / len / Math.hypot(dx, dy);
+        if (!best || fit > best.fit) best = { fit, dir: [sv[0] / len, sv[1] / len], len, grip };
+      }
+      if (!best) return;
+      g.turn = { axis: 0, layer: 0, dir: best.dir, pxPerRad: best.len };
+      this.twist = { axis: 0, layers: [], angle: 0, k: best.grip.k, depth: best.grip.depth, letter: best.grip.letter };
     }
     const t = g.turn!;
     this.twist!.angle = (dx * t.dir[0] + dy * t.dir[1]) / t.pxPerRad;
@@ -547,6 +594,10 @@ export class CubeView {
   private settleTwist(back = false) {
     const tw = this.twist;
     if (!tw) return;
+    if (tw.k) {
+      this.settlePyra(back);
+      return;
+    }
     // a wheel settles on a whole wedge; anything else on a quarter turn
     const quarter = tw.wheel ? (2 * Math.PI) / this.wheelWedges : Math.PI / 2;
     const whole = tw.wheel ? this.wheelWedges : 4;
@@ -582,6 +633,39 @@ export class CubeView {
     this.raf = requestAnimationFrame(tick);
   }
 
+  /** A Pyraminx turn let go: settle on the nearest third of a turn either way (or back), and report it. */
+  private settlePyra(back: boolean) {
+    const tw = this.twist!;
+    const third = (2 * Math.PI) / 3;
+    const q = back ? 0 : Math.max(-1, Math.min(1, Math.round(tw.angle / third)));
+    const from = tw.angle;
+    const to = q * third;
+    const start = performance.now();
+    const ms = 90 + 120 * Math.min(1, Math.abs(to - from) / third);
+    const finish = () => {
+      cancelAnimationFrame(this.raf);
+      this.settling = null;
+      this.twist = null;
+      if (q !== 0) {
+        this.setState(this.size, applyMove(this.stickers, { token: "", face: "U", axis: 0, layers: [], q: 1, angle: to, k: tw.k, depth: tw.depth }));
+        // clockwise as seen from the corner is the negative turn
+        this.onTurnToken?.(tw.letter! + (q < 0 ? "" : "'"));
+      } else this.draw();
+    };
+    const tick = (now: number) => {
+      const f = Math.min(1, (now - start) / ms);
+      tw.angle = from + (to - from) * (1 - (1 - f) * (1 - f));
+      this.draw(now);
+      if (f < 1) {
+        this.raf = requestAnimationFrame(tick);
+        return;
+      }
+      finish();
+    };
+    this.settling = finish;
+    this.raf = requestAnimationFrame(tick);
+  }
+
   getState(): Sticker[] {
     return this.stickers;
   }
@@ -601,7 +685,8 @@ export class CubeView {
    */
   homeCloseness(turn: (v: Vec) => Vec): number {
     const b = this.basis();
-    const d = cameraAt(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch);
+    const home = this.homeView();
+    const d = cameraAt(home.yaw, home.pitch);
     const dot = (a: Vec, c: Vec) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
     return dot(turn(b.right), d.right) + dot(turn(b.up), d.up) + dot(turn(b.view), d.view);
   }
@@ -614,8 +699,9 @@ export class CubeView {
     cancelAnimationFrame(this.homeRaf);
     const b = this.basis();
     const from = { right: turn(b.right), up: turn(b.up), view: turn(b.view) };
-    this.yaw = DEFAULT_VIEW.yaw;
-    this.pitch = DEFAULT_VIEW.pitch;
+    const home = this.homeView();
+    this.yaw = home.yaw;
+    this.pitch = home.pitch;
     const to = this.basis();
     if (ms <= 0) {
       this.homing = null;
@@ -641,9 +727,13 @@ export class CubeView {
   }
 
   /** The usual camera: from the front right, or from the front left to see the left face. */
+  /** The usual angle: a Pyraminx shows its front face (corners U L R) and, past R, a little of the face behind. */
+  private homeView() {
+    return this.stickers[0]?.t ? PYRA_VIEW : DEFAULT_VIEW;
+  }
+
   resetView(side: "right" | "left" = "right") {
-    // a Pyraminx shows its front face (corners U L R) and, past R, a little of the face behind
-    const view = this.stickers[0]?.t ? PYRA_VIEW : DEFAULT_VIEW;
+    const view = this.homeView();
     this.yaw = side === "left" ? -view.yaw : view.yaw;
     this.pitch = view.pitch;
     if (this.free) this.free = { right: [1, 0, 0], up: [0, 1, 0], view: [0, 0, 1] };
