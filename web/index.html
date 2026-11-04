@@ -266,11 +266,17 @@
     <div class="leave-row"><button type="button" id="leaveCancel">取消</button><button type="button" class="primary" id="leaveGo">回首頁</button></div>
   </div>
 </dialog>
+<dialog id="macroSheet" class="sheet" aria-label="自訂公式">
+  <div class="sheet-body">
+    <span class="sheet-grip" aria-hidden="true"></span>
+    <div class="macro-groups" id="macroGroups"></div>
+    <div class="macro-list" id="macroList"></div>
+  </div>
+</dialog>
 <dialog id="macroDialog" class="dialog" aria-label="自訂公式">
   <div class="dialog-body">
-    <div class="macro-head"><p class="dialog-title" id="macroTitle">自訂公式</p><button type="button" class="icon-btn small-btn" id="macroClose" aria-label="取消"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>
-    <p class="muted" id="macroNote"></p>
-    <div class="macro-rows" id="macroRows"></div>
+    <div class="macro-name-row"><span class="k macro macro-preview" id="macroPreview" aria-hidden="true"></span><input id="macroName" type="text" autocomplete="off" maxlength="40"></div>
+    <textarea id="macroSeq" rows="3" placeholder="R U R' U'" autocomplete="off" autocapitalize="characters" spellcheck="false"></textarea>
     <div class="macro-ai" id="macroAi">
       <button type="button" class="macro-ai-toggle" id="macroAiToggle" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" fill="currentColor"/></svg><span id="macroAiLabel">問 AI</span><svg class="macro-ai-chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="macro-ai-box" id="macroAiBox">
@@ -279,8 +285,12 @@
       </div>
       <p class="macro-error hidden" id="macroAiError" role="status"></p>
     </div>
-    <p class="macro-error hidden" id="macroError"></p>
-    <button type="button" class="primary macro-save" id="macroSave">儲存</button>
+    <div class="macro-actions">
+      <button type="button" class="round danger" id="macroDelete" aria-label="刪除"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <span class="grow"></span>
+      <button type="button" class="round" id="macroClose" aria-label="取消"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      <button type="button" class="round ok" id="macroSave" aria-label="儲存"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
   </div>
 </dialog>
 <dialog id="tourDialog" class="tour" aria-label="說明">

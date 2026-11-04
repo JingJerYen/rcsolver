@@ -309,6 +309,38 @@ th{color:#607189;font-weight:600}
 .macro-line input.bad{border:2px solid #e03131;background:#fdecea}
 .macro-line .macro-del{width:36px;height:36px;padding:0;border:0;background:none;color:#9aa6b5;display:flex;align-items:center;justify-content:center}
 .macro-error{margin:0;font-size:13px;color:#c22d2d}
+/* the list of your own sequences, a sheet from the bottom: group tabs, then one row each */
+.sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:100%;max-width:520px;max-height:85vh;border:0;border-radius:22px 22px 0 0;padding:0;background:#fff;color:#192a40;box-shadow:0 -8px 30px rgba(0,0,0,.18)}
+.sheet::backdrop{background:rgba(25,42,64,.45)}
+.sheet-body{display:flex;flex-direction:column;gap:12px;padding:8px 14px max(14px,env(safe-area-inset-bottom));max-height:85vh;box-sizing:border-box}
+.sheet-grip{align-self:center;width:40px;height:5px;border-radius:3px;background:#cdd7e5;flex:none}
+.macro-groups{display:flex;gap:6px;overflow-x:auto;flex:none;padding-bottom:2px}
+.mg{flex:none;height:38px;padding:0 16px;border-radius:19px;border:1px solid #cdd7e5;background:#fff;color:#39536e;font:700 15px system-ui,"Noto Sans TC",sans-serif}
+.mg[aria-pressed=true]{background:#192a40;border-color:#192a40;color:#fff}
+.mg-add{width:38px;padding:0;border-style:dashed;color:#5d6b7d;font-size:20px;font-weight:400}
+.mg-new{flex:none;width:110px;height:38px;box-sizing:border-box;border:1.5px solid #195ed6;border-radius:19px;padding:0 12px;font:16px system-ui,"Noto Sans TC",sans-serif}
+.macro-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.ml-row{display:flex;align-items:center;gap:10px;min-height:60px;border-bottom:1px solid #edf1f6}
+.ml-row .k.macro{flex:none;width:54px;height:46px}
+.ml-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ml-text b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-text span{font:600 13px ui-monospace,monospace;color:#5d6b7d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-pin,.ml-edit{flex:none;width:44px;height:44px;padding:0;border-radius:50%;border:0;background:transparent;color:#9aa6b5;display:flex;align-items:center;justify-content:center}
+.ml-pin[aria-pressed=true]{background:#fff7df;color:#b07d00;--pin-fill:currentColor}
+.ml-edit{color:#5d6b7d}
+.ml-add{margin-top:10px;flex:none;height:50px;border-radius:12px;border:1px dashed #c9a447;background:#fff;color:#8a6d1e;font-size:24px}
+/* one sequence: the key it makes beside its name, the moves, 問 AI, then delete / cancel / save */
+.macro-name-row{display:flex;gap:10px;align-items:center}
+.macro-name-row .k.macro{flex:none;width:54px;height:46px;display:flex;align-items:center;justify-content:center}
+#macroName{flex:1;min-width:0;height:46px;box-sizing:border-box;border:1px solid #cdd7e5;border-radius:10px;padding:0 12px;font:700 17px system-ui,"Noto Sans TC",sans-serif}
+#macroSeq{width:100%;box-sizing:border-box;font:600 16px ui-monospace,monospace}
+#macroSeq.bad{border:2px solid #e03131;background:#fdecea}
+.macro-actions{display:flex;gap:10px;align-items:center}
+.macro-actions .grow{flex:1}
+.macro-actions .round{width:46px;height:46px;padding:0;border-radius:50%;border:1px solid #cdd7e5;background:#fff;color:#5d6b7d;display:flex;align-items:center;justify-content:center}
+.macro-actions .danger{border-color:#f0b4b9;color:#c92a2a}
+.macro-actions .ok{width:64px;border-radius:23px;border:0;background:#195ed6;color:#fff}
+.macro-actions .ok:disabled{opacity:.4}
 .macro-save{min-height:48px;border-radius:24px;font-weight:700}
 .macro-line input.bad:focus{outline:2px solid #e03131;outline-offset:0}
 /* study mode can fold away the slider and play buttons so the keys sit higher */
