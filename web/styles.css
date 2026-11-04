@@ -318,6 +318,7 @@ th{color:#607189;font-weight:600}
 .mg{flex:none;height:38px;padding:0 16px;border-radius:19px;border:1px solid #cdd7e5;background:#fff;color:#39536e;font:700 15px system-ui,"Noto Sans TC",sans-serif}
 .mg[aria-pressed=true]{background:#192a40;border-color:#192a40;color:#fff}
 .mg-add{width:38px;padding:0;border-style:dashed;color:#5d6b7d;font-size:20px;font-weight:400}
+.mg-del{width:38px;padding:0;border-color:#f0b4b9;color:#c92a2a;display:flex;align-items:center;justify-content:center}
 .mg-new{flex:none;width:110px;height:38px;box-sizing:border-box;border:1.5px solid #195ed6;border-radius:19px;padding:0 12px;font:16px system-ui,"Noto Sans TC",sans-serif}
 .macro-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .ml-row{display:flex;align-items:center;gap:10px;min-height:60px;border-bottom:1px solid #edf1f6}
