@@ -1729,6 +1729,8 @@ window.addEventListener("popstate", () => {
   if (dialogs.length) dialogs[dialogs.length - 1]!.close();
   else if (document.documentElement.classList.contains("speed-open")) $("speedClose").click();
   else if (current === "learnView") $("learnBack").click();
+  // a study opened from a solve goes back to that solve, as its own back button does
+  else if (current === "solveView" && studying && studyFrom) $("backToSolve").click();
   // (asks first, as the home button does, when something unsaved would be lost)
   else if (current !== "setup") $("home").click();
   syncBack();
