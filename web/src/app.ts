@@ -1700,6 +1700,40 @@ $("leaveCancel").onclick = () => leaveDialog.close();
 leaveDialog.addEventListener("click", (e) => {
   if (e.target === leaveDialog) leaveDialog.close();
 });
+
+/*
+ * The phone's back button (and the browser's): anything open over the home page (a screen, a
+ * dialog, speed mode) holds one step in the browser's history, so back closes it as its own close
+ * button would, instead of leaving the site. Back again from the home page leaves as usual.
+ */
+const away = () => !!document.querySelector("dialog[open]") || document.documentElement.classList.contains("speed-open") || $("setup").classList.contains("hidden");
+let backing = false;
+function syncBack() {
+  if (backing) return;
+  const ours = (history.state as { rcsolver?: boolean } | null)?.rcsolver === true;
+  if (away() && !ours) history.pushState({ rcsolver: true }, "");
+  else if (!away() && ours) {
+    // closed by its own button: take the step back out, so the next back leaves
+    backing = true;
+    history.back();
+  }
+}
+window.addEventListener("popstate", () => {
+  if (backing) {
+    backing = false;
+    syncBack();
+    return;
+  }
+  const dialogs = [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")];
+  const current = SCREENS.find((s) => !$(s).classList.contains("hidden"));
+  if (dialogs.length) dialogs[dialogs.length - 1]!.close();
+  else if (document.documentElement.classList.contains("speed-open")) $("speedClose").click();
+  else if (current === "learnView") $("learnBack").click();
+  // (asks first, as the home button does, when something unsaved would be lost)
+  else if (current !== "setup") $("home").click();
+  syncBack();
+});
+new MutationObserver(syncBack).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["open", "class"] });
 $("tips").onclick = showTips;
 $("shoot").onclick = () => {
   if (nativeCamera) {
@@ -2004,7 +2038,7 @@ async function openSharedLink() {
     }
     // an old teaching link counted steps of a solve that is gone: it opens at the scramble
     openStudy({ ts: Date.now(), size: z.size, faces: cubeAtStep(z.size, z.faces, moves, z.teach ? 0 : z.index), moves: [], index: 0, study: true });
-    history.replaceState(null, "", location.pathname);
+    history.replaceState(history.state, "", location.pathname);
     return;
   }
   const parsed = q.get("s") ? fromFacelets(q.get("s")!) : null;
@@ -2018,7 +2052,7 @@ async function openSharedLink() {
   }
   stopPlaying();
   openStudy({ ts: Date.now(), size: parsed.size, faces: cubeAtStep(parsed.size, parsed.net, ok ? tokens : [], Number(q.get("i") ?? 0) || 0), moves: [], index: 0, study: true });
-  history.replaceState(null, "", location.pathname);
+  history.replaceState(history.state, "", location.pathname);
 }
 // LINE's in-app browser has no live camera, but it opens any link carrying this flag in the
 // phone's real browser: send ourselves there once, keeping the shared cube in the hash.
