@@ -1166,8 +1166,8 @@ interface MacroBook {
   /** The group the list shows. */
   current: string;
   list: Macro[];
-  /** The built-in groups were added (once; deleting them later keeps them gone). */
-  builtIn?: boolean;
+  /** The built-in groups were added (once; deleting them later keeps them gone); 2 once they carry their standard names. */
+  builtIn?: boolean | 2;
 }
 /** Before groups: up to five { name, seq }, all of them on the row. */
 const OLD_MACRO_KEY = "rcsolver.macros";
@@ -1182,7 +1182,17 @@ function withBuiltIn(b: MacroBook): MacroBook {
     b.groups.push(group);
     for (const [name, seq] of seqs) b.list.push({ id: ++id, group, name, seq, pinned: 0 });
   }
-  b.builtIn = true;
+  b.builtIn = 2;
+  return b;
+}
+/** Built-in sequences added before they had their standard names get them (matched by group and moves). */
+function renameBuiltIn(b: MacroBook): MacroBook {
+  for (const [group, seqs] of BUILT_IN)
+    for (const m of b.list) {
+      const named = m.group === group && seqs.find(([, seq]) => seq === m.seq);
+      if (named) m.name = named[0];
+    }
+  b.builtIn = 2;
   return b;
 }
 function loadMacros(): MacroBook {
@@ -1190,7 +1200,7 @@ function loadMacros(): MacroBook {
     const raw = localStorage.getItem(MACRO_KEY);
     if (raw) {
       const b = JSON.parse(raw) as MacroBook;
-      if (Array.isArray(b.groups) && Array.isArray(b.list)) return b.builtIn ? b : withBuiltIn(b);
+      if (Array.isArray(b.groups) && Array.isArray(b.list)) return b.builtIn === 2 ? b : b.builtIn ? renameBuiltIn(b) : withBuiltIn(b);
     }
     const old = localStorage.getItem(OLD_MACRO_KEY);
     const list = old === null ? null : (JSON.parse(old) as { name: string; seq: string }[]);
@@ -1218,8 +1228,8 @@ function storeMacros() {
   if (macroSheet.open) renderMacroSheet();
 }
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-/** What a key shows: the name's first two characters. */
-const shortName = (name: string) => [...name.replace(/\s+/g, "")].slice(0, 2).join("") || "?";
+/** What a key shows: the first two characters of the name's first word ("Sune (OLL 27)" → "Su", "H（OLL 21）" → "H"). */
+const shortName = (name: string) => [...(name.trim().split(/[\s（(]/)[0] ?? "")].slice(0, 2).join("") || "?";
 /** Whether the puzzle on screen has every move of a sequence. */
 const macroFits = (m: Macro) => {
   const read = readMoves(tokenize(m.seq), net?.size ?? 3);

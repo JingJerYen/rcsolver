@@ -5,7 +5,9 @@ import { tr } from "./i18n.js";
 
 /*
  * Built in, each checked on the model (tests/macros.test.ts): the beginner's method as the lessons
- * teach it, two-look OLL, the usual PLLs written with face turns only, and two Pyraminx edge cycles.
+ * teach it (the lessons' own names), two-look OLL (the usual English names and OLL numbers; the
+ * Chinese beside them is a translation, not a standard), the usual PLLs by their standard names,
+ * written with face turns only, and two Pyraminx edge cycles.
  */
 export const BUILT_IN: [string, [string, string][]][] = [
   [tr("入門", "Beginner"), [
@@ -19,16 +21,16 @@ export const BUILT_IN: [string, [string, string][]][] = [
     [tr("換邊", "Swap edges"), "R U' R U R U R U' R' U' R2"],
   ]],
   ["OLL", [
-    [tr("一字", "Line"), "F R U R' U' F'"],
-    [tr("L字", "L"), "F U R U' R' F'"],
-    [tr("點", "Dot"), "F R U R' U' F' U2 F U R U' R' F'"],
-    [tr("小魚", "Sune"), "R U R' U R U2 R'"],
-    [tr("反小魚", "Antisune"), "R U2 R' U' R U' R'"],
-    ["H", "R U R' U R U' R' U R U2 R'"],
-    ["Pi", "R U2 R2 U' R2 U' R2 U2 R"],
-    [tr("車燈", "Headlights"), "R2 D R' U2 R D' R' U2 R'"],
-    ["T", "Rw U R' U' Rw' F R F'"],
-    [tr("領結", "Bowtie"), "F' Rw U R' U' Rw' F R"],
+    [tr("一字 Line", "Line"), "F R U R' U' F'"],
+    [tr("L字 L-shape", "L-shape"), "F U R U' R' F'"],
+    [tr("點 Dot", "Dot"), "F R U R' U' F' U2 F U R U' R' F'"],
+    [tr("小魚 Sune（OLL 27）", "Sune (OLL 27)"), "R U R' U R U2 R'"],
+    [tr("反小魚 Antisune（OLL 26）", "Antisune (OLL 26)"), "R U2 R' U' R U' R'"],
+    [tr("H（OLL 21）", "H (OLL 21)"), "R U R' U R U' R' U R U2 R'"],
+    [tr("Pi（OLL 22）", "Pi (OLL 22)"), "R U2 R2 U' R2 U' R2 U2 R"],
+    [tr("車燈 Headlights（OLL 23）", "Headlights (OLL 23)"), "R2 D R' U2 R D' R' U2 R'"],
+    [tr("T（OLL 24）", "T (OLL 24)"), "Rw U R' U' Rw' F R F'"],
+    [tr("領結 Bowtie（OLL 25）", "Bowtie (OLL 25)"), "F' Rw U R' U' Rw' F R"],
   ]],
   ["PLL", [
     ["T", "R U R' U' R' F R2 U' R' U' R U R' F'"],
