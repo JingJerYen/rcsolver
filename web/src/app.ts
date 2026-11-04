@@ -18,6 +18,7 @@ import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } fro
 import { studyHint } from "./hint.js";
 import { solveArrows } from "./solvers/arrows.js";
 import { solveWheel } from "./solvers/wheel.js";
+import { BUILT_IN } from "./builtInMacros.js";
 import { PYRA_HOLDS, parsePyraMove, pyraColours, pyraFromColours, pyraScrambleTokens, pyraSolved, solvePyra } from "./pyraminx.js";
 import { initSpeed, renderSpeedCard, speedTest } from "./speedView.js";
 import { initHoverTips } from "./hoverTips.js";
@@ -1165,33 +1166,46 @@ interface MacroBook {
   /** The group the list shows. */
   current: string;
   list: Macro[];
+  /** The built-in groups were added (once; deleting them later keeps them gone). */
+  builtIn?: boolean;
 }
 /** Before groups: up to five { name, seq }, all of them on the row. */
 const OLD_MACRO_KEY = "rcsolver.macros";
 const MACRO_KEY = "rcsolver.macroBook";
 const PIN_MAX = 5;
 const FIRST_GROUP = tr("常用", "Mine");
+/** The built-in groups added to a book (a group already there by that name is left as it is). */
+function withBuiltIn(b: MacroBook): MacroBook {
+  let id = Math.max(0, ...b.list.map((m) => m.id));
+  for (const [group, seqs] of BUILT_IN) {
+    if (b.groups.includes(group)) continue;
+    b.groups.push(group);
+    for (const [name, seq] of seqs) b.list.push({ id: ++id, group, name, seq, pinned: 0 });
+  }
+  b.builtIn = true;
+  return b;
+}
 function loadMacros(): MacroBook {
   try {
     const raw = localStorage.getItem(MACRO_KEY);
     if (raw) {
       const b = JSON.parse(raw) as MacroBook;
-      if (Array.isArray(b.groups) && Array.isArray(b.list)) return b;
+      if (Array.isArray(b.groups) && Array.isArray(b.list)) return b.builtIn ? b : withBuiltIn(b);
     }
     const old = localStorage.getItem(OLD_MACRO_KEY);
     const list = old === null ? null : (JSON.parse(old) as { name: string; seq: string }[]);
-    if (Array.isArray(list)) return { groups: [FIRST_GROUP], current: FIRST_GROUP, list: list.filter((m) => m && typeof m.name === "string" && typeof m.seq === "string").map((m, i) => ({ id: i + 1, group: FIRST_GROUP, name: m.name, seq: m.seq, pinned: i + 1 })) };
+    if (Array.isArray(list)) return withBuiltIn({ groups: [FIRST_GROUP], current: FIRST_GROUP, list: list.filter((m) => m && typeof m.name === "string" && typeof m.seq === "string").map((m, i) => ({ id: i + 1, group: FIRST_GROUP, name: m.name, seq: m.seq, pinned: i + 1 })) });
   } catch {
     /* unreadable: the examples */
   }
-  return {
+  return withBuiltIn({
     groups: [FIRST_GROUP],
     current: FIRST_GROUP,
     list: [
       { id: 1, group: FIRST_GROUP, name: "Sx", seq: "R U R' U'", pinned: 1 },
       { id: 2, group: FIRST_GROUP, name: "Su", seq: "R U R' U R U2 R'", pinned: 2 },
     ],
-  };
+  });
 }
 let book = loadMacros();
 function storeMacros() {
@@ -1254,16 +1268,42 @@ $("studyMacros").onclick = (e) => {
 };
 
 /*
- * The list, from the bottom: the groups as tabs (＋ starts a new one), then the current group's
+ * The list, from the bottom: the groups as tabs (＋ starts a new one; tapping the group already
+ * open renames it, with a bin beside it to delete it), then the current group's
  * sequences, each a key (tap: add it and close), its name and moves, a pin (onto the row; a sixth
  * lets go of the one pinned longest ago) and a pencil; ＋ at the end adds one to this group.
  */
 const macroSheet = $<HTMLDialogElement>("macroSheet");
 let addingGroup = false;
+/** The group being renamed (the open one, tapped again). */
+let editingGroup: string | null = null;
+const BIN_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+/** A name typed into a group tab: Enter or leaving it keeps it; empty or taken leaves things as they were. */
+function groupInput(id: string, keep: (name: string) => void) {
+  const input = $<HTMLInputElement>(id);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    keep(input.value.trim());
+  };
+  input.onblur = finish;
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") finish();
+  };
+}
 function renderMacroSheet() {
   if (!book.groups.includes(book.current)) book.current = book.groups[0] ?? FIRST_GROUP;
   $("macroGroups").innerHTML =
-    book.groups.map((g) => `<button type="button" class="mg" data-group="${esc(g)}" aria-pressed="${g === book.current}">${esc(g)}</button>`).join("") +
+    book.groups
+      .map((g) =>
+        g === editingGroup
+          ? `<input class="mg-new" id="macroGroupEdit" type="text" maxlength="12" value="${esc(g)}" aria-label="${tr("群組的名字", "Group's name")}" enterkeyhint="done" autocomplete="off"><button type="button" class="mg mg-del" data-group-del aria-label="${tr("刪除群組", "Delete group")}">${BIN_ICON}</button>`
+          : `<button type="button" class="mg" data-group="${esc(g)}" aria-pressed="${g === book.current}">${esc(g)}</button>`,
+      )
+      .join("") +
     (addingGroup ? `<input class="mg-new" id="macroGroupNew" type="text" maxlength="12" aria-label="${tr("新群組的名字", "New group's name")}" enterkeyhint="done" autocomplete="off">` : "") +
     `<button type="button" class="mg mg-add" data-group-add aria-label="${tr("新群組", "New group")}">＋</button>`;
   $("macroList").innerHTML =
@@ -1276,39 +1316,68 @@ function renderMacroSheet() {
           `<button type="button" class="ml-edit" data-edit="${m.id}" aria-label="${tr("編輯", "Edit")}">${EDIT_ICON}</button></div>`,
       )
       .join("") + `<button type="button" class="ml-add" data-new aria-label="${tr("新增公式", "New sequence")}">＋</button>`;
-  if (addingGroup) {
-    const input = $<HTMLInputElement>("macroGroupNew");
-    input.focus();
-    const done = () => {
-      if (!addingGroup) return;
+  if (addingGroup)
+    groupInput("macroGroupNew", (name) => {
       addingGroup = false;
-      const name = input.value.trim();
       if (name && !book.groups.includes(name)) {
         book.groups.push(name);
         book.current = name;
         storeMacros();
       } else renderMacroSheet();
-    };
-    input.onblur = done;
-    input.onkeydown = (e) => {
-      if (e.key === "Enter") done();
-    };
+    });
+  if (editingGroup !== null) {
+    const was = editingGroup;
+    groupInput("macroGroupEdit", (name) => {
+      if (editingGroup !== was) return;
+      editingGroup = null;
+      if (name && name !== was && !book.groups.includes(name)) {
+        book.groups = book.groups.map((g) => (g === was ? name : g));
+        for (const m of book.list) if (m.group === was) m.group = name;
+        book.current = name;
+        storeMacros();
+      } else renderMacroSheet();
+    });
   }
+}
+/** Delete the group being renamed, and its sequences (asking first when it has any). */
+function deleteGroup() {
+  const g = editingGroup;
+  if (g === null) return;
+  const count = book.list.filter((m) => m.group === g).length;
+  if (count && !confirm(tr(`刪除「${g}」和裡面 ${count} 條公式？`, `Delete "${g}" and its ${count} sequences?`))) return;
+  editingGroup = null;
+  book.groups = book.groups.filter((x) => x !== g);
+  book.list = book.list.filter((m) => m.group !== g);
+  if (!book.groups.length) book.groups = [FIRST_GROUP];
+  book.current = book.groups[0]!;
+  storeMacros();
 }
 function openMacroSheet() {
   addingGroup = false;
+  editingGroup = null;
   renderMacroSheet();
   macroSheet.showModal();
 }
+// the bin beside a group being renamed keeps the name box from losing focus first (which would end the rename)
+macroSheet.addEventListener("pointerdown", (e) => {
+  if ((e.target as HTMLElement).closest("[data-group-del]")) e.preventDefault();
+});
 macroSheet.addEventListener("click", (e) => {
   if (e.target === macroSheet) return macroSheet.close();
   const b = (e.target as HTMLElement).closest<HTMLElement>("button");
   if (!b) return;
   const id = Number(b.dataset.use ?? b.dataset.pin ?? b.dataset.edit);
   if (b.dataset.group !== undefined) {
+    // the open group again: rename it (or delete it)
+    if (b.dataset.group === book.current) {
+      editingGroup = book.current;
+      renderMacroSheet();
+      return;
+    }
     book.current = b.dataset.group;
     storeMacros();
-  } else if (b.dataset.groupAdd !== undefined) {
+  } else if (b.dataset.groupDel !== undefined) deleteGroup();
+  else if (b.dataset.groupAdd !== undefined) {
     addingGroup = true;
     renderMacroSheet();
   } else if (b.dataset.use) {
