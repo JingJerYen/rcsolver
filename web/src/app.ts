@@ -11,7 +11,7 @@ import type { Cell, Segment } from "./solveAny.js";
 import { chipsFor, describe, focusKeys, segmentAt } from "./guide.js";
 import { fromFacelets } from "./facelets.js";
 import { decodeShare, encodeShare } from "./share.js";
-import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, pointCentres, rotateAbout, rotateVec, toNet, wheelColours, wheelToken, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
+import { applyAlgorithm, centreTurns, fromNet, isSolved, parseAlgorithm, parseMove, parseWheelMove, pointCentres, rotateAbout, rotateVec, toNet, wheelColours, wheelToken, withCentreTurns, withWheels, type Move, type Sticker, type Vec } from "./cubeState.js";
 import { CubeView } from "./cubeView.js";
 import { runTour } from "./tour.js";
 import { axisLabels, initLearn, learnTest, openLessonFrom, renderLearnCard } from "./learnView.js";
@@ -1146,73 +1146,91 @@ $("playToggle").onclick = () => {
 };
 
 /*
- * Your own sequences: up to five named ones (names of at most three characters), kept on this
- * device. A key adds the whole sequence to the moves, written out, so saves, copies and shared
- * links read the same anywhere; it does not merge with the move before it. A sequence with moves
- * this cube size does not have is greyed out.
+ * Your own sequences: as many as wanted, in groups, kept on this device and shared by every
+ * puzzle. Up to five are pinned to the row above Go (yellow keys, the first two characters of the
+ * name); the pencil beside them opens the whole list. A key adds the whole sequence to the moves,
+ * written out, so saves, copies and shared links read the same anywhere; it does not merge with
+ * the move before it. One with moves the puzzle on screen does not have is greyed out.
  */
 interface Macro {
+  id: number;
+  group: string;
   name: string;
   seq: string;
+  /** Pinned to the row: when it was pinned (they line up oldest first); 0 if not. */
+  pinned: number;
 }
-const MACRO_KEY = "rcsolver.macros";
-const MACRO_MAX = 5;
-const MACRO_NAME_MAX = 2;
-const MACRO_EXAMPLES: Macro[] = [
-  { name: "Sx", seq: "R U R' U'" },
-  { name: "Su", seq: "R U R' U R U2 R'" },
-];
-function loadMacros(): Macro[] {
+interface MacroBook {
+  groups: string[];
+  /** The group the list shows. */
+  current: string;
+  list: Macro[];
+}
+/** Before groups: up to five { name, seq }, all of them on the row. */
+const OLD_MACRO_KEY = "rcsolver.macros";
+const MACRO_KEY = "rcsolver.macroBook";
+const PIN_MAX = 5;
+const FIRST_GROUP = tr("常用", "Mine");
+function loadMacros(): MacroBook {
   try {
     const raw = localStorage.getItem(MACRO_KEY);
-    if (raw === null) return MACRO_EXAMPLES;
-    const list = JSON.parse(raw) as Macro[];
-    // names saved before the limit was two characters are cut to it
-    return Array.isArray(list)
-      ? list
-          .filter((m) => m && typeof m.name === "string" && typeof m.seq === "string")
-          .slice(0, MACRO_MAX)
-          .map((m) => ({ name: [...m.name].slice(0, MACRO_NAME_MAX).join(""), seq: m.seq }))
-      : MACRO_EXAMPLES;
+    if (raw) {
+      const b = JSON.parse(raw) as MacroBook;
+      if (Array.isArray(b.groups) && Array.isArray(b.list)) return b;
+    }
+    const old = localStorage.getItem(OLD_MACRO_KEY);
+    const list = old === null ? null : (JSON.parse(old) as { name: string; seq: string }[]);
+    if (Array.isArray(list)) return { groups: [FIRST_GROUP], current: FIRST_GROUP, list: list.filter((m) => m && typeof m.name === "string" && typeof m.seq === "string").map((m, i) => ({ id: i + 1, group: FIRST_GROUP, name: m.name, seq: m.seq, pinned: i + 1 })) };
   } catch {
-    return MACRO_EXAMPLES;
+    /* unreadable: the examples */
   }
+  return {
+    groups: [FIRST_GROUP],
+    current: FIRST_GROUP,
+    list: [
+      { id: 1, group: FIRST_GROUP, name: "Sx", seq: "R U R' U'", pinned: 1 },
+      { id: 2, group: FIRST_GROUP, name: "Su", seq: "R U R' U R U2 R'", pinned: 2 },
+    ],
+  };
 }
-let macros = loadMacros();
-function storeMacros(list: Macro[]) {
-  macros = list;
+let book = loadMacros();
+function storeMacros() {
   try {
-    localStorage.setItem(MACRO_KEY, JSON.stringify(list));
+    localStorage.setItem(MACRO_KEY, JSON.stringify(book));
   } catch {
     /* storage unavailable: kept for this visit */
   }
+  renderMacros();
+  if (macroSheet.open) renderMacroSheet();
 }
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+/** What a key shows: the name's first two characters. */
+const shortName = (name: string) => [...name.replace(/\s+/g, "")].slice(0, 2).join("") || "?";
+/** Whether the puzzle on screen has every move of a sequence. */
+const macroFits = (m: Macro) => {
+  const read = readMoves(tokenize(m.seq), net?.size ?? 3);
+  return !read.bad && read.moves.length > 0;
+};
+const pinnedMacros = () => book.list.filter((m) => m.pinned).sort((a, b) => a.pinned - b.pinned);
+const macroKey = (m: Macro, attr: string) => `<button type="button" class="k macro" ${attr}="${m.id}" aria-label="${esc(`${m.name}: ${m.seq}`)}"${macroFits(m) ? "" : " disabled"}>${esc(shortName(m.name))}</button>`;
 const EDIT_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 7l3 3" stroke="currentColor" stroke-width="2"/></svg>';
+const PIN_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 3h6l-1 6 4 4v2h-5v6l-1 1-1-1v-6H6v-2l4-4z" fill="var(--pin-fill, none)" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 function renderMacros() {
   const row = $("studyMacros");
-  if (!macros.length) {
-    row.innerHTML = `<button type="button" class="k macro-add" data-macro-edit>${tr("＋ 自訂公式", "+ Your own sequence")}</button>`;
-    return;
-  }
-  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-  row.innerHTML =
-    macros
-      .map((m, i) => {
-        const read = readMoves(tokenize(m.seq), net?.size ?? 3);
-        const off = read.bad || !read.moves.length;
-        return `<button type="button" class="k macro" data-macro="${i}" aria-label="${esc(`${m.name}: ${m.seq}`)}"${off ? " disabled" : ""}>${esc(m.name)}</button>`;
-      })
-      .join("") + `<button type="button" class="k macro-edit" data-macro-edit aria-label="${tr("設定自訂公式", "Edit your own sequences")}">${EDIT_ICON}</button>`;
+  const pinned = pinnedMacros();
+  row.innerHTML = pinned.length
+    ? pinned.map((m) => macroKey(m, "data-macro")).join("") + `<button type="button" class="k macro-edit" data-macro-edit aria-label="${tr("自訂公式", "Your own sequences")}">${EDIT_ICON}</button>`
+    : `<button type="button" class="k macro-add" data-macro-edit>${tr("＋ 自訂公式", "+ Your own sequence")}</button>`;
 }
 /** Add a sequence at the end and turn through it quickly. */
-async function runMacro(i: number) {
-  const m = macros[i];
+async function runMacro(id: number) {
+  const m = book.list.find((x) => x.id === id);
   if (!m || !net || !studying || cubeView.animating) return;
   const add = readMoves(tokenize(m.seq), net.size);
   if (add.bad || !add.moves.length) return;
   if (!cutAtCursor()) return;
   const tokens = add.moves.map((mv) => mv.token);
-  macroRuns.push({ name: m.name, start: studyTokens.length, tokens });
+  macroRuns.push({ name: shortName(m.name), start: studyTokens.length, tokens });
   studyTokens = [...studyTokens, ...tokens];
   $<HTMLInputElement>("studyText").value = studyTokens.join(" ");
   const read = readMoves(studyTokens, net.size);
@@ -1231,79 +1249,155 @@ async function runMacro(i: number) {
 $("studyMacros").onclick = (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>("button");
   if (!b) return;
-  if (b.dataset.macroEdit !== undefined) openMacroEditor();
+  if (b.dataset.macroEdit !== undefined) openMacroSheet();
   else if (b.dataset.macro) void runMacro(Number(b.dataset.macro));
 };
 
+/*
+ * The list, from the bottom: the groups as tabs (＋ starts a new one), then the current group's
+ * sequences, each a key (tap: add it and close), its name and moves, a pin (onto the row; a sixth
+ * lets go of the one pinned longest ago) and a pencil; ＋ at the end adds one to this group.
+ */
+const macroSheet = $<HTMLDialogElement>("macroSheet");
+let addingGroup = false;
+function renderMacroSheet() {
+  if (!book.groups.includes(book.current)) book.current = book.groups[0] ?? FIRST_GROUP;
+  $("macroGroups").innerHTML =
+    book.groups.map((g) => `<button type="button" class="mg" data-group="${esc(g)}" aria-pressed="${g === book.current}">${esc(g)}</button>`).join("") +
+    (addingGroup ? `<input class="mg-new" id="macroGroupNew" type="text" maxlength="12" aria-label="${tr("新群組的名字", "New group's name")}" enterkeyhint="done" autocomplete="off">` : "") +
+    `<button type="button" class="mg mg-add" data-group-add aria-label="${tr("新群組", "New group")}">＋</button>`;
+  $("macroList").innerHTML =
+    book.list
+      .filter((m) => m.group === book.current)
+      .map(
+        (m) =>
+          `<div class="ml-row">${macroKey(m, "data-use")}<span class="ml-text"><b>${esc(m.name)}</b><span>${esc(m.seq.replace(/'/g, "′"))}</span></span>` +
+          `<button type="button" class="ml-pin" data-pin="${m.id}" aria-pressed="${m.pinned > 0}" aria-label="${tr("放到外面", "Pin to the row")}">${PIN_ICON}</button>` +
+          `<button type="button" class="ml-edit" data-edit="${m.id}" aria-label="${tr("編輯", "Edit")}">${EDIT_ICON}</button></div>`,
+      )
+      .join("") + `<button type="button" class="ml-add" data-new aria-label="${tr("新增公式", "New sequence")}">＋</button>`;
+  if (addingGroup) {
+    const input = $<HTMLInputElement>("macroGroupNew");
+    input.focus();
+    const done = () => {
+      if (!addingGroup) return;
+      addingGroup = false;
+      const name = input.value.trim();
+      if (name && !book.groups.includes(name)) {
+        book.groups.push(name);
+        book.current = name;
+        storeMacros();
+      } else renderMacroSheet();
+    };
+    input.onblur = done;
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") done();
+    };
+  }
+}
+function openMacroSheet() {
+  addingGroup = false;
+  renderMacroSheet();
+  macroSheet.showModal();
+}
+macroSheet.addEventListener("click", (e) => {
+  if (e.target === macroSheet) return macroSheet.close();
+  const b = (e.target as HTMLElement).closest<HTMLElement>("button");
+  if (!b) return;
+  const id = Number(b.dataset.use ?? b.dataset.pin ?? b.dataset.edit);
+  if (b.dataset.group !== undefined) {
+    book.current = b.dataset.group;
+    storeMacros();
+  } else if (b.dataset.groupAdd !== undefined) {
+    addingGroup = true;
+    renderMacroSheet();
+  } else if (b.dataset.use) {
+    macroSheet.close();
+    void runMacro(id);
+  } else if (b.dataset.pin) {
+    const m = book.list.find((x) => x.id === id)!;
+    if (m.pinned) m.pinned = 0;
+    else {
+      const pinned = pinnedMacros();
+      if (pinned.length >= PIN_MAX) pinned[0]!.pinned = 0;
+      m.pinned = Math.max(0, ...book.list.map((x) => x.pinned)) + 1;
+    }
+    storeMacros();
+  } else if (b.dataset.edit) openMacroEditor(id);
+  else if (b.dataset.new !== undefined) openMacroEditor(null);
+});
+
+/*
+ * One sequence: its name (any length; the key beside it shows what the row will), its moves, and
+ * 問 AI under them. Delete, cancel and save are icons. A move no puzzle has turns the moves red and
+ * keeps it from being saved.
+ */
 const macroDialog = $<HTMLDialogElement>("macroDialog");
-$("macroTitle").textContent = tr("自訂公式", "Your own sequences");
-$("macroNote").textContent = tr(
-  `名字最多 ${MACRO_NAME_MAX} 個字；按下去會把整串轉法加進去，分享和存檔也看得懂。最多 ${MACRO_MAX} 組。`,
-  `Names of up to ${MACRO_NAME_MAX} characters. A key adds its whole sequence to the moves, so saves and shared links read the same anywhere. Up to ${MACRO_MAX}.`,
-);
-$("macroSave").textContent = tr("儲存", "Save");
-function openMacroEditor() {
-  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-  $("macroRows").innerHTML = Array.from({ length: MACRO_MAX }, (_, i) => {
-    const m = macros[i] ?? { name: "", seq: "" };
-    return `<div class="macro-line"><input class="macro-name" maxlength="${MACRO_NAME_MAX}" value="${esc(m.name)}" placeholder="${tr("名字", "Ab")}" aria-label="${tr("名字", "Name")} ${i + 1}" autocomplete="off"><input class="macro-seq" value="${esc(m.seq)}" placeholder="R U R' U'" aria-label="${tr("轉法", "Moves")} ${i + 1}" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="macro-del" data-del aria-label="${tr("刪除這一組", "Delete this one")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div>`;
-  }).join("");
-  checkMacros();
+let editingMacro: number | null = null;
+function openMacroEditor(id: number | null) {
+  editingMacro = id;
+  const m = id === null ? null : book.list.find((x) => x.id === id);
+  $<HTMLInputElement>("macroName").value = m?.name ?? "";
+  $<HTMLTextAreaElement>("macroSeq").value = m?.seq ?? "";
+  $("macroDelete").classList.toggle("hidden", !m);
+  checkMacro();
   resetAi();
   macroDialog.showModal();
 }
-/** Mark what is missing or unreadable; returns the rows to keep, or null while any is wrong. */
-function checkMacros(): Macro[] | null {
-  const out: Macro[] = [];
-  const problems: string[] = [];
-  $("macroRows").querySelectorAll<HTMLElement>(".macro-line").forEach((line, i) => {
-    const nameEl = line.querySelector<HTMLInputElement>(".macro-name")!;
-    const seqEl = line.querySelector<HTMLInputElement>(".macro-seq")!;
-    const name = nameEl.value.trim();
-    const tokens = tokenize(seqEl.value);
-    // any move some cube size has counts: 3R is fine to save for a 5×5
-    const unknown = tokens.filter((t) => readMoves([t], 7).bad);
-    const badName = !name && tokens.length > 0;
-    const badSeq = (name !== "" && !tokens.length) || unknown.length > 0;
-    nameEl.classList.toggle("bad", badName);
-    seqEl.classList.toggle("bad", badSeq);
-    if (unknown.length) problems.push(tr(`第 ${i + 1} 組有看不懂的記號：${unknown.join(" ")}`, `Row ${i + 1} has something that is not a move: ${unknown.join(" ")}`));
-    else if (badName) problems.push(tr(`第 ${i + 1} 組還沒取名字`, `Row ${i + 1} needs a name`));
-    else if (badSeq) problems.push(tr(`第 ${i + 1} 組還沒有轉法`, `Row ${i + 1} needs moves`));
-    if (name && tokens.length && !unknown.length) out.push({ name, seq: tokens.join(" ") });
-  });
-  $("macroError").textContent = problems.join(tr("；", "; "));
-  $("macroError").classList.toggle("hidden", !problems.length);
-  $<HTMLButtonElement>("macroSave").disabled = problems.length > 0;
-  return problems.length ? null : out;
-}
-$("macroRows").oninput = () => void checkMacros();
-$("macroRows").onclick = (e) => {
-  const del = (e.target as HTMLElement).closest<HTMLElement>("[data-del]");
-  if (!del) return;
-  const line = del.parentElement!;
-  line.querySelectorAll("input").forEach((input) => ((input as HTMLInputElement).value = ""));
-  if (line.classList.contains("ai-new")) {
-    line.classList.remove("ai-new");
-    aiRow = -1;
+/** A move some puzzle has: any cube size, the Pyraminx, a Magic Wheel. */
+function knownMove(t: string): boolean {
+  if (parsePyraMove(t) || parseWheelMove(t, 2, 8)) return true;
+  try {
+    const mv = parseMove(t, 7);
+    return mv.layers.length > 0 && mv.layers.every((v) => v !== undefined);
+  } catch {
+    return false;
   }
-  checkMacros();
-};
+}
+/** Mark what is wrong; the sequence to keep, or null while something is. */
+function checkMacro(): { name: string; seq: string } | null {
+  const name = $<HTMLInputElement>("macroName").value.trim();
+  const tokens = tokenize($<HTMLTextAreaElement>("macroSeq").value);
+  const bad = tokens.some((t) => !knownMove(t));
+  $("macroPreview").textContent = name ? shortName(name) : "";
+  $("macroSeq").classList.toggle("bad", bad);
+  const ok = name !== "" && tokens.length > 0 && !bad;
+  $<HTMLButtonElement>("macroSave").disabled = !ok;
+  return ok ? { name, seq: tokens.join(" ") } : null;
+}
+$("macroName").oninput = () => void checkMacro();
+$("macroSeq").oninput = () => void checkMacro();
 $("macroSave").onclick = () => {
-  const list = checkMacros();
-  if (!list) return;
-  storeMacros(list);
-  renderMacros();
+  const v = checkMacro();
+  if (!v) return;
+  const m = book.list.find((x) => x.id === editingMacro);
+  if (m) Object.assign(m, v);
+  else book.list.push({ id: Math.max(0, ...book.list.map((x) => x.id)) + 1, group: book.current, ...v, pinned: 0 });
+  storeMacros();
+  macroDialog.close();
+};
+$("macroDelete").onclick = () => {
+  book.list = book.list.filter((x) => x.id !== editingMacro);
+  storeMacros();
   macroDialog.close();
 };
 $("macroClose").onclick = () => macroDialog.close();
+macroDialog.addEventListener("click", (e) => {
+  if (e.target === macroDialog) macroDialog.close();
+});
+$<HTMLInputElement>("macroName").placeholder = tr("名字", "Name");
+$("macroName").setAttribute("aria-label", tr("名字", "Name"));
+$("macroSeq").setAttribute("aria-label", tr("轉法", "Moves"));
+$("macroDelete").setAttribute("aria-label", tr("刪除", "Delete"));
+$("macroClose").setAttribute("aria-label", tr("取消", "Cancel"));
+$("macroSave").setAttribute("aria-label", tr("儲存", "Save"));
 
 /*
- * "Ask AI" under the rows: one line of plain words goes to the model, with the marked pieces if
+ * 問 AI under the moves: one line of plain words goes to the model, with the marked pieces if
  * any (always: the model ignores them when the words do not mention them). Its answer fills the
- * next empty row, named "AI" and outlined, to keep with Save. Asking again rewrites that same row. Nothing checks what the moves do; unreadable ones turn red like typed ones.
+ * moves (and the name, if there is none yet, with the words asked); Save keeps it. Nothing checks
+ * what the moves do; unreadable ones turn red like typed ones.
  */
-let aiRow = -1;
 function setAiOpen(open: boolean) {
   $("macroAi").classList.toggle("open", open);
   $("macroAiToggle").setAttribute("aria-expanded", String(open));
@@ -1314,7 +1408,6 @@ function aiError(text: string) {
   $("macroAiError").classList.toggle("hidden", !text);
 }
 function resetAi() {
-  aiRow = -1;
   setAiOpen(false);
   aiError("");
   $<HTMLInputElement>("macroAiText").value = "";
@@ -1328,10 +1421,6 @@ async function askAi() {
   const ask = $<HTMLInputElement>("macroAiText").value.trim();
   const send = $<HTMLButtonElement>("macroAiSend");
   if (!ask || !net || send.disabled) return;
-  const lines = [...$("macroRows").querySelectorAll<HTMLElement>(".macro-line")];
-  const empty = (l: HTMLElement) => [...l.querySelectorAll("input")].every((i) => !(i as HTMLInputElement).value.trim());
-  const target = aiRow >= 0 ? aiRow : lines.findIndex(empty);
-  if (target < 0) return aiError(tr(`${MACRO_MAX} 組都滿了，先刪掉一組`, `All ${MACRO_MAX} are taken: delete one first`));
   const marks = studying ? cubeView.markedKeys().map((k) => describeMark(k, net!.size)) : [];
   aiError("");
   send.disabled = true;
@@ -1339,12 +1428,11 @@ async function askAi() {
   try {
     const a = await askMacro(net.size, ask, marks);
     if (!a.moves.trim()) return aiError(a.error || tr("AI 沒有給轉法，換個說法試試", "No sequence came back: try other words"));
-    const line = lines[target]!;
-    line.querySelector<HTMLInputElement>(".macro-name")!.value = "AI";
-    line.querySelector<HTMLInputElement>(".macro-seq")!.value = tokenize(a.moves).join(" ");
-    lines.forEach((l, i) => l.classList.toggle("ai-new", i === target));
-    aiRow = target;
-    checkMacros();
+    $<HTMLTextAreaElement>("macroSeq").value = tokenize(a.moves).join(" ");
+    const name = $<HTMLInputElement>("macroName");
+    if (!name.value.trim()) name.value = ask;
+    setAiOpen(false);
+    checkMacro();
   } catch (err) {
     const code = err instanceof ApiError ? err.code : "";
     aiError(
